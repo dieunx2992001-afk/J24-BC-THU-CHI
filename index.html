@@ -987,7 +987,7 @@ async function handleTPFile(file){
     const rows = await readSheet(file);
     if(!rows || rows.length<11){ toast('File rỗng hoặc không đủ 10 dòng tiêu đề như sao kê TPBank chuẩn.'); return; }
     // Dò vị trí cột theo tên tiêu đề (đề phòng file có thứ tự cột khác) — ưu tiên dòng có "Diễn giải"+"Ghi nợ"
-    let headerIdx = -1, cIdx = {date:0,content:2,debit:3,credit:4,balance:5};
+    let headerIdx = -1, cIdx = {date:0,valueDate:1,content:2,debit:3,credit:4,balance:5};
     for(let i=0;i<12 && i<rows.length;i++){
       const hr = rows[i]; if(!hr) continue;
       const joined = hr.map(c=>String(c||'').toLowerCase()).join('|');
@@ -995,6 +995,7 @@ async function handleTPFile(file){
         headerIdx = i;
         cIdx = {
           date: findCol(hr,['ngày giao dịch','ngay giao dich']),
+          valueDate: findCol(hr,['ngày giá trị','ngay gia tri','value date']),
           content: findCol(hr,['diễn giải','dien giai']),
           debit: findCol(hr,['ghi nợ','ghi no']),
           credit: findCol(hr,['ghi có','ghi co']),
@@ -1033,7 +1034,10 @@ async function handleTPFile(file){
       }
       const branch = TID_MAP[tid] || '';
       if(!branch) noTid++;
-      TP_STAGE.push({k, content, debit, credit, balance, tid, kdate, day, month, branch});
+      // Ngày giá trị (Value Date) — ngày tiền thực sự ghi vào tài khoản
+      const valueDateRaw = cIdx.valueDate>-1 ? row[cIdx.valueDate] : null;
+      const valueDate = valueDateRaw ? (excelDateToISO(valueDateRaw)||String(valueDateRaw)) : kdate;
+      TP_STAGE.push({k, content, debit, credit, balance, tid, kdate, valueDate, day, month, branch});
       candidate++;
     });
     // Fill-down: dòng không có TID/chi nhánh → lấy chi nhánh của dòng phía trên gần nhất
@@ -1090,10 +1094,10 @@ function renderTPRaw(){
     <div class="box"><div class="v" style="color:var(--bad)">${fmt(totalDebit)}</div><div class="l">Tổng Ghi nợ</div></div>
     <div class="box"><div class="v" style="color:var(--good)">${fmt(totalCredit)}</div><div class="l">Tổng Ghi có</div></div>
     <div class="box"><div class="v">${fmt(totalCredit-totalDebit)}</div><div class="l">Chênh lệch (Có − Nợ)</div></div>`;
-  let html='<thead><tr><th class="l">Ngày GD</th><th class="l">Chi nhánh</th><th>Ghi nợ</th><th>Ghi có</th><th class="l">Diễn giải</th></tr></thead><tbody>';
-  html+=`<tr class="tot"><td class="l">TỔNG (${rows.length} GD)</td><td></td><td>${fmt(totalDebit)}</td><td>${fmt(totalCredit)}</td><td></td></tr>`;
+  let html='<thead><tr><th class="l">Ngày GD</th><th class="l">Ngày giá trị</th><th class="l">Chi nhánh</th><th>Ghi nợ</th><th>Ghi có</th><th class="l">Diễn giải</th></tr></thead><tbody>';
+  html+=`<tr class="tot"><td class="l">TỔNG (${rows.length} GD)</td><td></td><td></td><td>${fmt(totalDebit)}</td><td>${fmt(totalCredit)}</td><td></td></tr>`;
   rows.slice(0,300).forEach(r=>{
-    html+=`<tr><td class="l" style="white-space:nowrap">${r.kdate||''}</td><td class="l">${r.branch?(r.branch+(r._filledDown?' <small style="color:var(--muted)">↑fill</small>':'')):'<span class="tag bad">?</span>'}</td><td>${r.debit?fmt(r.debit):''}</td><td>${r.credit?fmt(r.credit):''}</td><td class="l" style="max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}</td></tr>`;
+    html+=`<tr><td class="l" style="white-space:nowrap">${r.kdate||''}</td><td class="l" style="white-space:nowrap;color:var(--muted);font-size:11.5px">${r.valueDate||''}</td><td class="l">${r.branch?(r.branch+(r._filledDown?' <small style="color:var(--muted)">↑fill</small>':'')):'<span class="tag bad">?</span>'}</td><td>${r.debit?fmt(r.debit):''}</td><td>${r.credit?fmt(r.credit):''}</td><td class="l" style="max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}</td></tr>`;
   });
   html+='</tbody>';
   document.getElementById('tp-raw').innerHTML=TPBANK.length?html:'<tbody><tr><td class="l small">Chưa import dữ liệu</td></tr></tbody>';
