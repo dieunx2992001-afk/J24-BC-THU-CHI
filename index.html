@@ -299,7 +299,14 @@ tr:hover td{background:var(--surface2);}
         <p class="note">Ô <span class="tag bad">đỏ</span> = chênh lệch giữa TP Bank (Ghi có) và Thu cà thẻ đã nhập ở B1.</p>
       </div>
       <div class="card">
-        <h3 style="font-size:14px;margin:0 0 8px">Dữ liệu đã import (xem nhanh)</h3>
+        <h3 style="font-size:14px;margin:0 0 10px">Dữ liệu đã import (xem nhanh)</h3>
+        <div class="row" style="margin-bottom:10px">
+          <div><label>Từ ngày</label><input type="date" id="tp-raw-from"></div>
+          <div><label>Đến ngày</label><input type="date" id="tp-raw-to"></div>
+          <div><label>Chi nhánh</label><select id="tp-raw-branch"><option value="ALL">Tất cả</option></select></div>
+          <div><button class="ghost" id="tp-raw-clear">Xóa lọc</button></div>
+        </div>
+        <div class="kpi" id="tp-raw-kpi" style="margin-bottom:10px"></div>
         <div class="scroll" style="max-height:340px;overflow-y:auto"><table id="tp-raw"></table></div>
       </div>
     </section>
@@ -961,6 +968,18 @@ async function initTPBank(){
   setupDrop('tp-drop','tp-file', handleTPFile);
   document.getElementById('tp-stage-save').addEventListener('click', saveTPStage);
   document.getElementById('tp-stage-cancel').addEventListener('click', ()=>{ TP_STAGE=[]; document.getElementById('tp-stage-banner').style.display='none'; });
+  // Fill branch select cho raw filter
+  const brSel = document.getElementById('tp-raw-branch');
+  Object.values(TID_MAP).filter((v,i,a)=>a.indexOf(v)===i).forEach(b=>{ const o=document.createElement('option'); o.value=b; o.textContent=b; brSel.appendChild(o); });
+  ['tp-raw-from','tp-raw-to','tp-raw-branch'].forEach(id=>{
+    document.getElementById(id).addEventListener('change', renderTPRaw);
+  });
+  document.getElementById('tp-raw-clear').addEventListener('click', ()=>{
+    document.getElementById('tp-raw-from').value='';
+    document.getElementById('tp-raw-to').value='';
+    document.getElementById('tp-raw-branch').value='ALL';
+    renderTPRaw();
+  });
   renderTPCount(); renderTPRaw(); renderTPRecon();
 }
 async function handleTPFile(file){
@@ -1046,13 +1065,34 @@ document.getElementById('tp-clear').addEventListener('click', async ()=>{
   TPBANK=[]; await sset('tpbank:list', TPBANK); renderTPCount(); renderTPRaw(); renderTPRecon();
 });
 function renderTPRaw(){
-  let html='<thead><tr><th class="l">Diễn giải</th><th>Ghi nợ</th><th>Ghi có</th><th>TID</th><th class="l">Ngày GD</th><th class="l">Chi nhánh</th></tr></thead><tbody>';
-  TPBANK.slice(-200).forEach(r=>{
-    html+=`<tr><td class="l" style="max-width:380px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}</td><td>${fmt(r.debit)}</td><td>${fmt(r.credit)}</td><td>${r.tid}</td><td class="l">${r.kdate}</td><td class="l">${r.branch||'<span class=\"tag bad\">?</span>'}</td></tr>`;
+  const from = document.getElementById('tp-raw-from').value;
+  const to = document.getElementById('tp-raw-to').value;
+  const fb = document.getElementById('tp-raw-branch').value;
+  let rows = TPBANK.filter(r=>{
+    if(from||to){
+      const d=r.kdate?r.kdate.split('/').reverse().join('-'):'';
+      if(from&&d<from) return false;
+      if(to&&d>to) return false;
+    }
+    if(fb!=='ALL'&&r.branch!==fb) return false;
+    return true;
+  });
+  const totalDebit=rows.reduce((s,r)=>s+(r.debit||0),0);
+  const totalCredit=rows.reduce((s,r)=>s+(r.credit||0),0);
+  document.getElementById('tp-raw-kpi').innerHTML=`
+    <div class="box"><div class="v">${rows.length}</div><div class="l">Số giao dịch</div></div>
+    <div class="box"><div class="v" style="color:var(--bad)">${fmt(totalDebit)}</div><div class="l">Tổng Ghi nợ</div></div>
+    <div class="box"><div class="v" style="color:var(--good)">${fmt(totalCredit)}</div><div class="l">Tổng Ghi có</div></div>
+    <div class="box"><div class="v">${fmt(totalCredit-totalDebit)}</div><div class="l">Chênh lệch (Có − Nợ)</div></div>`;
+  let html='<thead><tr><th class="l">Ngày GD</th><th class="l">Chi nhánh</th><th>Ghi nợ</th><th>Ghi có</th><th class="l">Diễn giải</th></tr></thead><tbody>';
+  html+=`<tr class="tot"><td class="l">TỔNG (${rows.length} GD)</td><td></td><td>${fmt(totalDebit)}</td><td>${fmt(totalCredit)}</td><td></td></tr>`;
+  rows.slice(0,300).forEach(r=>{
+    html+=`<tr><td class="l" style="white-space:nowrap">${r.kdate||''}</td><td class="l">${r.branch||'<span class="tag bad">?</span>'}</td><td>${r.debit?fmt(r.debit):''}</td><td>${r.credit?fmt(r.credit):''}</td><td class="l" style="max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}</td></tr>`;
   });
   html+='</tbody>';
-  document.getElementById('tp-raw').innerHTML = TPBANK.length? html : '<tbody><tr><td class="l small">Chưa import dữ liệu</td></tr></tbody>';
+  document.getElementById('tp-raw').innerHTML=TPBANK.length?html:'<tbody><tr><td class="l small">Chưa import dữ liệu</td></tr></tbody>';
 }
+
 function renderTPRecon(){
   const m = document.getElementById('tp-month').value; if(!m) return;
   // aggregate credit by branch+day from TPBANK where month matches
