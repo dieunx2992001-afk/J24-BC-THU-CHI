@@ -91,6 +91,8 @@ button.save:hover{background:#56d364;}
 table{width:100%;border-collapse:collapse;font-size:12px;}
 thead{position:sticky;top:0;z-index:2;}
 th{position:sticky;top:0;background:var(--surface2);padding:7px 10px;text-align:right;font-size:10.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;z-index:2;box-shadow:0 1px 0 var(--border);}
+/* Bảng trong vùng cuộn có max-height: thead sticky top=0 là đúng vì cuộn trong div chứa,
+   không phải cuộn cả trang — không cần offset header */
 th.l{text-align:left;}
 td{padding:6px 10px;border-top:1px solid var(--border);text-align:right;font-family:var(--mono);white-space:nowrap;font-size:12px;}
 th.l{text-align:left;}
@@ -233,7 +235,7 @@ tr:hover td{background:var(--surface2);}
           <div><button class="ghost" id="cc-range-clear">Xóa khoảng ngày</button></div>
         </div>
         <p class="note">Nếu chọn "Từ ngày / Đến ngày" thì bảng sẽ ưu tiên lọc theo khoảng ngày đó thay vì theo tháng.</p>
-        <div class="scroll" style="margin-top:14px"><table id="cc-table"></table></div>
+        <div class="scroll" style="margin-top:14px;max-height:420px;overflow-y:auto"><table id="cc-table"></table></div>
       </div>
     </section>
 
@@ -264,7 +266,7 @@ tr:hover td{background:var(--surface2);}
       </div>
       <div class="kpi" id="cl-kpi"></div>
       <div class="card">
-        <div class="scroll"><table id="cl-table"></table></div>
+        <div class="scroll" style="max-height:420px;overflow-y:auto"><table id="cl-table"></table></div>
       </div>
     </section>
 
@@ -836,13 +838,13 @@ function renderCLTable(){
   // KPI tổng
   document.getElementById('cl-kpi').innerHTML = `
     <div class="box"><div class="v">${rows.length}</div><div class="l">Số dòng chênh lệch</div></div>
-    <div class="box"><div class="v" style="color:var(--bad)">${fmt(totalPos)}</div><div class="l">Tổng chênh lệch dương</div></div>
-    <div class="box"><div class="v" style="color:var(--good)">${fmt(totalNeg)}</div><div class="l">Tổng chênh lệch âm</div></div>
-    <div class="box"><div class="v" style="color:${Math.abs(total)>=1?'var(--bad)':'var(--good)'}">${fmt(total)}</div><div class="l">Tổng cộng</div></div>`;
+    <div class="box"><div class="v" style="color:var(--good)">${fmt(totalPos)}</div><div class="l">Tổng thừa (số dương)</div></div>
+    <div class="box"><div class="v" style="color:var(--bad)">${fmt(totalNeg)}</div><div class="l">Tổng thiếu (số âm)</div></div>
+    <div class="box"><div class="v" style="color:${total<0?'var(--bad)':total>0?'var(--good)':'var(--muted)'}">${fmt(total)}</div><div class="l">Tổng cộng</div></div>`;
 
   let html = '<thead><tr><th class="l">Ngày</th><th class="l">Chi nhánh</th><th class="l">Ngân hàng</th><th>Số tiền</th><th class="l">Lý do</th><th></th></tr></thead><tbody>';
   rows.forEach(r=>{
-    html += `<tr><td class="l">${r.d}</td><td class="l">${r.b}</td><td class="l">${r.bank}</td><td class="${r.amt>0?'cell-bad':'cell-good'}">${fmt(r.amt)}</td><td class="l">${r.note||''}</td><td><button class="ghost" onclick="delCL(${r.id})">Xoá</button></td></tr>`;
+    html += `<tr><td class="l">${r.d}</td><td class="l">${r.b}</td><td class="l">${r.bank}</td><td class="${r.amt<0?'cell-good':r.amt>0?'cell-bad':''}">${fmt(r.amt)}</td><td class="l">${r.note||''}</td><td><button class="ghost" onclick="delCL(${r.id})">Xoá</button></td></tr>`;
   });
   if(rows.length===0) html+='<tr><td class="l small">Chưa có dữ liệu trong kỳ này</td></tr>';
   html += `<tr class="tot"><td class="l">CỘNG (${rows.length} dòng)</td><td></td><td></td><td>${fmt(total)}</td><td></td><td></td></tr></tbody>`;
