@@ -248,7 +248,9 @@ tr:hover td{background:var(--surface2);}
           <div><label>Ngân hàng</label><select id="cl-bank"></select></div>
           <div><label>Số tiền chênh lệch</label><input type="text" inputmode="numeric" id="cl-amount" class="vn-money-input" placeholder="0"></div>
           <div style="flex:1;min-width:220px"><label>Lý do / Ghi chú</label><input type="text" id="cl-note" style="width:100%" placeholder="Lý do chênh lệch..."></div>
-          <div><button id="cl-add">Thêm dòng</button></div>
+          <div><button class="save" id="cl-add">💾 Lưu</button></div>
+        </div>
+        <p class="note" style="margin-top:8px">💡 <b>Thiếu tiền</b> (thực tế ít hơn sổ sách) → nhập số <b style="color:var(--bad)">âm</b> (vd: -500.000) &nbsp;|&nbsp; <b>Thừa tiền</b> (thực tế nhiều hơn) → nhập số <b style="color:var(--good)">dương</b> bình thường</p>
         </div>
       </div>
       <div class="card">
@@ -673,17 +675,28 @@ function renderCCForm(){
   updateCCRemind();
 }
 /* Gắn định dạng "1.000.000" tự động khi gõ số, vẫn giữ giá trị số thật để lưu */
-function bindVnMoneyInput(input){
+function bindVnMoneyInput(input, allowNegative=false){
   input.addEventListener('input', ()=>{
-    const raw = input.value.replace(/\D/g,'');
-    const cursorFromEnd = input.value.length - input.selectionStart;
-    input.value = raw ? parseInt(raw,10).toLocaleString('vi-VN') : '';
+    let val = input.value;
+    const isNeg = allowNegative && val.startsWith('-');
+    const raw = val.replace(/\D/g,'');
+    const cursorFromEnd = val.length - input.selectionStart;
+    const formatted = raw ? parseInt(raw,10).toLocaleString('vi-VN') : '';
+    input.value = (isNeg && formatted ? '-' : '') + formatted;
     const pos = Math.max(0, input.value.length - cursorFromEnd);
     input.setSelectionRange(pos, pos);
   });
+  if(allowNegative){
+    input.addEventListener('keydown', e=>{
+      if(e.key==='-' && input.selectionStart===0 && !input.value.startsWith('-')){
+        e.preventDefault();
+        input.value = '-' + input.value;
+      }
+    });
+  }
 }
 function vnMoneyValue(id){
-  const raw = (document.getElementById(id).value||'').replace(/\D/g,'');
+  const raw = (document.getElementById(id).value||'').replace(/[^\d-]/g,'');
   return raw ? parseInt(raw,10) : 0;
 }
 document.getElementById('cc-date').addEventListener('change', ()=>{ renderCCForm(); updateCCRemind(); });
@@ -782,7 +795,7 @@ async function initChenhLech(){
   document.getElementById('cl-filter-branch').insertAdjacentHTML('afterbegin','<option value="ALL" selected>Tất cả</option>');
   document.getElementById('cl-date').value = todayISO();
   document.getElementById('cl-month').value = todayISO().slice(0,7);
-  bindVnMoneyInput(document.getElementById('cl-amount'));
+  bindVnMoneyInput(document.getElementById('cl-amount'), true);
   CHENHLECH = await sget('chenhlech:list', []);
   ['cl-month','cl-from','cl-to','cl-filter-branch'].forEach(id=>{
     document.getElementById(id).addEventListener('change', renderCLTable);
