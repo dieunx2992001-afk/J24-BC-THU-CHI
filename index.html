@@ -1036,6 +1036,12 @@ async function handleTPFile(file){
       TP_STAGE.push({k, content, debit, credit, balance, tid, kdate, day, month, branch});
       candidate++;
     });
+    // Fill-down: dòng không có TID/chi nhánh → lấy chi nhánh của dòng phía trên gần nhất
+    let lastBranch = '';
+    TP_STAGE.forEach(r=>{
+      if(r.branch){ lastBranch = r.branch; }
+      else if(lastBranch){ r.branch = lastBranch; r._filledDown = true; }
+    });
     const banner = document.getElementById('tp-stage-banner');
     if(candidate===0){
       banner.style.display='none';
@@ -1087,7 +1093,7 @@ function renderTPRaw(){
   let html='<thead><tr><th class="l">Ngày GD</th><th class="l">Chi nhánh</th><th>Ghi nợ</th><th>Ghi có</th><th class="l">Diễn giải</th></tr></thead><tbody>';
   html+=`<tr class="tot"><td class="l">TỔNG (${rows.length} GD)</td><td></td><td>${fmt(totalDebit)}</td><td>${fmt(totalCredit)}</td><td></td></tr>`;
   rows.slice(0,300).forEach(r=>{
-    html+=`<tr><td class="l" style="white-space:nowrap">${r.kdate||''}</td><td class="l">${r.branch||'<span class="tag bad">?</span>'}</td><td>${r.debit?fmt(r.debit):''}</td><td>${r.credit?fmt(r.credit):''}</td><td class="l" style="max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}</td></tr>`;
+    html+=`<tr><td class="l" style="white-space:nowrap">${r.kdate||''}</td><td class="l">${r.branch?(r.branch+(r._filledDown?' <small style="color:var(--muted)">↑fill</small>':'')):'<span class="tag bad">?</span>'}</td><td>${r.debit?fmt(r.debit):''}</td><td>${r.credit?fmt(r.credit):''}</td><td class="l" style="max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}</td></tr>`;
   });
   html+='</tbody>';
   document.getElementById('tp-raw').innerHTML=TPBANK.length?html:'<tbody><tr><td class="l small">Chưa import dữ liệu</td></tr></tbody>';
