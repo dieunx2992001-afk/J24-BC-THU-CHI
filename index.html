@@ -243,30 +243,37 @@ tr:hover td{background:var(--surface2);}
     <section class="page" id="p2">
       <h2>Chênh lệch chốt ca với ngân hàng</h2>
       <p class="sub">Ghi nhận khoản chênh lệch — chọn nhanh chi nhánh / ngân hàng</p>
-      <div class="card">
-        <div class="row">
-          <div><label>Ngày</label><input type="date" id="cl-date"></div>
-          <div><label>Chi nhánh</label><select id="cl-branch"></select></div>
-          <div><label>Ngân hàng</label><select id="cl-bank"></select></div>
-          <div><label>Số tiền chênh lệch</label><input type="text" inputmode="numeric" id="cl-amount" class="vn-money-input" placeholder="0"></div>
-          <div style="flex:1;min-width:220px"><label>Lý do / Ghi chú</label><input type="text" id="cl-note" style="width:100%" placeholder="Lý do chênh lệch..."></div>
-          <div><button class="save" id="cl-add">💾 Lưu</button></div>
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:14px;align-items:start">
+        <!-- Cột trái: form nhập -->
+        <div>
+          <div class="card">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div><label>Ngày</label><input type="date" id="cl-date" style="width:100%"></div>
+              <div><label>Chi nhánh</label><select id="cl-branch" style="width:100%"></select></div>
+              <div><label>Ngân hàng</label><select id="cl-bank" style="width:100%"></select></div>
+              <div><label>Số tiền chênh lệch</label><input type="text" inputmode="numeric" id="cl-amount" class="vn-money-input" style="width:100%" placeholder="0"></div>
+              <div><label>Lý do / Ghi chú</label><input type="text" id="cl-note" style="width:100%" placeholder="Lý do chênh lệch..."></div>
+              <button class="save" id="cl-add" style="width:100%">💾 Lưu</button>
+            </div>
+            <p class="note" style="margin-top:10px">💡 <b>Thiếu</b> → số âm (vd: -500.000)<br><b>Thừa</b> → số dương bình thường</p>
+          </div>
         </div>
-        <p class="note" style="margin-top:8px">💡 <b>Thiếu tiền</b> (thực tế ít hơn sổ sách) → nhập số <b style="color:var(--bad)">âm</b> (vd: -500.000) &nbsp;|&nbsp; <b>Thừa tiền</b> (thực tế nhiều hơn) → nhập số <b style="color:var(--good)">dương</b> bình thường</p>
+        <!-- Cột phải: lọc + tổng + bảng -->
+        <div>
+          <div class="card">
+            <div class="row">
+              <div><label>Lọc theo tháng</label><input type="month" id="cl-month"></div>
+              <div><label>Từ ngày</label><input type="date" id="cl-from"></div>
+              <div><label>Đến ngày</label><input type="date" id="cl-to"></div>
+              <div><label>Chi nhánh</label><select id="cl-filter-branch"><option value="ALL">Tất cả</option></select></div>
+              <div><button class="ghost" id="cl-range-clear">Xóa</button></div>
+            </div>
+          </div>
+          <div class="kpi" id="cl-kpi"></div>
+          <div class="card">
+            <div class="scroll" style="max-height:440px;overflow-y:auto"><table id="cl-table"></table></div>
+          </div>
         </div>
-      </div>
-      <div class="card">
-        <div class="row">
-          <div><label>Lọc theo tháng</label><input type="month" id="cl-month"></div>
-          <div><label>Hoặc từ ngày</label><input type="date" id="cl-from"></div>
-          <div><label>Đến ngày</label><input type="date" id="cl-to"></div>
-          <div><label>Chi nhánh</label><select id="cl-filter-branch"><option value="ALL">Tất cả</option></select></div>
-          <div><button class="ghost" id="cl-range-clear">Xóa khoảng ngày</button></div>
-        </div>
-      </div>
-      <div class="kpi" id="cl-kpi"></div>
-      <div class="card">
-        <div class="scroll" style="max-height:420px;overflow-y:auto"><table id="cl-table"></table></div>
       </div>
     </section>
 
