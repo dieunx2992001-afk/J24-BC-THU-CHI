@@ -148,6 +148,9 @@ tr:hover td{background:var(--surface2);}
 .kpi .box .l{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-top:4px;}
 .scroll{overflow-x:auto;}
 .drop{border:2px dashed var(--border);border-radius:10px;padding:36px;text-align:center;font-size:13.5px;font-weight:500;color:var(--muted);cursor:pointer;transition:all .12s;}
+.drop.loading{border-color:var(--accent);background:rgba(193,101,47,.05);color:var(--accent);pointer-events:none;}
+.spinner{display:inline-block;width:18px;height:18px;border:2.5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:8px;}
+@keyframes spin{to{transform:rotate(360deg);}}
 .drop:hover{border-color:var(--accent);background:rgba(227,108,9,.06);color:var(--accent2);}
 .drop.over{border-color:var(--accent);color:var(--accent2);background:rgba(227,108,9,.1);}
 .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;color:#fff;background:var(--good);}
@@ -197,8 +200,9 @@ tr:hover td{background:var(--surface2);}
     <button class="nav-item" data-p="p4">🏦 Viettin</button>
     <button class="nav-item" data-p="p5">🏦 TP Bank Kho tổng</button>
     <button class="nav-item" data-p="p6">📋 CT Thu Chi (B2)</button>
+    <button class="nav-item" data-p="p15">💳 Ngân hàng Kiot</button>
     <div class="side-group-label">Đối chiếu &amp; Báo cáo</div>
-    <button class="nav-item" data-p="p12">⚖ Đối chiếu tổng</button>
+    <button class="nav-item" data-p="p12">⚖ Đối chiếu chốt ca</button>
     <button class="nav-item" data-p="p7">💰 Số dư ngân hàng</button>
     <button class="nav-item" data-p="p8">📊 BC Kho tổng</button>
     <button class="nav-item" data-p="p9">📈 Tổng hợp Thu Chi</button>
@@ -288,7 +292,7 @@ tr:hover td{background:var(--surface2);}
           <span class="msg" id="tp-stage-msg"></span>
           <div style="display:flex;gap:8px"><button class="ghost" id="tp-stage-cancel">Hủy</button><button class="save" id="tp-stage-save">💾 Lưu vào hệ thống</button></div>
         </div>
-        <div class="flexend"><span class="small" id="tp-count"></span><button class="danger" id="tp-clear">Xoá toàn bộ dữ liệu TP Bank</button></div>
+        <div class="flexend"><span class="small" id="tp-count"></span><button class="ghost" id="tp-undo">↩ Xóa lần import cuối</button><button class="danger" id="tp-clear">Xoá toàn bộ dữ liệu TP Bank</button></div>
       </div>
       <div class="card">
         <div class="row">
@@ -306,6 +310,7 @@ tr:hover td{background:var(--surface2);}
           <div><label>Chi nhánh</label><select id="tp-raw-branch"><option value="ALL">Tất cả</option></select></div>
           <div><button class="ghost" id="tp-raw-clear">Xóa lọc</button></div>
         </div>
+        <div id="tp-filter-notice"></div>
         <div class="kpi" id="tp-raw-kpi" style="margin-bottom:10px"></div>
         <div class="scroll" style="max-height:340px;overflow-y:auto"><table id="tp-raw"></table></div>
       </div>
@@ -332,6 +337,7 @@ tr:hover td{background:var(--surface2);}
           <div><button class="ghost" id="vt-range-clear">Xóa khoảng ngày</button></div>
         </div>
         <h3 style="font-size:14px;margin:16px 0 8px">Đối chiếu Thu chuyển khoản theo chi nhánh — ngày</h3>
+        <div id="vt-filter-notice"></div>
         <div class="scroll"><div id="vt-recon"></div></div>
       </div>
       <div class="card">
@@ -352,8 +358,9 @@ tr:hover td{background:var(--surface2);}
           <span class="msg" id="kt-stage-msg"></span>
           <div style="display:flex;gap:8px"><button class="ghost" id="kt-stage-cancel">Hủy</button><button class="save" id="kt-stage-save">💾 Lưu vào hệ thống</button></div>
         </div>
-        <div class="flexend"><span class="small" id="kt-count"></span><button class="danger" id="kt-clear">Xoá toàn bộ dữ liệu Kho tổng</button></div>
+        <div class="flexend"><span class="small" id="kt-count"></span><button class="ghost" id="kt-undo">↩ Xóa lần import cuối</button><button class="danger" id="kt-clear">Xoá toàn bộ dữ liệu Kho tổng</button></div>
       </div>
+      <div id="kt-filter-notice"></div>
       <div class="kpi" id="kt-kpi"></div>
       <div class="card">
         <h3 style="font-size:14px;margin:0 0 8px">Dữ liệu đã import (xem nhanh)</h3>
@@ -368,23 +375,47 @@ tr:hover td{background:var(--surface2);}
       <div class="card">
         <div class="drop" id="sq-drop">Kéo thả hoặc bấm để chọn file kết xuất Sổ quỹ KiotViet (.xlsx)<input type="file" id="sq-file" accept=".xlsx,.xls" style="display:none"></div>
         <p class="note">Mã phiếu đã từng import sẽ không bị lấy/đếm lại lần sau (chống trùng theo Mã phiếu). Cột N "phát sinh ngân hàng" được suy ra bằng cách so khớp Người nộp/nhận &amp; Ghi chú với nội dung giao dịch ở sheet TP Bank Kho tổng. Số dương → Thu ngân hàng; số âm → đối chiếu với Chi ngân hàng theo tài khoản (Mart1/Mart2). Dòng "Loại sổ quỹ" = Tiền mặt được gom riêng sang Sổ quỹ tiền mặt (xem tab Quỹ két).</p>
-        <div class="flexend"><span class="small" id="sq-count"></span><button class="danger" id="sq-clear">Xoá toàn bộ dữ liệu B2</button></div>
+        <div class="flexend"><span class="small" id="sq-count"></span><button class="ghost" id="sq-undo">↩ Xóa lần import cuối</button><button class="danger" id="sq-clear">Xoá toàn bộ dữ liệu B2</button></div>
       </div>
       <div class="card">
         <div class="row">
           <div><label>Tháng</label><input type="month" id="sq-month"></div>
+          <div><label>Hoặc từ ngày</label><input type="date" id="sq-from"></div>
+          <div><label>Đến ngày</label><input type="date" id="sq-to"></div>
           <div><label>Lọc</label><select id="sq-filter"><option value="ALL">Tất cả</option><option value="matched">Đã khớp ngân hàng</option><option value="unmatched">Chưa khớp</option><option value="tienmat">Tiền mặt</option></select></div>
+          <div><button class="ghost" id="sq-range-clear">Xóa khoảng ngày</button></div>
         </div>
-        <div class="scroll" style="max-height:440px;overflow-y:auto;margin-top:14px"><table id="sq-table"></table></div>
+      </div>
+      <div id="sq-filter-notice"></div>
+      <div class="kpi" id="sq-kpi"></div>
+      <div class="card">
+        <div class="scroll" style="max-height:440px;overflow-y:auto;margin-top:0"><table id="sq-table"></table></div>
       </div>
     </section>
 
     <!-- PAGE 7: SO DU NGAN HANG -->
     <section class="page" id="p7">
-      <h2>Báo cáo số dư tài khoản ngân hàng theo chi nhánh</h2>
-      <p class="sub">Tổng hợp từ TP Bank, TP Bank Kho tổng, Viettin</p>
-      <div class="card"><div class="row"><div><label>Đến ngày</label><input type="date" id="bal-date"></div></div></div>
-      <div class="card"><div class="scroll"><table id="bal-table"></table></div></div>
+      <h2>Báo cáo phát sinh & số dư tài khoản ngân hàng</h2>
+      <p class="sub">Phát sinh Nợ / Có theo ngày từng chi nhánh — Dư đầu kỳ + Phát sinh Có − Phát sinh Nợ = Dư cuối kỳ</p>
+      <div class="card">
+        <div class="row">
+          <div><label>Từ ngày</label><input type="date" id="bal-from"></div>
+          <div><label>Đến ngày</label><input type="date" id="bal-to"></div>
+          <div><label>Nguồn</label><select id="bal-source">
+            <option value="tp">TP Bank (chi nhánh)</option>
+            <option value="kt">TP Bank Kho tổng</option>
+            <option value="vt">Viettin</option>
+          </select></div>
+          <div><label>Chi nhánh</label><select id="bal-branch"><option value="ALL">Tất cả</option></select></div>
+          <div><label>Xem theo</label><select id="bal-view">
+            <option value="day">Theo ngày</option>
+            <option value="month">Theo tháng</option>
+          </select></div>
+          <div><button id="bal-run" class="save">Xem báo cáo</button></div>
+        </div>
+      </div>
+      <div class="kpi" id="bal-kpi"></div>
+      <div class="card"><div class="scroll" style="max-height:500px;overflow-y:auto"><table id="bal-table"></table></div></div>
     </section>
 
     <!-- PAGE 8: BAO CAO KHO TONG -->
@@ -394,6 +425,7 @@ tr:hover td{background:var(--surface2);}
       <div class="card"><div class="row"><div><label>Tháng</label><input type="month" id="bk-month"></div></div></div>
       <div class="kpi" id="bk-kpi"></div>
       <div class="chart-card" style="margin-bottom:18px"><h3>Thu / Chi theo ngày — Kho tổng Mart1 &amp; Mart2</h3><div class="chart-wrap"><canvas id="chart-kt"></canvas></div></div>
+      <p class="note" style="margin-bottom:8px">⚠ Đã loại trừ: <b>Phiếu thu Tiền khách trả</b> và <b>Phiếu chi Tiền trả khách</b> — chỉ hiển thị giao dịch thực sự qua tài khoản ngân hàng Kho tổng.</p>
       <div class="card"><div class="scroll"><table id="bk-table"></table></div></div>
     </section>
 
@@ -461,7 +493,7 @@ tr:hover td{background:var(--surface2);}
 
     <!-- PAGE 12: DOI CHIEU TONG -->
     <section class="page" id="p12">
-      <h2>Đối chiếu tổng — Ngân hàng vs Chốt ca (Hiền)</h2>
+      <h2>Đối chiếu chốt ca — Ngân hàng vs Chốt ca (Hiền)</h2>
       <p class="sub">Gộp TP Bank (Thu cà thẻ) và Viettin (Thu chuyển khoản) theo từng ngày, từng chi nhánh</p>
       <div class="card">
         <div class="row">
@@ -474,6 +506,35 @@ tr:hover td{background:var(--surface2);}
       <div class="kpi" id="dc-kpi"></div>
       <div class="dc-grid" id="dc-grid"></div>
       <div class="pagination" id="dc-pagination"></div>
+    </section>
+
+    <!-- PAGE 15: NGAN HANG KIOT -->
+    <section class="page" id="p15">
+      <h2>💳 Ngân hàng Kiot</h2>
+      <p class="sub">Import sao kê Cà thẻ từ KiotViet — lọc theo tháng / khoảng ngày</p>
+      <div class="card">
+        <div class="drop" id="cak-drop">Kéo thả hoặc bấm để chọn file Ngân hàng KiotViet (.xlsx)<input type="file" id="cak-file" accept=".xlsx,.xls" style="display:none"></div>
+        <div class="flexend" style="margin-top:10px">
+          <span class="small" id="cak-count"></span>
+          <button class="ghost" id="cak-undo">↩ Xóa lần import cuối</button>
+          <button class="danger" id="cak-clear">Xoá toàn bộ dữ liệu Cà thẻ</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <div><label>Tháng</label><input type="month" id="cak-month"></div>
+          <div><label>Hoặc từ ngày</label><input type="date" id="cak-from"></div>
+          <div><label>Đến ngày</label><input type="date" id="cak-to"></div>
+          <div><label>Chi nhánh</label><select id="cak-filter-branch"><option value="ALL">Tất cả</option></select></div>
+          <div><label>Phương thức</label><select id="cak-filter-method"><option value="ALL">Tất cả</option></select></div>
+          <div><button class="ghost" id="cak-range-clear">Xóa khoảng ngày</button></div>
+        </div>
+      </div>
+      <div id="cak-filter-notice"></div>
+      <div class="kpi" id="cak-kpi"></div>
+      <div class="card">
+        <div class="scroll" style="max-height:440px;overflow-y:auto"><table id="cak-table"></table></div>
+      </div>
     </section>
 
     <!-- PAGE 14: BACKUP & PHUC HOI -->
@@ -510,6 +571,8 @@ tr:hover td{background:var(--surface2);}
 const BRANCHES = ["CN1. Anh 05VL","CN2. J24 18THD","CN3. J24 92HB","CN4. J24 39VCN","CN5. J24 80CCXH","CN6. J24 81TND","CN7. J24 VEGA","CN8. J24 AB","CN9. J24 PHƯỚC HẢI","KHO TỔNG MART 1","KHO TỔNG MART 2","RIGEL","ART","GRAND"];
 const CHOTCA_BRANCHES = BRANCHES.slice(0,9).concat(["RIGEL","ART","GRAND"]);
 const BANKS = ["TP Bank","Viettinbank","TP Bank Kho tổng - Mart1","TP Bank Kho tổng - Mart2"];
+// Các từ khóa trong diễn giải TP Bank cần loại khỏi đối chiếu cà thẻ (nhưng vẫn tính vào số dư)
+const TP_RECON_EXCLUDE = ['TRA LAI TIEN GUI','THUE VAT-THU PHI','THU PHI QUAN LY','THU PHI DICH VU'];
 const FIELDS = [["vnd","VND"],["usd","USD"],["te","TỆ"],["tck","Thu chuyển khoản"],["momo","MOMO"],["cathe","Thu cà thẻ"],["dtmay","Doanh thu máy"]];
 const TID_MAP = {
  "77784135":"CN6. J24 81TND","77786110":"RIGEL","77786111":"CN4. J24 39VCN","77786112":"CN1. Anh 05VL",
@@ -531,6 +594,21 @@ const fmtShort = n => {
   return (v>0?'+':'')+s;
 };
 const toast = (msg, duration=2200) => { const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),duration); };
+
+// Hiện ghi chú kỳ đang lọc vào element chỉ định
+function renderFilterNotice(elId, {month, from, to, count, total}){
+  const el = document.getElementById(elId); if(!el) return;
+  let label='', color='var(--title)';
+  if(from && to) label = `📅 Đang xem từ ngày <b>${from}</b> đến <b>${to}</b>`;
+  else if(month){ const [y,m]=month.split('-'); label=`📅 Đang xem tháng <b>${m}/${y}</b>`; }
+  else { el.innerHTML=''; return; }
+  if(count!==undefined && total!==undefined && count===0 && total>0){
+    label += ` — <span style="color:var(--bad)">Không có dữ liệu trong kỳ này (có ${total.toLocaleString()} bản ghi ở kỳ khác, thử đổi bộ lọc)</span>`;
+  } else if(count!==undefined){
+    label += ` &nbsp;·&nbsp; <span style="color:var(--muted)">${count.toLocaleString()} bản ghi</span>`;
+  }
+  el.innerHTML = `<div style="padding:6px 12px;background:var(--surface2);border-radius:6px;font-size:12.5px;color:${color};margin-bottom:10px">${label}</div>`;
+}
 const todayISO = () => new Date().toISOString().slice(0,10);
 
 /* ============ STORAGE HELPERS ============ */
@@ -591,14 +669,53 @@ function updateStorageBadge(){
   }
 }
 
+async function sset(key, val){
+  // Luôn lưu localStorage trước (offline cache)
+  try{ localStorage.setItem(LS_PREFIX+key, JSON.stringify(val)); }catch(e){ console.error('local save error', e); }
+  // Lưu Firestore — nếu array lớn thì chia nhỏ thành nhiều document (chunk 1000 dòng)
+  if(STORAGE_MODE==='firebase' && window._fbDb){
+    try{
+      if(Array.isArray(val) && val.length > 800){
+        const CHUNK = 800;
+        const chunks = [];
+        for(let i=0;i<val.length;i+=CHUNK) chunks.push(val.slice(i,i+CHUNK));
+        // lưu số lượng chunk
+        await window._fbSetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')+'_meta'), { chunks: chunks.length, total: val.length, updatedAt: new Date().toISOString() });
+        for(let i=0;i<chunks.length;i++){
+          if(i%5===0) toast(`⏳ Đang lưu lên Firebase... ${Math.round(i/chunks.length*100)}% (${i*CHUNK}/${val.length} dòng)`, 3000);
+          await window._fbSetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')+'_'+i), { value: chunks[i], updatedAt: new Date().toISOString() });
+        }
+      } else {
+        await window._fbSetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')), { value: val, updatedAt: new Date().toISOString() });
+      }
+      return true;
+    }catch(e){
+      console.error('Firestore save error', e);
+      toast('⚠ Không lưu được lên Firebase — đã lưu tạm trên máy này');
+      return false;
+    }
+  }
+  return true;
+}
 async function sget(key, fallback){
   // Thử Firestore trước
   if(STORAGE_MODE==='firebase' && window._fbDb){
     try{
+      // kiểm tra có phải dạng chunked không
+      const metaSnap = await window._fbGetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')+'_meta'));
+      if(metaSnap.exists()){
+        const { chunks } = metaSnap.data();
+        let result = [];
+        for(let i=0;i<chunks;i++){
+          const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')+'_'+i));
+          if(snap.exists()) result = result.concat(snap.data().value);
+        }
+        try{ localStorage.setItem(LS_PREFIX+key, JSON.stringify(result)); }catch(e){}
+        return result;
+      }
       const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')));
       if(snap.exists()){
         const val = snap.data().value;
-        // Cache vào localStorage để dùng offline
         try{ localStorage.setItem(LS_PREFIX+key, JSON.stringify(val)); }catch(e){}
         return val;
       }
@@ -611,23 +728,6 @@ async function sget(key, fallback){
   }catch(e){ return fallback; }
 }
 
-async function sset(key, val){
-  // Luôn lưu localStorage trước (offline cache)
-  try{ localStorage.setItem(LS_PREFIX+key, JSON.stringify(val)); }catch(e){ console.error('local save error', e); }
-  // Lưu Firestore
-  if(STORAGE_MODE==='firebase' && window._fbDb){
-    try{
-      await window._fbSetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')), { value: val, updatedAt: new Date().toISOString() });
-      return true;
-    }catch(e){
-      console.error('Firestore save error', e);
-      toast('⚠ Không lưu được lên Firebase — đã lưu tạm trên máy này');
-      return false;
-    }
-  }
-  return true;
-}
-
 /* ============ NAV ============ */
 document.querySelectorAll('.nav-item').forEach(b=>{
   b.addEventListener('click', ()=>{
@@ -636,6 +736,7 @@ document.querySelectorAll('.nav-item').forEach(b=>{
     b.classList.add('active'); document.getElementById(b.dataset.p).classList.add('active');
     if(b.dataset.p==='p11' && typeof renderLog==='function') renderLog();
     if(b.dataset.p==='p12' && typeof renderDoiChieuTong==='function') renderDoiChieuTong();
+    if(b.dataset.p==='p15' && typeof renderCAKTable==='function') renderCAKTable();
     if(b.dataset.p==='p14'){
       if(typeof initBackup==='function'){
         const el=document.getElementById('backup-storage-info');
@@ -871,11 +972,18 @@ window.delCL = async (id)=>{ CHENHLECH = CHENHLECH.filter(r=>r.id!==id); await s
 =================================================================== */
 function setupDrop(dropId, fileId, handler){
   const drop = document.getElementById(dropId), file = document.getElementById(fileId);
-  drop.addEventListener('click', ()=>file.click());
-  drop.addEventListener('dragover', e=>{e.preventDefault(); drop.classList.add('over');});
+  const origText = drop.innerHTML;
+  const showLoading = (fname)=>{
+    drop.innerHTML = `<span class="spinner"></span>Đang đọc file <b>${fname}</b>... vui lòng chờ`;
+    drop.classList.add('loading');
+  };
+  const resetDrop = ()=>{ drop.innerHTML = origText; drop.classList.remove('loading'); };
+  const runHandler = async (f)=>{ showLoading(f.name); try{ await handler(f); }finally{ resetDrop(); } };
+  drop.addEventListener('click', ()=>{ if(!drop.classList.contains('loading')) file.click(); });
+  drop.addEventListener('dragover', e=>{e.preventDefault(); if(!drop.classList.contains('loading')) drop.classList.add('over');});
   drop.addEventListener('dragleave', ()=>drop.classList.remove('over'));
-  drop.addEventListener('drop', e=>{e.preventDefault(); drop.classList.remove('over'); if(e.dataTransfer.files[0]) handler(e.dataTransfer.files[0]);});
-  file.addEventListener('change', e=>{ if(e.target.files[0]) handler(e.target.files[0]); file.value=''; });
+  drop.addEventListener('drop', e=>{e.preventDefault(); drop.classList.remove('over'); if(e.dataTransfer.files[0]) runHandler(e.dataTransfer.files[0]);});
+  file.addEventListener('change', e=>{ if(e.target.files[0]) runHandler(e.target.files[0]); file.value=''; });
 }
 function readSheet(file){
   return new Promise((resolve,reject)=>{
@@ -1037,7 +1145,9 @@ async function handleTPFile(file){
       // Ngày giá trị (Value Date) — ngày tiền thực sự ghi vào tài khoản
       const valueDateRaw = cIdx.valueDate>-1 ? row[cIdx.valueDate] : null;
       const valueDate = valueDateRaw ? (excelDateToISO(valueDateRaw)||String(valueDateRaw)) : kdate;
-      TP_STAGE.push({k, content, debit, credit, balance, tid, kdate, valueDate, day, month, branch});
+      // Đánh dấu dòng không tính vào đối chiếu cà thẻ (tiền lãi, phí dịch vụ...)
+      const excludeRecon = TP_RECON_EXCLUDE.some(kw=>content.toUpperCase().includes(kw));
+      TP_STAGE.push({k, content, debit, credit, balance, tid, kdate, valueDate, day, month, branch, excludeRecon});
       candidate++;
     });
     // Fill-down: dòng không có TID/chi nhánh → lấy chi nhánh của dòng phía trên gần nhất
@@ -1061,14 +1171,24 @@ async function handleTPFile(file){
 }
 async function saveTPStage(){
   if(TP_STAGE.length===0) return;
+  window._tpLastImportKeys = new Set(TP_STAGE.map(r=>r.k));
   TPBANK = TPBANK.concat(TP_STAGE);
   const n = TP_STAGE.length;
   TP_STAGE = [];
   const ok = await sset('tpbank:list', TPBANK);
   document.getElementById('tp-stage-banner').style.display='none';
-  toast((ok?'✓ Đã lưu':'⚠ Lỗi lưu')+' '+n+' dòng TP Bank'+(STORAGE_MODE==='cloud'?' (Cloud)':' (Local)'));
+  toast((ok?'✓ Đã lưu':'⚠ Lỗi lưu')+' '+n+' dòng TP Bank'+(STORAGE_MODE==='cloud'?' (Cloud)':' (Local)')+' — bấm "↩ Xóa lần import cuối" nếu muốn hoàn tác');
   renderTPCount(); renderTPRaw(); renderTPRecon();
 }
+document.getElementById('tp-undo').addEventListener('click', async ()=>{
+  if(!window._tpLastImportKeys || window._tpLastImportKeys.size===0){ toast('Không có lần import nào để hoàn tác'); return; }
+  if(!confirm('Xóa '+window._tpLastImportKeys.size+' dòng vừa import?')) return;
+  TPBANK = TPBANK.filter(r=>!window._tpLastImportKeys.has(r.k));
+  window._tpLastImportKeys = new Set();
+  await sset('tpbank:list', TPBANK);
+  toast('✓ Đã xóa lần import cuối');
+  renderTPCount(); renderTPRaw(); renderTPRecon();
+});
 function renderTPCount(){ document.getElementById('tp-count').textContent = TPBANK.length+' dòng đã lưu'; }
 document.getElementById('tp-clear').addEventListener('click', async ()=>{
   if(!confirm('Xoá toàn bộ dữ liệu TP Bank đã import?')) return;
@@ -1078,8 +1198,7 @@ function renderTPRaw(){
   const from = document.getElementById('tp-raw-from').value;
   const to = document.getElementById('tp-raw-to').value;
   const fb = document.getElementById('tp-raw-branch').value;
-  let rows = TPBANK.filter(r=>{
-    if(from||to){
+  let rows = TPBANK.filter(r=>{    if(from||to){
       const d=r.kdate?r.kdate.split('/').reverse().join('-'):'';
       if(from&&d<from) return false;
       if(to&&d>to) return false;
@@ -1097,18 +1216,22 @@ function renderTPRaw(){
   let html='<thead><tr><th class="l">Ngày GD</th><th class="l">Ngày giá trị</th><th class="l">Chi nhánh</th><th>Ghi nợ</th><th>Ghi có</th><th class="l">Diễn giải</th></tr></thead><tbody>';
   html+=`<tr class="tot"><td class="l">TỔNG (${rows.length} GD)</td><td></td><td></td><td>${fmt(totalDebit)}</td><td>${fmt(totalCredit)}</td><td></td></tr>`;
   rows.slice(0,300).forEach(r=>{
-    html+=`<tr><td class="l" style="white-space:nowrap">${r.kdate||''}</td><td class="l" style="white-space:nowrap;color:var(--muted);font-size:11.5px">${r.valueDate||''}</td><td class="l">${r.branch?(r.branch+(r._filledDown?' <small style="color:var(--muted)">↑fill</small>':'')):'<span class="tag bad">?</span>'}</td><td>${r.debit?fmt(r.debit):''}</td><td>${r.credit?fmt(r.credit):''}</td><td class="l" style="max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}</td></tr>`;
+    html+=`<tr style="${r.excludeRecon?'opacity:.7;background:rgba(0,0,0,.03)':''}"><td class="l" style="white-space:nowrap">${r.kdate||''}</td><td class="l" style="white-space:nowrap;color:var(--muted);font-size:11.5px">${r.valueDate||''}</td><td class="l">${r.branch?(r.branch+(r._filledDown?' <small style="color:var(--muted)">↑fill</small>':'')):'<span class="tag bad">?</span>'}</td><td>${r.debit?fmt(r.debit):''}</td><td>${r.credit?fmt(r.credit):''}</td><td class="l" style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}${r.excludeRecon?' <small style="color:var(--muted)">[không đối chiếu]</small>':''}</td></tr>`;
   });
   html+='</tbody>';
   document.getElementById('tp-raw').innerHTML=TPBANK.length?html:'<tbody><tr><td class="l small">Chưa import dữ liệu</td></tr></tbody>';
+  renderFilterNotice('tp-filter-notice', {from, to, count: rows.length, total: TPBANK.length});
 }
 
 function renderTPRecon(){
   const m = document.getElementById('tp-month').value; if(!m) return;
   // aggregate credit by branch+day from TPBANK where month matches
+  // BỎ QUA các dòng có excludeRecon=true (tiền lãi, phí DV...) — vẫn tính trong số dư nhưng không đối chiếu cà thẻ
   let agg = {};
   TPBANK.forEach(r=>{
     if(!r.branch || !r.day || !r.month) return;
+    if(r.excludeRecon) return; // bỏ qua tiền lãi, phí dịch vụ
+    if(TP_RECON_EXCLUDE.some(kw=>(r.content||'').toUpperCase().includes(kw))) return;
     const mm = String(r.month).padStart(2,'0'), yyyy = m.slice(0,4);
     if(mm !== m.slice(5,7)) return;
     const key = r.branch+'|'+r.day;
@@ -1380,6 +1503,9 @@ function renderVTRecon(){
   </tbody></table>`;
 
   document.getElementById('vt-recon').innerHTML = html;
+  const vtFrom = document.getElementById('vt-from').value, vtTo = document.getElementById('vt-to').value;
+  const vtM = document.getElementById('vt-month').value;
+  renderFilterNotice('vt-filter-notice', {month: (!vtFrom||!vtTo)?vtM:'', from:vtFrom, to:vtTo, count:days.length, total:VIETTIN.length});
 }
 
 /* ===================================================================
@@ -1460,16 +1586,26 @@ async function handleKTFile(file){
 }
 async function saveKTStage(){
   if(KT_STAGE.length===0) return;
+  window._ktLastImportKeys = new Set(KT_STAGE.map(r=>r.k));
   KHOTONG = KHOTONG.concat(KT_STAGE);
   const n = KT_STAGE.length;
   KT_STAGE = [];
   const ok = await sset('khotong:list', KHOTONG);
   document.getElementById('kt-stage-banner').style.display='none';
-  toast((ok?'✓ Đã lưu':'⚠ Lỗi lưu')+' '+n+' dòng Kho tổng'+(STORAGE_MODE==='cloud'?' (Cloud)':' (Local)'));
+  toast((ok?'✓ Đã lưu':'⚠ Lỗi lưu')+' '+n+' dòng Kho tổng'+(STORAGE_MODE==='cloud'?' (Cloud)':' (Local)')+' — bấm "↩ Xóa lần import cuối" nếu muốn hoàn tác');
   renderKTCount(); renderKTRaw(); renderKTKpi();
   matchB2WithKhoTong(); await sset('b2:list', B2);
 }
 function renderKTCount(){ document.getElementById('kt-count').textContent = KHOTONG.length+' dòng đã lưu'; }
+document.getElementById('kt-undo').addEventListener('click', async ()=>{
+  if(!window._ktLastImportKeys || window._ktLastImportKeys.size===0){ toast('Không có lần import nào để hoàn tác'); return; }
+  if(!confirm('Xóa '+window._ktLastImportKeys.size+' dòng vừa import?')) return;
+  KHOTONG = KHOTONG.filter(r=>!window._ktLastImportKeys.has(r.k));
+  window._ktLastImportKeys = new Set();
+  await sset('khotong:list', KHOTONG);
+  toast('✓ Đã xóa lần import cuối');
+  renderKTCount(); renderKTRaw(); renderKTKpi();
+});
 document.getElementById('kt-clear').addEventListener('click', async ()=>{
   if(!confirm('Xoá toàn bộ dữ liệu Kho tổng?')) return;
   KHOTONG=[]; await sset('khotong:list', KHOTONG); renderKTCount(); renderKTRaw(); renderKTKpi();
@@ -1491,6 +1627,7 @@ function renderKTRaw(){
   });
   html+='</tbody>';
   document.getElementById('kt-raw').innerHTML = KHOTONG.length? html : '<tbody><tr><td class="l small">Chưa import dữ liệu</td></tr></tbody>';
+  renderFilterNotice('kt-filter-notice', {count: KHOTONG.slice(-200).length, total: KHOTONG.length});
 }
 
 /* ===================================================================
@@ -1553,8 +1690,9 @@ async function handleSQFile(file){
       added++;
     });
     matchB2WithKhoTong();
-    await sset('b2:list', B2);
-    toast(`Đã import ${added} phiếu mới từ KiotViet${skipped? ', bỏ qua '+skipped+' dòng không hợp lệ':''}`);
+    window._b2LastImportIds = new Set(B2.filter(r=>!window._b2PrevIds||!window._b2PrevIds.has(r.maPhieu)).map(r=>r.maPhieu));
+    const ok = await sset('b2:list', B2);
+    toast(`${ok?'✓':'⚠ Lỗi lưu!'} Đã import ${added} phiếu mới từ KiotViet${skipped?', bỏ qua '+skipped+' dòng':''} — bấm "↩ Xóa lần import cuối" nếu muốn hoàn tác`);
     renderSQCount(); renderSQTable();
   }catch(err){ toast('Lỗi đọc file: '+err.message); console.error(err); }
 }
@@ -1578,50 +1716,183 @@ function matchB2WithKhoTong(){
   });
 }
 function renderSQCount(){ document.getElementById('sq-count').textContent = B2.length+' phiếu đã lưu'; }
+document.getElementById('sq-undo').addEventListener('click', async ()=>{
+  if(!window._b2LastImportIds || window._b2LastImportIds.size===0){ toast('Không có lần import nào để hoàn tác'); return; }
+  if(!confirm('Xóa '+window._b2LastImportIds.size+' phiếu vừa import?')) return;
+  B2 = B2.filter(r=>!window._b2LastImportIds.has(r.maPhieu));
+  window._b2LastImportIds = new Set();
+  await sset('b2:list', B2);
+  toast('✓ Đã xóa lần import cuối');
+  renderSQCount(); renderSQTable();
+});
 document.getElementById('sq-clear').addEventListener('click', async ()=>{
   if(!confirm('Xoá toàn bộ dữ liệu B2?')) return;
   B2=[]; await sset('b2:list', B2); renderSQCount(); renderSQTable();
 });
 function renderSQTable(){
   const m = document.getElementById('sq-month').value;
+  const from = document.getElementById('sq-from').value, to = document.getElementById('sq-to').value;
+  const useRange = !!(from && to);
   const filter = document.getElementById('sq-filter').value;
-  let rows = B2.filter(r=> !m || (r.time && r.time.slice(0,7)===m));
-  if(filter==='matched') rows = rows.filter(r=>r.bankMatch);
-  if(filter==='unmatched') rows = rows.filter(r=>!r.bankMatch);
-  if(filter==='tienmat') rows = rows.filter(r=>String(r.loaiSoQuy).toLowerCase().includes('tiền mặt')||String(r.loaiSoQuy).toLowerCase().includes('tien mat'));
-  rows.sort((a,c)=>(c.time||'').localeCompare(a.time||''));
-  let html='<thead><tr><th class="l">Mã phiếu</th><th class="l">Ngày</th><th class="l">Chi nhánh</th><th class="l">Loại</th><th class="l">Người nộp/nhận</th><th>Giá trị</th><th class="l">Loại sổ quỹ</th><th class="l">NH phát sinh</th></tr></thead><tbody>';
-  rows.slice(0,400).forEach(r=>{
-    html+=`<tr><td class="l">${r.maPhieu}</td><td class="l">${r.time}</td><td class="l">${r.branch||''}</td><td class="l">${r.loaiThuChi||''}</td><td class="l" style="max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.person||''}</td><td>${fmt(r.amount)}</td><td class="l">${r.loaiSoQuy||''}</td><td class="l">${r.bankMatch? '<span class="tag good">'+r.bankMatch+'</span>':'<span class="tag bad">chưa khớp</span>'}</td></tr>`;
+
+  let rows = B2.filter(r=>{
+    const d = (r.time||'').slice(0,10);
+    if(useRange){ if(d<from || d>to) return false; }
+    else if(m){ if(!r.time || r.time.slice(0,7)!==m) return false; }
+    if(filter==='matched' && !r.bankMatch) return false;
+    if(filter==='unmatched' && r.bankMatch) return false;
+    if(filter==='tienmat' && !String(r.loaiSoQuy).toLowerCase().includes('tiền mặt') && !String(r.loaiSoQuy).toLowerCase().includes('tien mat')) return false;
+    return true;
   });
-  if(rows.length===0) html+='<tr><td class="l small">Chưa có dữ liệu</td></tr>';
+  rows.sort((a,c)=>(a.time||'').localeCompare(c.time||''));
+
+  const totalThu = rows.filter(r=>r.amount>0).reduce((s,r)=>s+r.amount,0);
+  const totalChi = rows.filter(r=>r.amount<0).reduce((s,r)=>s+r.amount,0);
+  const matched = rows.filter(r=>r.bankMatch).length;
+
+  // KPI
+  const kpiEl = document.getElementById('sq-kpi');
+  if(kpiEl) kpiEl.innerHTML = `
+    <div class="box"><div class="v">${rows.length}</div><div class="l">Số phiếu</div></div>
+    <div class="box"><div class="v" style="color:var(--good)">${fmt(totalThu)}</div><div class="l">Tổng Thu</div></div>
+    <div class="box"><div class="v" style="color:var(--bad)">${fmt(Math.abs(totalChi))}</div><div class="l">Tổng Chi</div></div>
+    <div class="box"><div class="v">${fmt(totalThu+totalChi)}</div><div class="l">Thuần (Thu − Chi)</div></div>
+    <div class="box"><div class="v">${matched}/${rows.length}</div><div class="l">Đã khớp ngân hàng</div></div>`;
+
+  let html='<thead><tr><th class="l">Mã phiếu</th><th class="l">Ngày</th><th class="l">Chi nhánh</th><th class="l">Loại</th><th class="l">Người nộp/nhận</th><th>Giá trị</th><th class="l">Loại sổ quỹ</th><th class="l">NH phát sinh</th></tr></thead><tbody>';
+  html+=`<tr class="tot"><td class="l">TỔNG (${rows.length} phiếu)</td><td></td><td></td><td></td><td></td><td>${fmt(totalThu+totalChi)}</td><td></td><td>${matched} khớp</td></tr>`;
+  rows.slice(0,400).forEach(r=>{
+    html+=`<tr><td class="l">${r.maPhieu}</td><td class="l">${r.time}</td><td class="l">${r.branch||''}</td><td class="l">${r.loaiThuChi||''}</td><td class="l" style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.person||''}</td><td class="${r.amount>0?'cell-good':'cell-bad'}">${fmt(r.amount)}</td><td class="l">${r.loaiSoQuy||''}</td><td class="l">${r.bankMatch?'<span class="tag good">'+r.bankMatch+'</span>':'<span class="tag bad">chưa khớp</span>'}</td></tr>`;
+  });
+  if(rows.length===0) html+=`<tr><td class="l small" colspan="8">${B2.length>0?'Không có dữ liệu trong khoảng thời gian đã chọn (có '+B2.length+' phiếu ở tháng khác — thử đổi bộ lọc)':'Chưa có dữ liệu'}</td></tr>`;
   html+='</tbody>';
   document.getElementById('sq-table').innerHTML = html;
+  renderFilterNotice('sq-filter-notice', {month:(!from||!to)?m:'', from, to, count:rows.length, total:B2.length});
 }
 document.getElementById('sq-month').addEventListener('change', renderSQTable);
 document.getElementById('sq-filter').addEventListener('change', renderSQTable);
+document.getElementById('sq-from').addEventListener('change', renderSQTable);
+document.getElementById('sq-to').addEventListener('change', renderSQTable);
+document.getElementById('sq-range-clear').addEventListener('click', ()=>{
+  document.getElementById('sq-from').value=''; document.getElementById('sq-to').value='';
+  renderSQTable();
+});
 
 /* ===================================================================
    PAGE 7 — SO DU NGAN HANG
 =================================================================== */
+function initBalance(){
+  document.getElementById('bal-run').addEventListener('click', renderBalance);
+  // fill branch by source
+  document.getElementById('bal-source').addEventListener('change', ()=>{
+    const src = document.getElementById('bal-source').value;
+    const sel = document.getElementById('bal-branch');
+    sel.innerHTML = '<option value="ALL">Tất cả</option>';
+    let branches = [];
+    if(src==='tp') branches = [...new Set(TPBANK.map(r=>r.branch).filter(Boolean))];
+    else if(src==='kt') branches = [...new Set(KHOTONG.map(r=>r.branch).filter(Boolean))];
+    else if(src==='vt') branches = [...new Set(VIETTIN.map(r=>r.branch).filter(Boolean))];
+    branches.sort().forEach(b=>{ const o=document.createElement('option'); o.value=b; o.textContent=b; sel.appendChild(o); });
+  });
+  // default date range = current month
+  const now = todayISO();
+  document.getElementById('bal-from').value = now.slice(0,7)+'-01';
+  document.getElementById('bal-to').value = now;
+  document.getElementById('bal-source').dispatchEvent(new Event('change'));
+}
+
 async function renderBalance(){
-  const tbody = [];
-  // TP Bank per branch: last balance row (by order of appearance) per branch
-  function lastBalanceBy(arr, branchKey, balKey){
-    let map={};
-    arr.forEach(r=>{ if(r[branchKey]) map[r[branchKey]] = r[balKey]; });
-    return map;
+  const from = document.getElementById('bal-from').value;
+  const to   = document.getElementById('bal-to').value;
+  const src  = document.getElementById('bal-source').value;
+  const fb   = document.getElementById('bal-branch').value;
+  const view = document.getElementById('bal-view').value;
+  if(!from||!to){ toast('Chọn khoảng ngày'); return; }
+
+  // Hiện loading
+  const btn = document.getElementById('bal-run');
+  btn.disabled = true; btn.textContent = '⏳ Đang tính...';
+  document.getElementById('bal-table').innerHTML = '<tbody><tr><td class="l small">Đang tính toán, vui lòng chờ...</td></tr></tbody>';
+  document.getElementById('bal-kpi').innerHTML = '';
+  await new Promise(r=>setTimeout(r,30)); // yield to browser to render loading state
+
+  try{
+    // Chọn nguồn dữ liệu
+    let data = [];
+    if(src==='tp') data = TPBANK;
+    else if(src==='kt') data = KHOTONG;
+    else if(src==='vt') data = VIETTIN;
+
+    if(fb!=='ALL') data = data.filter(r=>r.branch===fb);
+
+    // Hàm lấy ISO date từ row
+    const rowDate = r => {
+      if(src==='vt'){
+        if(!r.day||!r.month) return null;
+        const yr = r.dateRaw ? (r.dateRaw.match(/(\d{4})/)||[])[0] : new Date().getFullYear();
+        return `${yr}-${String(r.month).padStart(2,'0')}-${String(r.day).padStart(2,'0')}`;
+      }
+      return r.kdate ? r.kdate.split('/').reverse().join('-') : (r.date||null);
+    };
+
+    await new Promise(r=>setTimeout(r,10));
+
+    // Dư đầu kỳ
+    const openingBal = {};
+    if(src==='tp'||src==='kt'){
+      data.forEach(r=>{ if(r.balance!=null && r.branch){ const d=rowDate(r); if(d && d<from) openingBal[r.branch]=r.balance; } });
+    }
+
+    await new Promise(r=>setTimeout(r,10));
+
+    // Phát sinh trong kỳ
+    const agg = {};
+    data.forEach(r=>{
+      const d = rowDate(r); if(!d||d<from||d>to) return;
+      const period = view==='month' ? d.slice(0,7) : d;
+      const key = (r.branch||'?')+'|'+period;
+      if(!agg[key]) agg[key]={branch:r.branch||'?',period,debit:0,credit:0,lastBal:null};
+      if(src==='vt'){ if(r.amount>0) agg[key].credit+=r.amount; else agg[key].debit+=Math.abs(r.amount); }
+      else { agg[key].debit+=(r.debit||0); agg[key].credit+=(r.credit||0); if(r.balance!=null) agg[key].lastBal=r.balance; }
+    });
+
+    await new Promise(r=>setTimeout(r,10));
+
+    const rows = Object.values(agg).sort((a,b)=>a.branch.localeCompare(b.branch)||a.period.localeCompare(b.period));
+    const totDebit=rows.reduce((s,r)=>s+r.debit,0);
+    const totCredit=rows.reduce((s,r)=>s+r.credit,0);
+    const branches=[...new Set(rows.map(r=>r.branch))];
+    const totOpening=branches.reduce((s,b)=>s+(openingBal[b]??0),0);
+    const totClosing=totOpening+totCredit-totDebit;
+
+    document.getElementById('bal-kpi').innerHTML=`
+      <div class="box"><div class="v">${fmt(totOpening)}</div><div class="l">Dư đầu kỳ</div></div>
+      <div class="box"><div class="v" style="color:var(--bad)">${fmt(totDebit)}</div><div class="l">Tổng Phát sinh Nợ</div></div>
+      <div class="box"><div class="v" style="color:var(--good)">${fmt(totCredit)}</div><div class="l">Tổng Phát sinh Có</div></div>
+      <div class="box"><div class="v" style="font-weight:700">${fmt(totClosing)}</div><div class="l">Dư cuối kỳ</div></div>
+      <div class="box"><div class="v">${branches.length}</div><div class="l">Số chi nhánh</div></div>`;
+
+    let html='<thead><tr><th class="l">Chi nhánh</th><th class="l">'+(view==='month'?'Tháng':'Ngày')+'</th><th>Dư đầu kỳ</th><th>Phát sinh Nợ</th><th>Phát sinh Có</th><th>Dư cuối kỳ</th></tr></thead><tbody>';
+    branches.forEach(branch=>{
+      const brRows=rows.filter(r=>r.branch===branch);
+      let runBal=openingBal[branch]??null;
+      let td=0,tc=0;
+      brRows.forEach((r,i)=>{
+        const openBal=runBal; td+=r.debit; tc+=r.credit;
+        let closeBal=null;
+        if(src!=='vt'&&r.lastBal!==null) closeBal=r.lastBal;
+        else if(openBal!==null) closeBal=openBal+r.credit-r.debit;
+        runBal=closeBal;
+        html+=`<tr><td class="l">${i===0?branch:''}</td><td class="l">${r.period}</td><td style="color:var(--muted)">${openBal!==null?fmt(openBal):'—'}</td><td class="cell-bad">${r.debit?fmt(r.debit):''}</td><td class="cell-good">${r.credit?fmt(r.credit):''}</td><td style="font-weight:700">${closeBal!==null?fmt(closeBal):'—'}</td></tr>`;
+      });
+      html+=`<tr class="tot"><td class="l">${branch} — Cộng</td><td></td><td style="color:var(--muted)">${openingBal[branch]!=null?fmt(openingBal[branch]):'—'}</td><td>${fmt(td)}</td><td>${fmt(tc)}</td><td style="font-weight:700">${runBal!==null?fmt(runBal):'—'}</td></tr>`;
+    });
+    if(rows.length===0) html+='<tr><td class="l small" colspan="6">Không có dữ liệu trong khoảng ngày đã chọn</td></tr>';
+    html+='</tbody>';
+    document.getElementById('bal-table').innerHTML=html;
+  } finally {
+    btn.disabled=false; btn.textContent='Xem báo cáo';
   }
-  const tp = lastBalanceBy(TPBANK,'branch','balance');
-  const vt = lastBalanceBy(VIETTIN.filter(r=>true),'branch','amount'); // viettin raw doesn't store balance running per row import here -> show last seen
-  const ktBal = {};
-  KHOTONG.forEach(r=>{ ktBal[r.branch]=r.balance; });
-  let html='<thead><tr><th class="l">Chi nhánh / Tài khoản</th><th class="l">Ngân hàng</th><th>Số dư gần nhất</th></tr></thead><tbody>';
-  Object.entries(tp).forEach(([b,bal])=>{ html+=`<tr><td class="l">${b}</td><td class="l">TP Bank</td><td>${fmt(bal)}</td></tr>`; });
-  Object.entries(ktBal).forEach(([b,bal])=>{ html+=`<tr><td class="l">${b}</td><td class="l">TP Bank Kho tổng</td><td>${fmt(bal)}</td></tr>`; });
-  if(Object.keys(tp).length===0 && Object.keys(ktBal).length===0) html+='<tr><td class="l small">Chưa có dữ liệu import (TP Bank / Kho tổng có lưu cột Số dư)</td></tr>';
-  html+='</tbody>';
-  document.getElementById('bal-table').innerHTML = html;
 }
 
 /* ===================================================================
@@ -1629,10 +1900,15 @@ async function renderBalance(){
 =================================================================== */
 function renderBK(){
   const m = document.getElementById('bk-month').value; if(!m) return;
+  // Loại trừ phiếu thu/chi tiền khách — chỉ lấy giao dịch thực sự qua ngân hàng
+  const BK_EXCLUDE = ['phiếu thu tiền khách trả','phieu thu tien khach tra','phiếu chi tiền trả khách','phieu chi tien tra khach'];
   let agg = {}; // date -> {m1in,m1out,m2in,m2out}
   B2.forEach(r=>{
     if(!r.time || r.time.slice(0,7)!==m) return;
     const acc = r.bankAccount; if(!acc) return;
+    // Bỏ qua phiếu thu/chi tiền khách
+    const loaiLower = String(r.loaiThuChi||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    if(BK_EXCLUDE.some(kw=>loaiLower.replace(/[\u0300-\u036f]/g,'').includes(kw.normalize('NFD').replace(/[\u0300-\u036f]/g,'')))) return;
     const key=r.time;
     agg[key] = agg[key] || {m1in:0,m1out:0,m2in:0,m2out:0};
     const isM1 = acc==='10003597861';
@@ -1854,6 +2130,7 @@ function renderDoiChieuTong(){
   let tpAgg = {};
   TPBANK.forEach(r=>{
     if(!r.branch || !r.day || !r.month) return;
+    if(r.excludeRecon || TP_RECON_EXCLUDE.some(kw=>(r.content||'').toUpperCase().includes(kw))) return;
     const dISO = `${new Date().getFullYear()}-${String(r.month).padStart(2,'0')}-${String(r.day).padStart(2,'0')}`;
     // dùng năm hiện tại làm mặc định; nếu cần chính xác hơn theo năm, có thể mở rộng sau
     if(!inRange(dISO)) return;
@@ -2008,14 +2285,151 @@ function renderLog(){
   await initViettin();
   await initKhoTong();
   await initB2();
-  await renderBalance();
+  initBalance();
   document.getElementById('bk-month').value = todayISO().slice(0,7); renderBK();
   document.getElementById('th-month').value = todayISO().slice(0,7); renderTH();
   await initQK();
   initLog();
   initDoiChieuTong();
   initBackup();
+  await initCaTheKiot();
 })();
+
+/* ===================================================================
+   PAGE 15 — CÀ THẺ KIOT
+=================================================================== */
+let CATHE_KV = [];
+
+async function initCaTheKiot(){
+  CATHE_KV = await sget('cathe_kv:list', []);
+  document.getElementById('cak-month').value = todayISO().slice(0,7);
+  // fill chi nhánh
+  const brSel = document.getElementById('cak-filter-branch');
+  CHOTCA_BRANCHES.forEach(b=>{ const o=document.createElement('option'); o.value=b; o.textContent=b; brSel.appendChild(o); });
+  setupDrop('cak-drop','cak-file', handleCAKFile);
+  ['cak-month','cak-from','cak-to','cak-filter-branch','cak-filter-method'].forEach(id=>{
+    document.getElementById(id).addEventListener('change', renderCAKTable);
+  });
+  document.getElementById('cak-range-clear').addEventListener('click',()=>{
+    document.getElementById('cak-from').value=''; document.getElementById('cak-to').value='';
+    renderCAKTable();
+  });
+  document.getElementById('cak-clear').addEventListener('click', async ()=>{
+    if(!confirm('Xoá toàn bộ dữ liệu Ngân hàng Kiot?')) return;
+    CATHE_KV=[]; await sset('cathe_kv:list', CATHE_KV);
+    renderCAKCount(); renderCAKTable();
+  });
+  document.getElementById('cak-undo').addEventListener('click', async ()=>{
+    if(!window._cakLastIds || window._cakLastIds.size===0){ toast('Không có lần import nào để hoàn tác'); return; }
+    if(!confirm('Xóa '+window._cakLastIds.size+' phiếu vừa import?')) return;
+    CATHE_KV = CATHE_KV.filter(r=>!window._cakLastIds.has(r.maPhieu));
+    window._cakLastIds = new Set();
+    await sset('cathe_kv:list', CATHE_KV);
+    toast('✓ Đã xóa lần import cuối');
+    renderCAKCount(); renderCAKTable();
+  });
+  renderCAKCount(); renderCAKTable();
+}
+
+async function handleCAKFile(file){
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf,{type:'array',cellDates:true,sheetRows:0});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+    const header = rows[0];
+    if(!header) return toast('Không đọc được header file');
+    // cIdx
+    const fc = (keys)=>{ for(let i=0;i<header.length;i++){ const c=String(header[i]||'').toLowerCase(); for(const k of keys) if(c.includes(k)) return i; } return -1; };
+    const cIdx = {
+      maPhieu: fc(['mã phiếu','ma phieu']),
+      time: fc(['thời gian','thoi gian']),
+      branch: fc(['chi nhánh','chi nhanh']),
+      loai: fc(['loại thu chi','loai thu chi']),
+      phuongThuc: fc(['phương thức','phuong thuc']),
+      soTK: fc(['số tài khoản','so tai khoan']),
+      person: fc(['người nộp','nguoi nop']),
+      amount: fc(['giá trị','gia tri']),
+      content: fc(['nội dung','noi dung']),
+      note: fc(['ghi chú','ghi chu'])
+    };
+    const existIds = new Set(CATHE_KV.map(r=>r.maPhieu));
+    let added=0, dup=0;
+    const newRows = [];
+    rows.slice(1).forEach(row=>{
+      if(!row||!row[cIdx.maPhieu]) return;
+      const maPhieu = String(row[cIdx.maPhieu]||'').trim();
+      if(!maPhieu) return;
+      if(existIds.has(maPhieu)){ dup++; return; }
+      existIds.add(maPhieu);
+      const timeRaw = row[cIdx.time];
+      const time = timeRaw instanceof Date ? timeRaw.toISOString().slice(0,10) : String(timeRaw||'').slice(0,10);
+      const amount = typeof row[cIdx.amount]==='number' ? row[cIdx.amount] : parseVNMoney(row[cIdx.amount]);
+      newRows.push({
+        maPhieu, time,
+        branch: String(row[cIdx.branch]||''),
+        loai: String(row[cIdx.loai]||''),
+        phuongThuc: String(row[cIdx.phuongThuc]||''),
+        soTK: String(row[cIdx.soTK]||''),
+        person: String(row[cIdx.person]||''),
+        amount: isNaN(amount)?0:amount,
+        content: String(row[cIdx.content]||''),
+        note: String(row[cIdx.note]||'')
+      });
+      added++;
+    });
+    CATHE_KV = CATHE_KV.concat(newRows);
+    window._cakLastIds = new Set(newRows.map(r=>r.maPhieu));
+    const ok = await sset('cathe_kv:list', CATHE_KV);
+    toast(`${ok?'✓':'⚠ Lỗi lưu!'} Đã import ${added} phiếu mới${dup?' (bỏ qua '+dup+' trùng)':''}`);
+    // fill phương thức select
+    renderCAKCount(); renderCAKTable();
+  }catch(err){ toast('Lỗi đọc file: '+err.message); console.error(err); }
+}
+
+function renderCAKCount(){
+  document.getElementById('cak-count').textContent = CATHE_KV.length+' phiếu đã lưu';
+  // fill phương thức filter
+  const sel = document.getElementById('cak-filter-method');
+  const methods = [...new Set(CATHE_KV.map(r=>r.phuongThuc).filter(Boolean))];
+  const cur = sel.value;
+  sel.innerHTML = '<option value="ALL">Tất cả</option>';
+  methods.forEach(m=>{ const o=document.createElement('option'); o.value=m; o.textContent=m; sel.appendChild(o); });
+  if(cur) sel.value = cur;
+}
+
+function renderCAKTable(){
+  const m = document.getElementById('cak-month').value;
+  const from = document.getElementById('cak-from').value, to = document.getElementById('cak-to').value;
+  const useRange = !!(from&&to);
+  const fb = document.getElementById('cak-filter-branch').value;
+  const fm = document.getElementById('cak-filter-method').value;
+  let rows = CATHE_KV.filter(r=>{
+    if(useRange){ if(r.time<from||r.time>to) return false; }
+    else if(m){ if(!r.time||r.time.slice(0,7)!==m) return false; }
+    if(fb!=='ALL'&&r.branch!==fb) return false;
+    if(fm!=='ALL'&&r.phuongThuc!==fm) return false;
+    return true;
+  });
+  rows.sort((a,c)=>a.time.localeCompare(c.time));
+  const totalThu = rows.filter(r=>r.amount>0).reduce((s,r)=>s+r.amount,0);
+  const totalChi = rows.filter(r=>r.amount<0).reduce((s,r)=>s+r.amount,0);
+  document.getElementById('cak-kpi').innerHTML=`
+    <div class="box"><div class="v">${rows.length}</div><div class="l">Số phiếu</div></div>
+    <div class="box"><div class="v" style="color:var(--good)">${fmt(totalThu)}</div><div class="l">Tổng Thu</div></div>
+    <div class="box"><div class="v" style="color:var(--bad)">${fmt(Math.abs(totalChi))}</div><div class="l">Tổng Chi</div></div>
+    <div class="box"><div class="v">${fmt(totalThu+totalChi)}</div><div class="l">Thuần</div></div>`;
+  let html='<thead><tr><th class="l">Mã phiếu</th><th class="l">Ngày</th><th class="l">Chi nhánh</th><th class="l">Loại</th><th class="l">Phương thức</th><th class="l">Số TK</th><th>Giá trị</th><th class="l">Nội dung</th></tr></thead><tbody>';
+  html+=`<tr class="tot"><td class="l">TỔNG (${rows.length} phiếu)</td><td></td><td></td><td></td><td></td><td></td><td>${fmt(totalThu+totalChi)}</td><td></td></tr>`;
+  rows.slice(0,500).forEach(r=>{
+    html+=`<tr><td class="l">${r.maPhieu}</td><td class="l">${r.time}</td><td class="l">${r.branch}</td><td class="l">${r.loai}</td><td class="l">${r.phuongThuc}</td><td class="l" style="font-size:11px;color:var(--muted)">${r.soTK}</td><td class="${r.amount>=0?'cell-good':'cell-bad'}">${fmt(r.amount)}</td><td class="l" style="max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}</td></tr>`;
+  });
+  if(rows.length===0) html+=`<tr><td class="l small" colspan="8">${CATHE_KV.length>0?'Không có dữ liệu trong kỳ này (có '+CATHE_KV.length+' phiếu ở kỳ khác — thử đổi bộ lọc)':'Chưa có dữ liệu'}</td></tr>`;
+  html+='</tbody>';
+  document.getElementById('cak-table').innerHTML=html;
+  renderFilterNotice('cak-filter-notice',{month:(!from||!to)?m:'',from,to,count:rows.length,total:CATHE_KV.length});
+}
+
 
 /* ============ BACKUP & RESTORE ============ */
 const BACKUP_KEYS = ['chotca:data','chenhlech:list','tpbank:list','viettin:list','khotong:list','b2:list'];
