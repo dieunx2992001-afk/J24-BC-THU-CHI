@@ -273,7 +273,7 @@ tr:hover td{background:var(--surface2);}
           </div>
           <div><button class="ghost" id="cc-template-btn">📥 Tải file mẫu Excel</button></div>
         </div>
-        <p class="note" style="margin-top:8px">File mẫu có dạng bảng ngang giống sheet chốt ca thật: 1 dòng "Ngày", 1 dòng chi nhánh theo cột, các dòng VND/USD/Tệ/Thu CK/MOMO/Thu cà thẻ/Doanh thu máy theo cột chi nhánh — điền xong kéo thả file vào ô import ở trên.</p>
+        <p class="note" style="margin-top:8px">File mẫu có dạng bảng ngang giống sheet chốt ca thật, và có sẵn <b>2 ngày mẫu</b> để bạn thấy cách lặp lại. Muốn nhập thêm ngày khác: copy nguyên 1 khối (từ dòng "Ngày" tới hết dòng "Chênh lệch chốt ca") dán tiếp xuống dưới, sửa lại ngày và số liệu — import 1 lần sẽ lưu hết tất cả các ngày có trong file.</p>
       </div>
       <div class="card">
         <div class="row">
@@ -992,32 +992,45 @@ function initChotCaUI(){
 function downloadChotCaTemplate(){
   if(typeof XLSX === 'undefined'){ toast('⚠ Không tải được thư viện Excel (kiểm tra kết nối mạng) — thử tải lại trang'); return; }
   const branches = CHOTCA_BRANCHES;
-  const data = [
-    ['Ngày', todayISO()],
-    [],
-    ['CỬA HÀNG', ...branches],
-    ['THU TIỀN BÁN HÀNG', ...branches.map(()=>0)],
-    ['VND', ...branches.map(()=>0)],
-    ['USD', ...branches.map(()=>0)],
-    ['TỆ', ...branches.map(()=>0)],
-    ['Thu chuyển khoản', ...branches.map(()=>0)],
-    ['MOMO', ...branches.map(()=>0)],
-    ['Thu cà thẻ', ...branches.map(()=>0)],
-    ['DOANH THU MÁY', ...branches.map(()=>0)],
-    ['Chênh lệch chốt ca', ...branches.map(()=>0)],
-  ];
+  const today = todayISO();
+  const tomorrow = new Date(Date.now()+86400000).toISOString().slice(0,10);
+  const data = [];
+  const blockStartRows = [];
+  [today, tomorrow].forEach((date, bi)=>{
+    if(bi>0) data.push([]); // dòng trống ngăn cách giữa 2 ngày
+    const startRow = data.length; // 0-based, hàng đầu của block này (dòng "Ngày")
+    blockStartRows.push(startRow);
+    data.push(
+      ['Ngày', date],
+      [],
+      ['CỬA HÀNG', ...branches],
+      ['THU TIỀN BÁN HÀNG', ...branches.map(()=>0)],
+      ['VND', ...branches.map(()=>0)],
+      ['USD', ...branches.map(()=>0)],
+      ['TỆ', ...branches.map(()=>0)],
+      ['Thu chuyển khoản', ...branches.map(()=>0)],
+      ['MOMO', ...branches.map(()=>0)],
+      ['Thu cà thẻ', ...branches.map(()=>0)],
+      ['DOANH THU MÁY', ...branches.map(()=>0)],
+      ['Chênh lệch chốt ca', ...branches.map(()=>0)],
+    );
+  });
   const ws = XLSX.utils.aoa_to_sheet(data);
-  // Gắn công thức Excel để 2 dòng "THU TIỀN BÁN HÀNG" và "Chênh lệch chốt ca" tự tính khi bạn điền số liệu
-  branches.forEach((_,i)=>{
-    const col = XLSX.utils.encode_col(1+i); // cột B, C, D... (cột A là nhãn dòng)
-    ws[col+'4'] = { t:'n', f: `${col}5+${col}6+${col}7+${col}8+${col}9+${col}10`, v:0 };
-    ws[col+'12'] = { t:'n', f: `${col}4-${col}11`, v:0 };
+  // Gắn công thức Excel để 2 dòng "THU TIỀN BÁN HÀNG" và "Chênh lệch chốt ca" tự tính cho MỖI block ngày
+  blockStartRows.forEach(startRow=>{
+    // startRow là dòng "Ngày" (0-based); +3 = dòng THU TIỀN BÁN HÀNG, +4..+9 = VND..Thu cà thẻ, +10 = DOANH THU MÁY, +11 = Chênh lệch (1-based Excel row = 0-based+1)
+    const rThu = startRow+4, rVnd=startRow+5, rUsd=startRow+6, rTe=startRow+7, rTck=startRow+8, rMomo=startRow+9, rCathe=startRow+10, rMay=startRow+11, rDiff=startRow+12;
+    branches.forEach((_,i)=>{
+      const col = XLSX.utils.encode_col(1+i); // cột B, C, D... (cột A là nhãn dòng)
+      ws[col+rThu] = { t:'n', f: `${col}${rVnd}+${col}${rUsd}+${col}${rTe}+${col}${rTck}+${col}${rMomo}+${col}${rCathe}`, v:0 };
+      ws[col+rDiff] = { t:'n', f: `${col}${rThu}-${col}${rMay}`, v:0 };
+    });
   });
   ws['!cols'] = [{wch:20}, ...branches.map(()=>({wch:14}))];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Chốt ca');
   downloadXLSX(wb, 'Mau_Import_Chot_Ca.xlsx');
-  toast('✓ Đã tải file mẫu — sửa ô "Ngày", điền VND/USD/Tệ/Thu CK/MOMO/Thu cà thẻ/Doanh thu máy rồi import lại');
+  toast('✓ Đã tải file mẫu (2 ngày mẫu) — điền số liệu, muốn thêm ngày khác thì copy 1 block dán xuống dưới, rồi import 1 lần cho tất cả');
 }
 function normalizeDateCell(rawDate){
   if(rawDate==null) return null;
@@ -1034,80 +1047,99 @@ async function handleChotCaImportFile(file){
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
 
-    // 1) Tìm ô "Ngày" (dò vài dòng/cột đầu file) rồi lấy giá trị ô liền kề bên phải làm ngày chốt ca
-    let dateVal = null;
-    dateSearch:
-    for(let r=0;r<Math.min(rows.length,6);r++){
+    // 1) Tìm TẤT CẢ các ô "Ngày" trong file — mỗi ô như vậy đánh dấu bắt đầu 1 "khối" dữ liệu của 1 ngày.
+    //    Nhờ vậy 1 file có thể chứa nhiều ngày (dán nhiều khối nối tiếp nhau), import 1 lần lưu hết.
+    const blockStarts = []; // [{rowIdx, dateVal}]
+    for(let r=0;r<rows.length;r++){
       const rr = rows[r]||[];
       for(let c=0;c<Math.min(rr.length,4);c++){
-        if(rr[c] && String(rr[c]).toLowerCase().includes('ngày')){ dateVal = rr[c+1]; break dateSearch; }
+        if(rr[c] && String(rr[c]).toLowerCase().includes('ngày')){ blockStarts.push({rowIdx:r, dateVal: rr[c+1]}); break; }
       }
     }
-    const d = normalizeDateCell(dateVal);
-    if(!d){ toast('⚠ Không tìm thấy ô "Ngày" hợp lệ (cần 1 ô ghi chữ "Ngày" và ô ngay bên phải là giá trị ngày)'); return; }
+    if(blockStarts.length===0){ toast('⚠ Không tìm thấy ô "Ngày" nào trong file (cần 1 ô ghi chữ "Ngày" và ô ngay bên phải là giá trị ngày)'); return; }
 
-    // 2) Tìm dòng tiêu đề chi nhánh — ô đầu dòng ghi "CỬA HÀNG" (hoặc "Chi nhánh")
-    let branchRowIdx = -1;
-    for(let r=0;r<rows.length;r++){
-      const c0 = String((rows[r]||[])[0]||'').toLowerCase();
-      if(c0.includes('cửa hàng') || c0.includes('cua hang') || c0.includes('chi nhánh') || c0.includes('chi nhanh')){ branchRowIdx = r; break; }
-    }
-    if(branchRowIdx===-1){ toast('⚠ Không tìm thấy dòng tiêu đề chi nhánh (ô đầu dòng ghi "CỬA HÀNG")'); return; }
-    const branchRow = rows[branchRowIdx];
     const branchLookup = {}; CHOTCA_BRANCHES.forEach(b=>branchLookup[b.toLowerCase()] = b);
-    const colBranch = {}; // cột (số) -> tên chi nhánh chuẩn
-    const invalidCols = new Set();
-    for(let c=1;c<branchRow.length;c++){
-      const name = String(branchRow[c]||'').trim();
-      if(!name) continue;
-      const matched = branchLookup[name.toLowerCase()];
-      if(matched) colBranch[c] = matched; else invalidCols.add(name);
-    }
-    if(Object.keys(colBranch).length===0){ toast('⚠ Không nhận diện được cột chi nhánh nào hợp lệ trong dòng tiêu đề'); return; }
+    let totalImported = 0;
+    const perDateCount = {};
+    const invalidColsAll = new Set();
+    const badDates = [];
+    const badBlocks = [];
 
-    // 3) Tìm từng dòng dữ liệu theo nhãn (bỏ qua 2 dòng tính toán "THU TIỀN BÁN HÀNG" / "Chênh lệch chốt ca")
-    const findRow = (keys) => {
-      for(let r=branchRowIdx+1;r<rows.length;r++){
-        const label = String((rows[r]||[])[0]||'').toLowerCase();
-        if(keys.some(k=>label.includes(k))) return rows[r];
+    // 2) Xử lý TỪNG khối riêng biệt (giới hạn trong khoảng từ dòng "Ngày" của khối này tới trước dòng "Ngày" của khối kế tiếp)
+    for(let bi=0; bi<blockStarts.length; bi++){
+      const blockStart = blockStarts[bi].rowIdx;
+      const blockEnd = bi+1<blockStarts.length ? blockStarts[bi+1].rowIdx : rows.length;
+      const d = normalizeDateCell(blockStarts[bi].dateVal);
+      if(!d){ badDates.push(`khối #${bi+1}`); continue; }
+
+      // Tìm dòng tiêu đề chi nhánh trong phạm vi khối này
+      let branchRowIdx = -1;
+      for(let r=blockStart;r<blockEnd;r++){
+        const c0 = String((rows[r]||[])[0]||'').toLowerCase();
+        if(c0.includes('cửa hàng') || c0.includes('cua hang') || c0.includes('chi nhánh') || c0.includes('chi nhanh')){ branchRowIdx = r; break; }
       }
-      return null;
-    };
-    const fieldRows = {
-      vnd: findRow(['vnd']),
-      usd: findRow(['usd']),
-      te: findRow(['tệ','te']),
-      tck: findRow(['chuyển khoản','chuyen khoan','thu ck']),
-      momo: findRow(['momo']),
-      cathe: findRow(['cà thẻ','ca the']),
-      dtmay: findRow(['doanh thu máy','doanh thu may','dt máy']),
-    };
-    const missing = Object.entries(fieldRows).filter(([k,v])=>!v).map(([k])=>FIELDS.find(f=>f[0]===k)[1]);
-    if(missing.length){ toast('⚠ Thiếu dòng dữ liệu cho: '+missing.join(', ')); return; }
+      if(branchRowIdx===-1){ badBlocks.push(`ngày ${d}: thiếu dòng "CỬA HÀNG"`); continue; }
+      const branchRow = rows[branchRowIdx];
+      const colBranch = {};
+      const invalidCols = new Set();
+      for(let c=1;c<branchRow.length;c++){
+        const name = String(branchRow[c]||'').trim();
+        if(!name) continue;
+        const matched = branchLookup[name.toLowerCase()];
+        if(matched) colBranch[c] = matched; else invalidCols.add(name);
+      }
+      invalidCols.forEach(x=>invalidColsAll.add(x));
+      if(Object.keys(colBranch).length===0){ badBlocks.push(`ngày ${d}: không có cột chi nhánh hợp lệ`); continue; }
 
-    // 4) Ghép dữ liệu từng cột (chi nhánh) từ các dòng field, lưu vào đúng ngày + chi nhánh
-    let imported = 0;
-    Object.entries(colBranch).forEach(([cStr, branch])=>{
-      const c = parseInt(cStr);
-      const rec = {};
-      FIELDS.forEach(([k])=>{
-        const row = fieldRows[k];
-        const raw = row ? row[c] : null;
-        rec[k] = raw==null||raw==='' ? 0 : (parseFloat(String(raw).replace(/[^\d.-]/g,''))||0);
+      // Tìm từng dòng dữ liệu theo nhãn, chỉ trong phạm vi khối này (bỏ qua dòng tính toán)
+      const findRow = (keys) => {
+        for(let r=branchRowIdx+1;r<blockEnd;r++){
+          const label = String((rows[r]||[])[0]||'').toLowerCase();
+          if(keys.some(k=>label.includes(k))) return rows[r];
+        }
+        return null;
+      };
+      const fieldRows = {
+        vnd: findRow(['vnd']),
+        usd: findRow(['usd']),
+        te: findRow(['tệ','te']),
+        tck: findRow(['chuyển khoản','chuyen khoan','thu ck']),
+        momo: findRow(['momo']),
+        cathe: findRow(['cà thẻ','ca the']),
+        dtmay: findRow(['doanh thu máy','doanh thu may','dt máy']),
+      };
+      const missing = Object.entries(fieldRows).filter(([k,v])=>!v).map(([k])=>FIELDS.find(f=>f[0]===k)[1]);
+      if(missing.length){ badBlocks.push(`ngày ${d}: thiếu dòng ${missing.join(', ')}`); continue; }
+
+      // Ghép dữ liệu từng cột (chi nhánh) từ các dòng field, lưu vào đúng ngày + chi nhánh
+      Object.entries(colBranch).forEach(([cStr, branch])=>{
+        const c = parseInt(cStr);
+        const rec = {};
+        FIELDS.forEach(([k])=>{
+          const row = fieldRows[k];
+          const raw = row ? row[c] : null;
+          rec[k] = raw==null||raw==='' ? 0 : (parseFloat(String(raw).replace(/[^\d.-]/g,''))||0);
+        });
+        rec.savedAt = new Date().toISOString();
+        CHOTCA[ccKey(d, branch)] = rec;
+        totalImported++;
+        perDateCount[d] = (perDateCount[d]||0) + 1;
       });
-      rec.savedAt = new Date().toISOString();
-      CHOTCA[ccKey(d, branch)] = rec;
-      imported++;
-    });
+    }
 
-    if(imported>0){
+    if(totalImported>0){
       await sset('chotca:data', CHOTCA);
       renderCCTable();
       if(document.getElementById('p11').classList.contains('active')) renderLog();
     }
-    let msg = imported>0 ? `✓ Đã import ${imported} chi nhánh cho ngày ${d}` : '⚠ Không import được chi nhánh nào';
-    if(invalidCols.size) msg += ` — bỏ qua cột không hợp lệ: ${[...invalidCols].join(', ')}`;
-    toast(msg, 5000);
+    const dateSummary = Object.entries(perDateCount).map(([d,n])=>`${d} (${n} CN)`).join(', ');
+    let msg = totalImported>0 ? `✓ Đã import ${totalImported} dòng — ${dateSummary}` : '⚠ Không import được dòng nào';
+    const problems = [];
+    if(invalidColsAll.size) problems.push(`bỏ qua cột không hợp lệ: ${[...invalidColsAll].join(', ')}`);
+    if(badDates.length) problems.push(`sai ngày ở: ${badDates.join(', ')}`);
+    if(badBlocks.length) problems.push(badBlocks.join('; '));
+    if(problems.length) msg += ' — ' + problems.join('; ');
+    toast(msg, 6000);
   }catch(e){
     console.error(e);
     toast('⚠ Lỗi đọc file: '+e.message, 4000);
