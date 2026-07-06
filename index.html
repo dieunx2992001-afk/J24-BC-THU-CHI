@@ -664,6 +664,8 @@ const BANKS = ["TP Bank","Viettinbank","TP Bank Kho tổng - Mart1","TP Bank Kho
 // Các từ khóa trong diễn giải TP Bank cần loại khỏi đối chiếu cà thẻ (nhưng vẫn tính vào số dư)
 const TP_RECON_EXCLUDE = ['TRA LAI TIEN GUI','THUE VAT-THU PHI','THU PHI QUAN LY','THU PHI DICH VU'];
 const FIELDS = [["vnd","VND"],["usd","USD"],["te","TỆ"],["tck","Thu chuyển khoản"],["momo","MOMO"],["cathe","Thu cà thẻ"],["dtmay","Doanh thu máy"]];
+// Doanh thu máy KHÔNG được cộng vào Cộng — chỉ dùng để đối chiếu chênh lệch với tổng các mục thu thật sự
+const RECON_FIELDS = FIELDS.filter(([k])=>k!=='dtmay');
 const TID_MAP = {
  "77784135":"CN6. J24 81TND","77786110":"RIGEL","77786111":"CN4. J24 39VCN","77786112":"CN1. Anh 05VL",
  "77786113":"CN2. J24 18THD","77786114":"CN8. J24 AB","77784138":"CN3. J24 92HB","77786115":"CN5. J24 80CCXH","77785240":"CN7. J24 VEGA"
@@ -1077,14 +1079,18 @@ function renderCCTable(){
   });
   rows.sort((a,c)=> a.d.localeCompare(c.d) || a.b.localeCompare(c.b));
   let totals = {}; FIELDS.forEach(([k])=>totals[k]=0);
-  let html = '<thead><tr><th class="l">Ngày</th><th class="l">Chi nhánh</th>'+FIELDS.map(([k,l])=>`<th>${l}</th>`).join('')+'<th>Cộng</th><th></th></tr></thead><tbody>';
+  let html = '<thead><tr><th class="l">Ngày</th><th class="l">Chi nhánh</th>'+FIELDS.map(([k,l])=>`<th>${l}</th>`).join('')+'<th>Cộng</th><th>Chênh lệch</th><th></th></tr></thead><tbody>';
   rows.forEach(r=>{
-    let sum=0; FIELDS.forEach(([k])=>{sum+=r[k]||0; totals[k]+=r[k]||0;});
+    let sum=0; RECON_FIELDS.forEach(([k])=>{sum+=r[k]||0;}); FIELDS.forEach(([k])=>{totals[k]+=r[k]||0;});
+    const diff = sum - (r.dtmay||0);
+    const diffSty = diff===0 ? 'color:var(--muted)' : (diff>0 ? 'color:var(--good)' : 'color:var(--bad)');
     const isJustSaved = r.key === window._ccLastSaved;
-    html += `<tr id="${isJustSaved?'cc-row-highlight':''}" class="${isJustSaved?'row-flash':''}"><td class="l">${r.d}</td><td class="l">${r.b}</td>`+FIELDS.map(([k])=>`<td>${fmt(r[k])}</td>`).join('')+`<td><b>${fmt(sum)}</b></td><td><button class="danger" onclick="delCC('${r.key}')">Xóa</button></td></tr>`;
+    html += `<tr id="${isJustSaved?'cc-row-highlight':''}" class="${isJustSaved?'row-flash':''}"><td class="l">${r.d}</td><td class="l">${r.b}</td>`+FIELDS.map(([k])=>`<td>${fmt(r[k])}</td>`).join('')+`<td><b>${fmt(sum)}</b></td><td style="${diffSty};font-weight:700">${diff===0?'✓ Khớp':fmt(diff)}</td><td><button class="danger" onclick="delCC('${r.key}')">Xóa</button></td></tr>`;
   });
-  let gsum=0; Object.values(totals).forEach(v=>gsum+=v);
-  html += `<tr class="tot"><td class="l">CỘNG</td><td></td>`+FIELDS.map(([k])=>`<td>${fmt(totals[k])}</td>`).join('')+`<td>${fmt(gsum)}</td><td></td></tr>`;
+  let gsum=0; RECON_FIELDS.forEach(([k])=>gsum+=totals[k]);
+  const gdiff = gsum - (totals.dtmay||0);
+  const gdiffSty = gdiff===0 ? 'color:var(--muted)' : (gdiff>0 ? 'color:var(--good)' : 'color:var(--bad)');
+  html += `<tr class="tot"><td class="l">CỘNG</td><td></td>`+FIELDS.map(([k])=>`<td>${fmt(totals[k])}</td>`).join('')+`<td>${fmt(gsum)}</td><td style="${gdiffSty}">${gdiff===0?'✓ Khớp':fmt(gdiff)}</td><td></td></tr>`;
   html += '</tbody>';
   if(rows.length===0) html='<tbody><tr><td class="l small">Chưa có dữ liệu trong tháng này</td></tr></tbody>';
   document.getElementById('cc-table').innerHTML = html;
@@ -2464,7 +2470,7 @@ function renderTH(){
   let html='<thead><tr><th class="l">Chi nhánh</th>'+FIELDS.map(([k,l])=>`<th>${l}</th>`).join('')+'<th>Cộng</th></tr></thead><tbody>';
   let activeBranches = [];
   CHOTCA_BRANCHES.forEach(b=>{
-    let sum=0; FIELDS.forEach(([k])=>{sum+=agg[b][k]; totals[k]+=agg[b][k];});
+    let sum=0; RECON_FIELDS.forEach(([k])=>{sum+=agg[b][k];}); FIELDS.forEach(([k])=>{totals[k]+=agg[b][k];});
     if(sum===0) return;
     grand+=sum;
     activeBranches.push(b);
@@ -2476,7 +2482,7 @@ function renderTH(){
 
   // branch cards
   document.getElementById('th-branch-cards').innerHTML = activeBranches.map(b=>{
-    let sum=0; FIELDS.forEach(([k])=>sum+=agg[b][k]);
+    let sum=0; RECON_FIELDS.forEach(([k])=>sum+=agg[b][k]);
     return `<div class="branch-card"><div class="bname">${b}</div>
       <div class="brow"><span>VND</span><b>${fmt(agg[b].vnd)}</b></div>
       <div class="brow"><span>Thu CK</span><b>${fmt(agg[b].tck)}</b></div>
@@ -2496,7 +2502,7 @@ function renderTH(){
   // branch doughnut (theo tổng cộng)
   const bLabels=[], bVals=[];
   activeBranches.forEach(b=>{
-    let sum=0; FIELDS.forEach(([k])=>sum+=agg[b][k]);
+    let sum=0; RECON_FIELDS.forEach(([k])=>sum+=agg[b][k]);
     bLabels.push(b.replace('CN','').replace(/^\d\./,'').trim()||b);
     bVals.push(sum);
   });
@@ -2812,7 +2818,7 @@ function renderLog(){
   Object.keys(CHOTCA).forEach(key=>{
     const [d,b] = key.split('|');
     const rec = CHOTCA[key];
-    let sum=0; FIELDS.forEach(([k])=>sum+=rec[k]||0);
+    let sum=0; RECON_FIELDS.forEach(([k])=>sum+=rec[k]||0);
     items.push({kind:'Chốt ca', d, b, info:'Tổng nhập: '+fmt(sum)+' đ', savedAt: rec.savedAt||'', raw:rec});
   });
   CHENHLECH.forEach(r=>{
