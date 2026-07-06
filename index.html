@@ -2839,30 +2839,16 @@ function renderLog(){
     if(loadToast){ loadToast.textContent = '✓ Đã tải xong dữ liệu!'; setTimeout(()=>loadToast.remove(), 1500); }
     initAllUI();
   } else {
-    // Đã hiện sẵn bằng cache — chỉ cần báo nếu Firebase có dữ liệu MỚI HƠN cache, để tránh
-    // phải chạy lại toàn bộ initXXXUI() (có thể gắn trùng sự kiện nếu chạy 2 lần).
+    // Đã hiện sẵn bằng cache. Nếu Firebase có dữ liệu khác — cập nhật NGẦM vào biến toàn cục
+    // để lần đổi bộ lọc/chuyển tab kế tiếp tự thấy dữ liệu mới, KHÔNG bao giờ tự reload trang
+    // (reload sẽ làm mất những gì người dùng đang gõ dở/chưa lưu).
     const changed = fresh.some((v,i) => JSON.stringify(v) !== JSON.stringify(cached[i] ?? KEYS[i][1]));
     if(changed){
       applyData(fresh);
-      showReloadBanner();
+      toast('✓ Đã có dữ liệu mới nhất — đổi bộ lọc hoặc chuyển tab để xem cập nhật', 3500);
     }
   }
 })();
-
-// Banner nhỏ, không tự mất, nhắc tải lại trang khi phát hiện dữ liệu trên Firebase mới hơn cache đang xem
-function showReloadBanner(){
-  if(document.getElementById('reload-banner')) return;
-  const b = document.createElement('div');
-  b.id = 'reload-banner';
-  b.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--title);color:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.25);font-size:13px;display:flex;align-items:center;gap:12px;';
-  b.innerHTML = '<span>🔄 Có dữ liệu mới hơn trên Firebase</span>';
-  const btn = document.createElement('button');
-  btn.textContent = 'Tải lại trang';
-  btn.style.cssText = 'background:#fff;color:var(--title);border:none;padding:6px 12px;border-radius:8px;font-weight:700;font-size:12.5px;cursor:pointer;';
-  btn.onclick = () => location.reload();
-  b.appendChild(btn);
-  document.body.appendChild(b);
-}
 
 /* ===================================================================
    PAGE 15 — CÀ THẺ KIOT
