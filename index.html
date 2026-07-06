@@ -852,6 +852,23 @@ async function sset(key, val){
           }
         }
       } else {
+        // Dữ liệu giờ đủ nhỏ để lưu 1 document duy nhất — nhưng nếu TRƯỚC ĐÓ dữ liệu này từng
+        // lớn và bị chia chunk (vd. import nhiều dòng), phải dọn sạch doc "_meta" + các chunk cũ.
+        // Nếu không, lần đọc sau (sget/sgetWithMeta) sẽ thấy "_meta" cũ còn tồn tại và ưu tiên
+        // đọc lại DỮ LIỆU CHUNK CŨ (trước khi xoá) thay vì bản mới vừa lưu — khiến việc xoá/sửa
+        // dữ liệu import lớn "như không lưu được gì cả".
+        try{
+          const oldMeta = await window._fbGetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')+'_meta'));
+          if(oldMeta.exists()){
+            const oldChunkCount = oldMeta.data().chunks || 0;
+            if(window._fbDeleteDoc){
+              for(let i=0;i<oldChunkCount;i++){
+                try{ await window._fbDeleteDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')+'_'+i)); }catch(e){}
+              }
+              try{ await window._fbDeleteDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')+'_meta')); }catch(e){}
+            }
+          }
+        }catch(e){}
         await window._fbSetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')), { value: val, updatedAt: nowTs });
       }
       return true;
