@@ -280,7 +280,7 @@ tr:hover td{background:var(--surface2);}
           </div>
           <div><button class="ghost" id="cc-template-btn">📥 Tải file mẫu Excel</button></div>
         </div>
-        <p class="note" style="margin-top:8px">Tải file mẫu → điền số liệu vào sheet "Chốt ca" (xem sheet "Danh sách chi nhánh" để gõ đúng tên chi nhánh) → kéo file đã điền vào ô import ở trên.</p>
+        <p class="note" style="margin-top:8px">File mẫu có dạng bảng ngang giống sheet chốt ca thật: 1 dòng "Ngày", 1 dòng chi nhánh theo cột, các dòng VND/USD/Tệ/Thu CK/MOMO/Thu cà thẻ/Doanh thu máy theo cột chi nhánh — điền xong kéo thả file vào ô import ở trên.</p>
       </div>
       <div class="card">
         <div class="cc-grid" id="cc-form"></div>
@@ -991,18 +991,41 @@ function initChotCaUI(){
 }
 function downloadChotCaTemplate(){
   if(typeof XLSX === 'undefined'){ toast('⚠ Không tải được thư viện Excel (kiểm tra kết nối mạng) — thử tải lại trang'); return; }
-  const sampleDate = todayISO();
-  const sampleBranch = CHOTCA_BRANCHES[0] || '';
-  const rows = [
-    {Ngày: sampleDate, 'Chi nhánh': sampleBranch, VND:0, USD:0, 'Tệ':0, 'Thu CK':0, MOMO:0, 'Thu cà thẻ':0, 'DT máy':0}
+  const branches = CHOTCA_BRANCHES;
+  const data = [
+    ['Ngày', todayISO()],
+    [],
+    ['CỬA HÀNG', ...branches],
+    ['THU TIỀN BÁN HÀNG', ...branches.map(()=>0)],
+    ['VND', ...branches.map(()=>0)],
+    ['USD', ...branches.map(()=>0)],
+    ['TỆ', ...branches.map(()=>0)],
+    ['Thu chuyển khoản', ...branches.map(()=>0)],
+    ['MOMO', ...branches.map(()=>0)],
+    ['Thu cà thẻ', ...branches.map(()=>0)],
+    ['DOANH THU MÁY', ...branches.map(()=>0)],
+    ['Chênh lệch chốt ca', ...branches.map(()=>0)],
   ];
-  const branchRows = CHOTCA_BRANCHES.map(b=>({'Chi nhánh hợp lệ (gõ đúng như cột này)': b}));
-  const wb = toXLSX([
-    {name:'Chốt ca', rows},
-    {name:'Danh sách chi nhánh', rows:branchRows}
-  ]);
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  // Gắn công thức Excel để 2 dòng "THU TIỀN BÁN HÀNG" và "Chênh lệch chốt ca" tự tính khi bạn điền số liệu
+  branches.forEach((_,i)=>{
+    const col = XLSX.utils.encode_col(1+i); // cột B, C, D... (cột A là nhãn dòng)
+    ws[col+'4'] = { t:'n', f: `${col}5+${col}6+${col}7+${col}8+${col}9+${col}10`, v:0 };
+    ws[col+'12'] = { t:'n', f: `${col}4-${col}11`, v:0 };
+  });
+  ws['!cols'] = [{wch:20}, ...branches.map(()=>({wch:14}))];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Chốt ca');
   downloadXLSX(wb, 'Mau_Import_Chot_Ca.xlsx');
-  toast('✓ Đã tải file mẫu — điền số liệu vào sheet "Chốt ca" rồi import lại');
+  toast('✓ Đã tải file mẫu — sửa ô "Ngày", điền VND/USD/Tệ/Thu CK/MOMO/Thu cà thẻ/Doanh thu máy rồi import lại');
+}
+function normalizeDateCell(rawDate){
+  if(rawDate==null) return null;
+  if(rawDate instanceof Date && !isNaN(rawDate)) return new Date(rawDate.getTime() - rawDate.getTimezoneOffset()*60000).toISOString().slice(0,10);
+  const s = String(rawDate).trim();
+  if(/^\d{4}-\d{1,2}-\d{1,2}/.test(s)){ const [y,m,dd]=s.slice(0,10).split('-'); return `${y}-${m.padStart(2,'0')}-${dd.padStart(2,'0')}`; }
+  if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){ const [dd,m,y]=s.split('/'); return `${y}-${m.padStart(2,'0')}-${dd.padStart(2,'0')}`; }
+  return null;
 }
 async function handleChotCaImportFile(file){
   try{
@@ -1010,61 +1033,80 @@ async function handleChotCaImportFile(file){
     const wb = XLSX.read(buf, {type:'array', cellDates:true, sheetRows:0});
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
-    const header = rows[0];
-    if(!header) return toast('Không đọc được header của file');
-    const fc = (keys)=>{ for(let i=0;i<header.length;i++){ const c=String(header[i]||'').toLowerCase(); for(const k of keys) if(c.includes(k)) return i; } return -1; };
-    const cIdx = {
-      date: fc(['ngày','ngay']),
-      branch: fc(['chi nhánh','chi nhanh']),
-      vnd: fc(['vnd']),
-      usd: fc(['usd']),
-      te: fc(['tệ','te']),
-      tck: fc(['chuyển khoản','chuyen khoan','thu ck']),
-      momo: fc(['momo']),
-      cathe: fc(['cà thẻ','ca the']),
-      dtmay: fc(['doanh thu máy','dt máy','dt may','doanh thu may']),
-    };
-    if(cIdx.date===-1 || cIdx.branch===-1){ toast('⚠ File thiếu cột "Ngày" hoặc "Chi nhánh"'); return; }
-    const branchSet = new Set(CHOTCA_BRANCHES);
-    let imported=0, skippedDate=0, invalidBranch=new Set();
-    for(let i=1;i<rows.length;i++){
-      const row = rows[i];
-      if(!row || row.every(c=>c===null||c==='')) continue;
-      const rawDate = row[cIdx.date];
-      const rawBranch = row[cIdx.branch];
-      if(rawDate==null || rawBranch==null || String(rawBranch).trim()==='') continue;
-      // Chuẩn hoá ngày về YYYY-MM-DD (chấp nhận cả kiểu Date của Excel lẫn text dd/mm/yyyy hoặc yyyy-mm-dd)
-      let d = null;
-      if(rawDate instanceof Date && !isNaN(rawDate)){
-        d = new Date(rawDate.getTime() - rawDate.getTimezoneOffset()*60000).toISOString().slice(0,10);
-      } else {
-        const s = String(rawDate).trim();
-        if(/^\d{4}-\d{1,2}-\d{1,2}/.test(s)){ const [y,m,dd]=s.slice(0,10).split('-'); d = `${y}-${m.padStart(2,'0')}-${dd.padStart(2,'0')}`; }
-        else if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){ const [dd,m,y]=s.split('/'); d = `${y}-${m.padStart(2,'0')}-${dd.padStart(2,'0')}`; }
+
+    // 1) Tìm ô "Ngày" (dò vài dòng/cột đầu file) rồi lấy giá trị ô liền kề bên phải làm ngày chốt ca
+    let dateVal = null;
+    dateSearch:
+    for(let r=0;r<Math.min(rows.length,6);r++){
+      const rr = rows[r]||[];
+      for(let c=0;c<Math.min(rr.length,4);c++){
+        if(rr[c] && String(rr[c]).toLowerCase().includes('ngày')){ dateVal = rr[c+1]; break dateSearch; }
       }
-      if(!d){ skippedDate++; continue; }
-      const b = String(rawBranch).trim();
-      if(!branchSet.has(b)){ invalidBranch.add(b); continue; }
+    }
+    const d = normalizeDateCell(dateVal);
+    if(!d){ toast('⚠ Không tìm thấy ô "Ngày" hợp lệ (cần 1 ô ghi chữ "Ngày" và ô ngay bên phải là giá trị ngày)'); return; }
+
+    // 2) Tìm dòng tiêu đề chi nhánh — ô đầu dòng ghi "CỬA HÀNG" (hoặc "Chi nhánh")
+    let branchRowIdx = -1;
+    for(let r=0;r<rows.length;r++){
+      const c0 = String((rows[r]||[])[0]||'').toLowerCase();
+      if(c0.includes('cửa hàng') || c0.includes('cua hang') || c0.includes('chi nhánh') || c0.includes('chi nhanh')){ branchRowIdx = r; break; }
+    }
+    if(branchRowIdx===-1){ toast('⚠ Không tìm thấy dòng tiêu đề chi nhánh (ô đầu dòng ghi "CỬA HÀNG")'); return; }
+    const branchRow = rows[branchRowIdx];
+    const branchLookup = {}; CHOTCA_BRANCHES.forEach(b=>branchLookup[b.toLowerCase()] = b);
+    const colBranch = {}; // cột (số) -> tên chi nhánh chuẩn
+    const invalidCols = new Set();
+    for(let c=1;c<branchRow.length;c++){
+      const name = String(branchRow[c]||'').trim();
+      if(!name) continue;
+      const matched = branchLookup[name.toLowerCase()];
+      if(matched) colBranch[c] = matched; else invalidCols.add(name);
+    }
+    if(Object.keys(colBranch).length===0){ toast('⚠ Không nhận diện được cột chi nhánh nào hợp lệ trong dòng tiêu đề'); return; }
+
+    // 3) Tìm từng dòng dữ liệu theo nhãn (bỏ qua 2 dòng tính toán "THU TIỀN BÁN HÀNG" / "Chênh lệch chốt ca")
+    const findRow = (keys) => {
+      for(let r=branchRowIdx+1;r<rows.length;r++){
+        const label = String((rows[r]||[])[0]||'').toLowerCase();
+        if(keys.some(k=>label.includes(k))) return rows[r];
+      }
+      return null;
+    };
+    const fieldRows = {
+      vnd: findRow(['vnd']),
+      usd: findRow(['usd']),
+      te: findRow(['tệ','te']),
+      tck: findRow(['chuyển khoản','chuyen khoan','thu ck']),
+      momo: findRow(['momo']),
+      cathe: findRow(['cà thẻ','ca the']),
+      dtmay: findRow(['doanh thu máy','doanh thu may','dt máy']),
+    };
+    const missing = Object.entries(fieldRows).filter(([k,v])=>!v).map(([k])=>FIELDS.find(f=>f[0]===k)[1]);
+    if(missing.length){ toast('⚠ Thiếu dòng dữ liệu cho: '+missing.join(', ')); return; }
+
+    // 4) Ghép dữ liệu từng cột (chi nhánh) từ các dòng field, lưu vào đúng ngày + chi nhánh
+    let imported = 0;
+    Object.entries(colBranch).forEach(([cStr, branch])=>{
+      const c = parseInt(cStr);
       const rec = {};
       FIELDS.forEach(([k])=>{
-        const idx = cIdx[k];
-        const raw = idx>=0 ? row[idx] : 0;
+        const row = fieldRows[k];
+        const raw = row ? row[c] : null;
         rec[k] = raw==null||raw==='' ? 0 : (parseFloat(String(raw).replace(/[^\d.-]/g,''))||0);
       });
       rec.savedAt = new Date().toISOString();
-      CHOTCA[ccKey(d,b)] = rec;
+      CHOTCA[ccKey(d, branch)] = rec;
       imported++;
-    }
+    });
+
     if(imported>0){
       await sset('chotca:data', CHOTCA);
       renderCCTable();
       if(document.getElementById('p11').classList.contains('active')) renderLog();
     }
-    let msg = imported>0 ? `✓ Đã import ${imported} dòng chốt ca` : '⚠ Không import được dòng nào';
-    const problems = [];
-    if(skippedDate>0) problems.push(`${skippedDate} dòng sai định dạng ngày`);
-    if(invalidBranch.size>0) problems.push(`chi nhánh không hợp lệ: ${[...invalidBranch].join(', ')}`);
-    if(problems.length) msg += ' — bỏ qua: ' + problems.join('; ');
+    let msg = imported>0 ? `✓ Đã import ${imported} chi nhánh cho ngày ${d}` : '⚠ Không import được chi nhánh nào';
+    if(invalidCols.size) msg += ` — bỏ qua cột không hợp lệ: ${[...invalidCols].join(', ')}`;
     toast(msg, 5000);
   }catch(e){
     console.error(e);
