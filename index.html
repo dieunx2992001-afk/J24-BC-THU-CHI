@@ -266,13 +266,6 @@ tr:hover td{background:var(--surface2);}
       <h2>B1. Báo cáo chốt ca (Hiền)</h2>
       <p class="sub">Nhập tay số liệu đối chiếu theo chi nhánh — ngày</p>
       <div class="card">
-        <div class="row">
-          <div><label>Ngày</label><input type="date" id="cc-date"></div>
-          <div><label>Chi nhánh</label><select id="cc-branch"></select></div>
-          <div><button id="cc-load">Tải dữ liệu ngày này</button></div>
-        </div>
-      </div>
-      <div class="card">
         <div class="row" style="align-items:center">
           <div style="flex:1;min-width:260px">
             <label>Nhập nhanh nhiều dòng bằng file Excel</label>
@@ -281,6 +274,13 @@ tr:hover td{background:var(--surface2);}
           <div><button class="ghost" id="cc-template-btn">📥 Tải file mẫu Excel</button></div>
         </div>
         <p class="note" style="margin-top:8px">File mẫu có dạng bảng ngang giống sheet chốt ca thật: 1 dòng "Ngày", 1 dòng chi nhánh theo cột, các dòng VND/USD/Tệ/Thu CK/MOMO/Thu cà thẻ/Doanh thu máy theo cột chi nhánh — điền xong kéo thả file vào ô import ở trên.</p>
+      </div>
+      <div class="card">
+        <div class="row">
+          <div><label>Ngày</label><input type="date" id="cc-date"></div>
+          <div><label>Chi nhánh</label><select id="cc-branch"></select></div>
+          <div><button id="cc-load">Tải dữ liệu ngày này</button></div>
+        </div>
       </div>
       <div class="card">
         <div class="cc-grid" id="cc-form"></div>
