@@ -8,7 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDPfbt3iMUSYx9NpzOe_M4_uCudKzQ1uU8",
@@ -30,6 +30,7 @@ window._fbGetDoc = getDoc;
 window._fbDoc = doc;
 window._fbCollection = collection;
 window._fbGetDocs = getDocs;
+window._fbDeleteDoc = deleteDoc;
 console.log("Firebase Firestore ready");
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -820,7 +821,11 @@ function lsGet(key, fallback){
 
 async function sset(key, val){
   // Luôn lưu localStorage trước (offline cache)
-  try{ localStorage.setItem(LS_PREFIX+key, JSON.stringify(val)); }catch(e){ console.error('local save error', e); }
+  const nowTs = new Date().toISOString();
+  try{
+    localStorage.setItem(LS_PREFIX+key, JSON.stringify(val));
+    localStorage.setItem(LS_PREFIX+key+'__ts', nowTs);
+  }catch(e){ console.error('local save error', e); }
   // Lưu Firestore — nếu array lớn thì chia nhỏ thành nhiều document (chunk 1000 dòng)
   if(STORAGE_MODE==='firebase' && window._fbDb){
     try{
@@ -828,14 +833,26 @@ async function sset(key, val){
         const CHUNK = 800;
         const chunks = [];
         for(let i=0;i<val.length;i+=CHUNK) chunks.push(val.slice(i,i+CHUNK));
+        // Đọc meta cũ để biết số chunk trước đó — dọn các chunk thừa nếu dữ liệu mới có ÍT chunk hơn
+        let oldChunkCount = 0;
+        try{
+          const oldMeta = await window._fbGetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')+'_meta'));
+          if(oldMeta.exists()) oldChunkCount = oldMeta.data().chunks || 0;
+        }catch(e){}
         // lưu số lượng chunk
-        await window._fbSetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')+'_meta'), { chunks: chunks.length, total: val.length, updatedAt: new Date().toISOString() });
+        await window._fbSetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')+'_meta'), { chunks: chunks.length, total: val.length, updatedAt: nowTs });
         for(let i=0;i<chunks.length;i++){
           if(i%5===0) toast(`⏳ Đang lưu lên Firebase... ${Math.round(i/chunks.length*100)}% (${i*CHUNK}/${val.length} dòng)`, 3000);
-          await window._fbSetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')+'_'+i), { value: chunks[i], updatedAt: new Date().toISOString() });
+          await window._fbSetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')+'_'+i), { value: chunks[i], updatedAt: nowTs });
+        }
+        // Xoá các chunk cũ dư ra (vd. dữ liệu bị xoá bớt nên số chunk giảm) để tránh rác/đọc nhầm
+        if(oldChunkCount > chunks.length && window._fbDeleteDoc){
+          for(let i=chunks.length;i<oldChunkCount;i++){
+            try{ await window._fbDeleteDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')+'_'+i)); }catch(e){}
+          }
         }
       } else {
-        await window._fbSetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')), { value: val, updatedAt: new Date().toISOString() });
+        await window._fbSetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')), { value: val, updatedAt: nowTs });
       }
       return true;
     }catch(e){
@@ -846,13 +863,38 @@ async function sset(key, val){
   }
   return true;
 }
+// Đọc từ Firestore kèm mốc thời gian cập nhật (updatedAt) — KHÔNG tự ý ghi đè localStorage,
+// để nơi gọi tự quyết định có nên áp dụng hay không (tránh ghi đè nhầm dữ liệu mới hơn đang có sẵn)
+async function sgetWithMeta(key, fallback){
+  if(STORAGE_MODE==='firebase' && window._fbDb){
+    try{
+      const metaSnap = await window._fbGetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')+'_meta'));
+      if(metaSnap.exists()){
+        const { chunks, updatedAt } = metaSnap.data();
+        const snaps = await Promise.all(
+          Array.from({length: chunks}, (_, i) =>
+            window._fbGetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')+'_'+i))
+          )
+        );
+        const result = snaps.flatMap(snap => snap.exists() ? snap.data().value : []);
+        return { value: result, updatedAt: updatedAt||null, found:true };
+      }
+      const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')));
+      if(snap.exists()){
+        const data = snap.data();
+        return { value: data.value, updatedAt: data.updatedAt||null, found:true };
+      }
+    }catch(e){ console.warn('Firestore get error', e); }
+  }
+  return { value: fallback, updatedAt: null, found:false };
+}
 async function sget(key, fallback){
   // Thử Firestore trước
   if(STORAGE_MODE==='firebase' && window._fbDb){
     try{
       const metaSnap = await window._fbGetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')+'_meta'));
       if(metaSnap.exists()){
-        const { chunks } = metaSnap.data();
+        const { chunks, updatedAt } = metaSnap.data();
         // Đọc tất cả chunk SONG SONG thay vì tuần tự — nhanh hơn nhiều lần
         const snaps = await Promise.all(
           Array.from({length: chunks}, (_, i) =>
@@ -860,14 +902,14 @@ async function sget(key, fallback){
           )
         );
         const result = snaps.flatMap(snap => snap.exists() ? snap.data().value : []);
-        try{ localStorage.setItem(LS_PREFIX+key, JSON.stringify(result)); }catch(e){}
+        try{ localStorage.setItem(LS_PREFIX+key, JSON.stringify(result)); localStorage.setItem(LS_PREFIX+key+'__ts', updatedAt||new Date().toISOString()); }catch(e){}
         return result;
       }
       const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, FB_COLLECTION, key.replace(/:/g,'_')));
       if(snap.exists()){
-        const val = snap.data().value;
-        try{ localStorage.setItem(LS_PREFIX+key, JSON.stringify(val)); }catch(e){}
-        return val;
+        const data = snap.data();
+        try{ localStorage.setItem(LS_PREFIX+key, JSON.stringify(data.value)); localStorage.setItem(LS_PREFIX+key+'__ts', data.updatedAt||new Date().toISOString()); }catch(e){}
+        return data.value;
       }
     }catch(e){ console.warn('Firestore get error, fallback to local', e); }
   }
@@ -2839,6 +2881,7 @@ function renderLog(){
   // 1) Thử hiện dữ liệu NGAY LẬP TỨC từ cache trình duyệt (localStorage của lần dùng trước) —
   //    không cần chờ Firebase, nên mở app lại sẽ thấy dữ liệu ngay, không phải đợi.
   const cached = KEYS.map(([k,fb]) => lsGet(k, null));
+  const cachedTs = KEYS.map(([k]) => lsGet(k+'__ts', null));
   const hasCache = cached.some(v => v !== null);
   let loadToast = null;
 
@@ -2856,20 +2899,47 @@ function renderLog(){
     document.body.appendChild(loadToast);
   }
 
-  // 2) Luôn đồng bộ với Firebase ở nền để đảm bảo có dữ liệu mới nhất
-  const fresh = await Promise.all(KEYS.map(([k,fb]) => sget(k, fb)));
+  // 2) Đồng bộ với Firebase ở nền — CHỈ áp dụng dữ liệu tải về nếu nó THỰC SỰ MỚI HƠN
+  //    dữ liệu đang có (so theo mốc thời gian lưu), để không bao giờ ghi đè nhầm lên thay đổi
+  //    vừa lưu ở máy này (ví dụ do mạng chậm, Firebase chưa kịp cập nhật xong).
+  const results = await Promise.all(KEYS.map(([k,fb]) => sgetWithMeta(k, fb)));
 
   if(!hasCache){
-    applyData(fresh);
+    applyData(results.map((r,i)=>{
+      if(r.found){
+        try{
+          localStorage.setItem(LS_PREFIX+KEYS[i][0], JSON.stringify(r.value));
+          localStorage.setItem(LS_PREFIX+KEYS[i][0]+'__ts', r.updatedAt||new Date().toISOString());
+        }catch(e){}
+        return r.value;
+      }
+      return KEYS[i][1];
+    }));
     if(loadToast){ loadToast.textContent = '✓ Đã tải xong dữ liệu!'; setTimeout(()=>loadToast.remove(), 1500); }
     initAllUI();
   } else {
-    // Đã hiện sẵn bằng cache. Nếu Firebase có dữ liệu khác — cập nhật NGẦM vào biến toàn cục
-    // để lần đổi bộ lọc/chuyển tab kế tiếp tự thấy dữ liệu mới, KHÔNG bao giờ tự reload trang
-    // (reload sẽ làm mất những gì người dùng đang gõ dở/chưa lưu).
-    const changed = fresh.some((v,i) => JSON.stringify(v) !== JSON.stringify(cached[i] ?? KEYS[i][1]));
-    if(changed){
-      applyData(fresh);
+    // Đã hiện sẵn bằng cache. Với TỪNG key, chỉ nhận dữ liệu Firebase nếu updatedAt của nó
+    // mới hơn mốc thời gian lưu cục bộ đang có — tránh ghi đè lùi về dữ liệu cũ.
+    const finalVals = cached.map((v,i)=>v===null?KEYS[i][1]:v);
+    let anyApplied = false;
+    results.forEach((r,i)=>{
+      if(!r.found) return; // offline hoặc chưa có trên Firebase -> giữ nguyên cache
+      const localTs = cachedTs[i];
+      const remoteTs = r.updatedAt;
+      const remoteIsNewer = !localTs || (remoteTs && remoteTs > localTs);
+      if(remoteIsNewer){
+        finalVals[i] = r.value;
+        anyApplied = true;
+        try{
+          localStorage.setItem(LS_PREFIX+KEYS[i][0], JSON.stringify(r.value));
+          localStorage.setItem(LS_PREFIX+KEYS[i][0]+'__ts', remoteTs||new Date().toISOString());
+        }catch(e){}
+      } else if(remoteTs && remoteTs < localTs){
+        console.log(`[sync] Giữ dữ liệu cục bộ mới hơn cho "${KEYS[i][0]}" (local ${localTs} > remote ${remoteTs})`);
+      }
+    });
+    if(anyApplied){
+      applyData(finalVals);
       toast('✓ Đã có dữ liệu mới nhất — đổi bộ lọc hoặc chuyển tab để xem cập nhật', 3500);
     }
   }
