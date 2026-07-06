@@ -1051,12 +1051,12 @@ document.getElementById('cc-save').addEventListener('click', async ()=>{
   const ok = await sset('chotca:data', CHOTCA);
   toast((ok?'✓ Đã lưu':'⚠ Lỗi lưu')+' chốt ca '+b+' ngày '+d+(STORAGE_MODE==='cloud'?' (Cloud)':' (Local)'));
   window._ccLastSaved = ccKey(d,b);
-  // Tự chuyển bộ lọc bảng bên dưới đúng tháng + chi nhánh vừa lưu, để thấy ngay dòng vừa nhập,
-  // tránh hiểu nhầm là mất dữ liệu chỉ vì đang lọc khác tháng/chi nhánh.
+  // Tự chuyển bộ lọc bảng bên dưới đúng THÁNG vừa lưu (để thấy ngay dòng vừa nhập),
+  // nhưng KHÔNG đổi bộ lọc "Chi nhánh" — giữ nguyên lựa chọn hiện tại (vd. "Tất cả chi nhánh")
+  // để bảng không bị nhảy/thu hẹp lại mỗi lần lưu.
   document.getElementById('cc-month').value = d.slice(0,7);
   document.getElementById('cc-from').value = '';
   document.getElementById('cc-to').value = '';
-  document.getElementById('cc-month-branch').value = b;
   renderCCTable();
   // Xóa trống form nhập phía trên sau khi lưu, để nhập dòng tiếp theo cho rõ ràng
   FIELDS.forEach(([k])=>{ document.getElementById('ccf-'+k).value=''; });
