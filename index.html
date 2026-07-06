@@ -706,6 +706,15 @@ function makeResizable(tableEl){
     });
   });
 }
+// Bấm vào bất kỳ đâu trong ô ngày/tháng đều tự mở lịch chọn — không cần bấm trúng icon lịch nhỏ
+// (nhiều trình duyệt mặc định chỉ mở lịch khi bấm đúng icon, khiến người dùng tưởng bị lỗi/không chọn được ngày)
+document.addEventListener('click', e=>{
+  const el = e.target.closest('input[type="date"], input[type="month"]');
+  if(el && typeof el.showPicker === 'function'){
+    try{ el.showPicker(); }catch(err){ /* trình duyệt không hỗ trợ hoặc input đang disabled — bỏ qua */ }
+  }
+});
+
 // Tooltip chỉ hiện khi di chuột vào ô có nội dung bị cắt ngắn (có title hoặc ellipsis)
 (function(){
   const tip = document.createElement('div');
@@ -2447,7 +2456,17 @@ function renderTH(){
 }
 function fmtShortDate(d){ const p=d.split('-'); return p[2]+'/'+p[1]; }
 let _charts = {};
+function chartLibReady(id){
+  if(typeof Chart === 'undefined'){
+    console.warn('Chart.js chưa tải được (mạng chặn CDN?) — bỏ qua vẽ biểu đồ, các chức năng khác vẫn hoạt động bình thường.');
+    const el = document.getElementById(id);
+    if(el && el.parentElement) el.parentElement.insertAdjacentHTML('beforeend','<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px">⚠ Không tải được thư viện biểu đồ (kiểm tra kết nối mạng / chặn quảng cáo)</div>');
+    return false;
+  }
+  return true;
+}
 function drawLineChart(id, key, labels, datasets){
+  if(!chartLibReady(id)) return;
   if(_charts[key]) _charts[key].destroy();
   const ctx = document.getElementById(id).getContext('2d');
   _charts[key] = new Chart(ctx, {
@@ -2462,6 +2481,7 @@ function drawLineChart(id, key, labels, datasets){
   });
 }
 function drawBarChart(id, key, labels, datasets){
+  if(!chartLibReady(id)) return;
   if(_charts[key]) _charts[key].destroy();
   const ctx = document.getElementById(id).getContext('2d');
   _charts[key] = new Chart(ctx, {
@@ -2476,7 +2496,7 @@ function drawBarChart(id, key, labels, datasets){
   });
 }
 function drawDoughnut(id, key, labels, data){
-  if(_charts[key]) _charts[key].destroy();
+  if(!chartLibReady(id)) return;
   const colors = ['#0f6b52','#2f80b5','#d6493a','#c98a2c','#7b5ea7','#1f8a5f','#5c8374','#a0522d','#3c6e71','#b56576'];
   const ctx = document.getElementById(id).getContext('2d');
   _charts[key] = new Chart(ctx, {
@@ -2790,25 +2810,30 @@ function renderLog(){
   }
 
   function initAllUI(){
-    initChotCaUI();
-    initChenhLechUI();
-    initTPBankUI();
-    initVietinUI();
-    initKhoTongUI();
-    initB2UI();
-    initBalance();
-    // Tìm tháng gần nhất có dữ liệu B2, nếu không thì dùng tháng hiện tại
-    window._latestB2Month = B2.length ? B2.reduce((m,r)=>(!m||r.time>m)?r.time:m,'').slice(0,7) : todayISO().slice(0,7);
-    document.getElementById('bk-month').value = window._latestB2Month || todayISO().slice(0,7);
-    document.getElementById('bk-day').value = todayISO();
-    renderBK();
-    document.getElementById('th-month').value = todayISO().slice(0,7); renderTH();
-    initQKUI();
-    initLog();
-    initDoiChieuTong();
-    initBackup();
-    initExcelExport();
-    initCaTheKiotUI();
+    // Chạy từng trang riêng biệt trong try/catch — 1 trang lỗi (vd. do CDN biểu đồ bị chặn)
+    // sẽ không còn làm dừng toàn bộ chuỗi khởi tạo khiến các trang phía sau bị "đơ"/thiếu chức năng.
+    const safe = (name, fn) => { try{ fn(); }catch(e){ console.error('Lỗi khởi tạo '+name+':', e); } };
+    safe('ChotCa', initChotCaUI);
+    safe('ChenhLech', initChenhLechUI);
+    safe('TPBank', initTPBankUI);
+    safe('Vietin', initVietinUI);
+    safe('KhoTong', initKhoTongUI);
+    safe('B2', initB2UI);
+    safe('Balance', initBalance);
+    safe('BK', ()=>{
+      // Tìm tháng gần nhất có dữ liệu B2, nếu không thì dùng tháng hiện tại
+      window._latestB2Month = B2.length ? B2.reduce((m,r)=>(!m||r.time>m)?r.time:m,'').slice(0,7) : todayISO().slice(0,7);
+      document.getElementById('bk-month').value = window._latestB2Month || todayISO().slice(0,7);
+      document.getElementById('bk-day').value = todayISO();
+      renderBK();
+    });
+    safe('TH', ()=>{ document.getElementById('th-month').value = todayISO().slice(0,7); renderTH(); });
+    safe('QK', initQKUI);
+    safe('Log', initLog);
+    safe('DoiChieuTong', initDoiChieuTong);
+    safe('Backup', initBackup);
+    safe('ExcelExport', initExcelExport);
+    safe('CaTheKiot', initCaTheKiotUI);
   }
 
   // 1) Thử hiện dữ liệu NGAY LẬP TỨC từ cache trình duyệt (localStorage của lần dùng trước) —
