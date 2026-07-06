@@ -273,6 +273,16 @@ tr:hover td{background:var(--surface2);}
         </div>
       </div>
       <div class="card">
+        <div class="row" style="align-items:center">
+          <div style="flex:1;min-width:260px">
+            <label>Nhập nhanh nhiều dòng bằng file Excel</label>
+            <div class="drop" id="cc-import-drop" style="min-width:0">Kéo thả hoặc bấm để chọn file Excel đã điền (.xlsx)<input type="file" id="cc-import-file" accept=".xlsx,.xls" style="display:none"></div>
+          </div>
+          <div><button class="ghost" id="cc-template-btn">📥 Tải file mẫu Excel</button></div>
+        </div>
+        <p class="note" style="margin-top:8px">Tải file mẫu → điền số liệu vào sheet "Chốt ca" (xem sheet "Danh sách chi nhánh" để gõ đúng tên chi nhánh) → kéo file đã điền vào ô import ở trên.</p>
+      </div>
+      <div class="card">
         <div class="cc-grid" id="cc-form"></div>
         <div id="cc-remind" style="margin-top:10px;padding:8px 12px;background:#fff8e1;border:1.5px solid #f5c842;border-radius:7px;font-size:12.5px;color:#7a6000;display:flex;align-items:center;gap:6px;">
           <span>⚠</span><span id="cc-remind-text">Chọn ngày và chi nhánh trước khi nhập</span>
@@ -974,8 +984,92 @@ function initChotCaUI(){
   document.getElementById('cc-month-branch').insertAdjacentHTML('afterbegin','<option value="ALL" selected>Tất cả chi nhánh</option>');
   document.getElementById('cc-date').value = todayISO();
   document.getElementById('cc-month').value = todayISO().slice(0,7);
+  document.getElementById('cc-template-btn').addEventListener('click', downloadChotCaTemplate);
+  setupDrop('cc-import-drop', 'cc-import-file', handleChotCaImportFile);
   renderCCForm();
   renderCCTable();
+}
+function downloadChotCaTemplate(){
+  if(typeof XLSX === 'undefined'){ toast('⚠ Không tải được thư viện Excel (kiểm tra kết nối mạng) — thử tải lại trang'); return; }
+  const sampleDate = todayISO();
+  const sampleBranch = CHOTCA_BRANCHES[0] || '';
+  const rows = [
+    {Ngày: sampleDate, 'Chi nhánh': sampleBranch, VND:0, USD:0, 'Tệ':0, 'Thu CK':0, MOMO:0, 'Thu cà thẻ':0, 'DT máy':0}
+  ];
+  const branchRows = CHOTCA_BRANCHES.map(b=>({'Chi nhánh hợp lệ (gõ đúng như cột này)': b}));
+  const wb = toXLSX([
+    {name:'Chốt ca', rows},
+    {name:'Danh sách chi nhánh', rows:branchRows}
+  ]);
+  downloadXLSX(wb, 'Mau_Import_Chot_Ca.xlsx');
+  toast('✓ Đã tải file mẫu — điền số liệu vào sheet "Chốt ca" rồi import lại');
+}
+async function handleChotCaImportFile(file){
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array', cellDates:true, sheetRows:0});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+    const header = rows[0];
+    if(!header) return toast('Không đọc được header của file');
+    const fc = (keys)=>{ for(let i=0;i<header.length;i++){ const c=String(header[i]||'').toLowerCase(); for(const k of keys) if(c.includes(k)) return i; } return -1; };
+    const cIdx = {
+      date: fc(['ngày','ngay']),
+      branch: fc(['chi nhánh','chi nhanh']),
+      vnd: fc(['vnd']),
+      usd: fc(['usd']),
+      te: fc(['tệ','te']),
+      tck: fc(['chuyển khoản','chuyen khoan','thu ck']),
+      momo: fc(['momo']),
+      cathe: fc(['cà thẻ','ca the']),
+      dtmay: fc(['doanh thu máy','dt máy','dt may','doanh thu may']),
+    };
+    if(cIdx.date===-1 || cIdx.branch===-1){ toast('⚠ File thiếu cột "Ngày" hoặc "Chi nhánh"'); return; }
+    const branchSet = new Set(CHOTCA_BRANCHES);
+    let imported=0, skippedDate=0, invalidBranch=new Set();
+    for(let i=1;i<rows.length;i++){
+      const row = rows[i];
+      if(!row || row.every(c=>c===null||c==='')) continue;
+      const rawDate = row[cIdx.date];
+      const rawBranch = row[cIdx.branch];
+      if(rawDate==null || rawBranch==null || String(rawBranch).trim()==='') continue;
+      // Chuẩn hoá ngày về YYYY-MM-DD (chấp nhận cả kiểu Date của Excel lẫn text dd/mm/yyyy hoặc yyyy-mm-dd)
+      let d = null;
+      if(rawDate instanceof Date && !isNaN(rawDate)){
+        d = new Date(rawDate.getTime() - rawDate.getTimezoneOffset()*60000).toISOString().slice(0,10);
+      } else {
+        const s = String(rawDate).trim();
+        if(/^\d{4}-\d{1,2}-\d{1,2}/.test(s)){ const [y,m,dd]=s.slice(0,10).split('-'); d = `${y}-${m.padStart(2,'0')}-${dd.padStart(2,'0')}`; }
+        else if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){ const [dd,m,y]=s.split('/'); d = `${y}-${m.padStart(2,'0')}-${dd.padStart(2,'0')}`; }
+      }
+      if(!d){ skippedDate++; continue; }
+      const b = String(rawBranch).trim();
+      if(!branchSet.has(b)){ invalidBranch.add(b); continue; }
+      const rec = {};
+      FIELDS.forEach(([k])=>{
+        const idx = cIdx[k];
+        const raw = idx>=0 ? row[idx] : 0;
+        rec[k] = raw==null||raw==='' ? 0 : (parseFloat(String(raw).replace(/[^\d.-]/g,''))||0);
+      });
+      rec.savedAt = new Date().toISOString();
+      CHOTCA[ccKey(d,b)] = rec;
+      imported++;
+    }
+    if(imported>0){
+      await sset('chotca:data', CHOTCA);
+      renderCCTable();
+      if(document.getElementById('p11').classList.contains('active')) renderLog();
+    }
+    let msg = imported>0 ? `✓ Đã import ${imported} dòng chốt ca` : '⚠ Không import được dòng nào';
+    const problems = [];
+    if(skippedDate>0) problems.push(`${skippedDate} dòng sai định dạng ngày`);
+    if(invalidBranch.size>0) problems.push(`chi nhánh không hợp lệ: ${[...invalidBranch].join(', ')}`);
+    if(problems.length) msg += ' — bỏ qua: ' + problems.join('; ');
+    toast(msg, 5000);
+  }catch(e){
+    console.error(e);
+    toast('⚠ Lỗi đọc file: '+e.message, 4000);
+  }
 }
 function ccKey(d,b){ return d+'|'+b; }
 function updateCCRemind(){
