@@ -163,6 +163,11 @@ tr:hover td{background:var(--surface2);}
 .drop:hover{border-color:var(--accent);background:rgba(227,108,9,.06);color:var(--accent2);}
 .drop.over{border-color:var(--accent);color:var(--accent2);background:rgba(227,108,9,.1);}
 .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;color:#fff;background:var(--good);}
+.date-stepper{display:inline-flex;align-items:center;gap:4px;}
+.date-stepper input[type=date]{flex:1;min-width:0;}
+.ds-btn{width:28px;height:34px;border:1px solid var(--border);background:var(--surface);border-radius:8px;cursor:pointer;font-size:12px;color:var(--title);display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;transition:background .15s;}
+.ds-btn:hover{background:var(--title-soft);}
+.ds-btn:active{transform:translateY(1px);}
 .toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:13px 20px;border-radius:8px;font-size:13px;font-weight:500;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.4);}
 ::-webkit-scrollbar{height:8px;width:8px;}::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
 .small{font-size:12px;color:var(--muted);}
@@ -727,6 +732,41 @@ document.addEventListener('click', e=>{
     try{ el.showPicker(); }catch(err){ /* trình duyệt không hỗ trợ hoặc input đang disabled — bỏ qua */ }
   }
 });
+
+// Thêm nút ◀ ▶ cạnh mỗi ô chọn ngày để tiến/lùi 1 ngày nhanh, không cần mở lịch chọn lại
+function addDateStepper(id){
+  const input = document.getElementById(id);
+  if(!input || input.dataset.stepperAdded) return;
+  input.dataset.stepperAdded = '1';
+  const wrap = document.createElement('div');
+  wrap.className = 'date-stepper';
+  input.parentNode.insertBefore(wrap, input);
+  const mkBtn = (label, delta, title) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ds-btn';
+    b.title = title;
+    b.textContent = label;
+    b.addEventListener('click', ()=>{
+      if(!input.value) return;
+      const [y,m,dd] = input.value.split('-').map(Number);
+      const d = new Date(y, m-1, dd); // ngày local thuần tuý, không quy đổi múi giờ
+      d.setDate(d.getDate()+delta);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const ddd = String(d.getDate()).padStart(2,'0');
+      input.value = `${yyyy}-${mm}-${ddd}`;
+      input.dispatchEvent(new Event('change', {bubbles:true}));
+    });
+    return b;
+  };
+  wrap.appendChild(mkBtn('◀', -1, 'Lùi 1 ngày'));
+  wrap.appendChild(input);
+  wrap.appendChild(mkBtn('▶', 1, 'Tiến 1 ngày'));
+}
+['cc-date','cc-from','cc-to','cl-date','cl-from','cl-to','tp-raw-from','tp-raw-to',
+ 'vt-from','vt-to','sq-from','sq-to','bal-from','bal-to','bk-day','th-day',
+ 'dc-from','dc-to','cak-from','cak-to'].forEach(addDateStepper);
 
 // Tooltip chỉ hiện khi di chuột vào ô có nội dung bị cắt ngắn (có title hoặc ellipsis)
 (function(){
@@ -2646,16 +2686,25 @@ function renderTH(){
   });
   html+=`<tr class="tot"><td class="l">CỘNG</td>`+FIELDS.map(([k])=>`<td>${fmt(totals[k])}</td>`).join('')+`<td>${fmt(grand)}</td></tr></tbody>`;
   document.getElementById('th-table').innerHTML = html;
-  document.getElementById('th-kpi').innerHTML = FIELDS.map(([k,l])=>`<div class="box"><div class="v">${fmt(totals[k])}</div><div class="l">${l}</div></div>`).join('') + `<div class="box"><div class="v">${fmt(grand)}</div><div class="l">Tổng cộng</div></div>`;
+  const thDiff = grand - (totals.dtmay||0);
+  const thDiffColor = thDiff===0 ? 'var(--muted)' : (thDiff>0 ? 'var(--good)' : 'var(--bad)');
+  document.getElementById('th-kpi').innerHTML = FIELDS.map(([k,l])=>`<div class="box"><div class="v">${fmt(totals[k])}</div><div class="l">${l}</div></div>`).join('') + `<div class="box"><div class="v">${fmt(grand)}</div><div class="l">Tổng cộng</div></div>` + `<div class="box"><div class="v" style="color:${thDiffColor}">${thDiff===0?'✓ Khớp':fmt(thDiff)}</div><div class="l">Chênh lệch</div></div>`;
 
   // branch cards
   document.getElementById('th-branch-cards').innerHTML = activeBranches.map(b=>{
     let sum=0; RECON_FIELDS.forEach(([k])=>sum+=agg[b][k]);
+    const diff = sum - (agg[b].dtmay||0);
+    const diffColor = diff===0 ? 'var(--muted)' : (diff>0 ? 'var(--good)' : 'var(--bad)');
     return `<div class="branch-card"><div class="bname">${b}</div>
       <div class="brow"><span>VND</span><b>${fmt(agg[b].vnd)}</b></div>
+      <div class="brow"><span>USD</span><b>${fmt(agg[b].usd)}</b></div>
+      <div class="brow"><span>Tệ</span><b>${fmt(agg[b].te)}</b></div>
       <div class="brow"><span>Thu CK</span><b>${fmt(agg[b].tck)}</b></div>
+      <div class="brow"><span>Momo</span><b>${fmt(agg[b].momo)}</b></div>
       <div class="brow"><span>Thu cà thẻ</span><b>${fmt(agg[b].cathe)}</b></div>
-      <div class="brow"><span>Tổng</span><b style="color:var(--accent-deep)">${fmt(sum)}</b></div></div>`;
+      <div class="brow"><span>Doanh thu máy</span><b>${fmt(agg[b].dtmay)}</b></div>
+      <div class="brow"><span>Tổng</span><b style="color:var(--accent-deep)">${fmt(sum)}</b></div>
+      <div class="brow"><span>Chênh lệch</span><b style="color:${diffColor}">${diff===0?'✓ Khớp':fmt(diff)}</b></div></div>`;
   }).join('') || '<p class="small">Chưa có dữ liệu trong kỳ này</p>';
 
   // chart daily
@@ -2700,44 +2749,51 @@ function chartLibReady(id){
 }
 function drawLineChart(id, key, labels, datasets){
   if(!chartLibReady(id)) return;
-  if(_charts[key]) _charts[key].destroy();
-  const ctx = document.getElementById(id).getContext('2d');
-  _charts[key] = new Chart(ctx, {
-    type:'line',
-    data:{labels, datasets: datasets.map(d=>({...d, tension:.35, fill:true, pointRadius:2}))},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{position:'bottom',labels:{color:'#6c7a72',font:{size:11,family:'Be Vietnam Pro'},boxWidth:10}}},
-      scales:{
-        x:{ticks:{color:'#6c7a72',font:{size:10,family:'Be Vietnam Pro'}},grid:{color:'#eef1ed'}},
-        y:{ticks:{color:'#6c7a72',font:{size:10,family:'Be Vietnam Pro'},callback:v=>v>=1e6?(v/1e6).toFixed(1)+'tr':v},grid:{color:'#eef1ed'}}
-      }}
-  });
+  try{
+    if(_charts[key]) _charts[key].destroy();
+    const ctx = document.getElementById(id).getContext('2d');
+    _charts[key] = new Chart(ctx, {
+      type:'line',
+      data:{labels, datasets: datasets.map(d=>({...d, tension:.35, fill:true, pointRadius:2}))},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'bottom',labels:{color:'#6c7a72',font:{size:11,family:'Be Vietnam Pro'},boxWidth:10}}},
+        scales:{
+          x:{ticks:{color:'#6c7a72',font:{size:10,family:'Be Vietnam Pro'}},grid:{color:'#eef1ed'}},
+          y:{ticks:{color:'#6c7a72',font:{size:10,family:'Be Vietnam Pro'},callback:v=>v>=1e6?(v/1e6).toFixed(1)+'tr':v},grid:{color:'#eef1ed'}}
+        }}
+    });
+  }catch(e){ console.error('Lỗi vẽ biểu đồ '+id, e); }
 }
 function drawBarChart(id, key, labels, datasets){
   if(!chartLibReady(id)) return;
-  if(_charts[key]) _charts[key].destroy();
-  const ctx = document.getElementById(id).getContext('2d');
-  _charts[key] = new Chart(ctx, {
-    type:'bar',
-    data:{labels, datasets},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{position:'bottom',labels:{color:'#6c7a72',font:{size:11,family:'Be Vietnam Pro'},boxWidth:10}}},
-      scales:{
-        x:{ticks:{color:'#6c7a72',font:{size:10,family:'Be Vietnam Pro'}},grid:{display:false}},
-        y:{ticks:{color:'#6c7a72',font:{size:10,family:'Be Vietnam Pro'},callback:v=>v>=1e6?(v/1e6).toFixed(1)+'tr':v},grid:{color:'#eef1ed'}}
-      }}
-  });
+  try{
+    if(_charts[key]) _charts[key].destroy();
+    const ctx = document.getElementById(id).getContext('2d');
+    _charts[key] = new Chart(ctx, {
+      type:'bar',
+      data:{labels, datasets},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'bottom',labels:{color:'#6c7a72',font:{size:11,family:'Be Vietnam Pro'},boxWidth:10}}},
+        scales:{
+          x:{ticks:{color:'#6c7a72',font:{size:10,family:'Be Vietnam Pro'}},grid:{display:false}},
+          y:{ticks:{color:'#6c7a72',font:{size:10,family:'Be Vietnam Pro'},callback:v=>v>=1e6?(v/1e6).toFixed(1)+'tr':v},grid:{color:'#eef1ed'}}
+        }}
+    });
+  }catch(e){ console.error('Lỗi vẽ biểu đồ '+id, e); }
 }
 function drawDoughnut(id, key, labels, data){
   if(!chartLibReady(id)) return;
-  const colors = ['#0f6b52','#2f80b5','#d6493a','#c98a2c','#7b5ea7','#1f8a5f','#5c8374','#a0522d','#3c6e71','#b56576'];
-  const ctx = document.getElementById(id).getContext('2d');
-  _charts[key] = new Chart(ctx, {
-    type:'doughnut',
-    data:{labels, datasets:[{data, backgroundColor:colors, borderWidth:0}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
-      plugins:{legend:{position:'right',labels:{color:'#6c7a72',font:{size:10.5,family:'Be Vietnam Pro'},boxWidth:10}}}}
-  });
+  try{
+    if(_charts[key]) _charts[key].destroy();
+    const colors = ['#0f6b52','#2f80b5','#d6493a','#c98a2c','#7b5ea7','#1f8a5f','#5c8374','#a0522d','#3c6e71','#b56576'];
+    const ctx = document.getElementById(id).getContext('2d');
+    _charts[key] = new Chart(ctx, {
+      type:'doughnut',
+      data:{labels, datasets:[{data, backgroundColor:colors, borderWidth:0}]},
+      options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
+        plugins:{legend:{position:'right',labels:{color:'#6c7a72',font:{size:10.5,family:'Be Vietnam Pro'},boxWidth:10}}}}
+    });
+  }catch(e){ console.error('Lỗi vẽ biểu đồ '+id, e); }
 }
 
 /* ===================================================================
