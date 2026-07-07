@@ -1018,6 +1018,13 @@ function restoreUIState(){
       const btn = document.querySelector(`.nav-item[data-p="${activePage}"]`);
       if(btn) btn.click();
     }
+    // Đồng bộ lại các khung "Theo ngày/Theo tháng..." cho khớp đúng dropdown hiện tại —
+    // luôn làm bước này (không chỉ khi giá trị thay đổi), vì trình duyệt đôi khi tự nhớ lựa chọn
+    // dropdown khi tải lại trang mà không tự kích hoạt phần hiển thị tương ứng.
+    ['bk-period','th-period'].forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.dispatchEvent(new Event('change', {bubbles:true}));
+    });
   }catch(e){ console.error('Lỗi khôi phục trạng thái giao diện', e); }
 }
 document.querySelectorAll('.nav-item').forEach(b=>{
@@ -3147,7 +3154,14 @@ function renderLog(){
       document.getElementById('bk-day').value = todayISO();
       renderBK();
     });
-    safe('TH', ()=>{ document.getElementById('th-month').value = todayISO().slice(0,7); renderTH(); });
+    safe('TH', ()=>{
+      document.getElementById('th-month').value = todayISO().slice(0,7);
+      document.getElementById('th-day').value = todayISO();
+      // Đảm bảo khung hiển thị (Ngày/Tháng/Quý/Năm) luôn khớp với lựa chọn "Kỳ báo cáo" hiện tại
+      const p = document.getElementById('th-period').value;
+      ['day','month','quarter','year'].forEach(pp=>{ const w=document.getElementById('th-'+pp+'wrap'); if(w) w.style.display = pp===p ? '' : 'none'; });
+      renderTH();
+    });
     safe('QK', initQKUI);
     safe('Log', initLog);
     safe('DoiChieuTong', initDoiChieuTong);
