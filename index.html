@@ -398,7 +398,7 @@ tr:hover td{background:var(--surface2);}
           <div><label>Tháng đối chiếu</label><input type="month" id="vt-month"></div>
           <div><label>Hoặc từ ngày</label><input type="date" id="vt-from"></div>
           <div><label>Đến ngày</label><input type="date" id="vt-to"></div>
-          <div><button class="ghost" id="vt-range-clear">Xóa khoảng ngày</button></div>
+          <div><button class="ghost" id="vt-range-clear">Bỏ lọc khoảng ngày</button></div>
         </div>
         <h3 style="font-size:14px;margin:16px 0 8px">Đối chiếu Thu chuyển khoản theo chi nhánh — ngày</h3>
         <div id="vt-filter-notice"></div>
@@ -447,7 +447,7 @@ tr:hover td{background:var(--surface2);}
           <div><label>Hoặc từ ngày</label><input type="date" id="sq-from"></div>
           <div><label>Đến ngày</label><input type="date" id="sq-to"></div>
           <div><label>Lọc</label><select id="sq-filter"><option value="ALL">Tất cả</option><option value="matched">Đã khớp ngân hàng</option><option value="unmatched">Chưa khớp</option><option value="tienmat">Tiền mặt</option></select></div>
-          <div><button class="ghost" id="sq-range-clear">Xóa khoảng ngày</button></div>
+          <div><button class="ghost" id="sq-range-clear">Bỏ lọc khoảng ngày</button></div>
         </div>
       </div>
       <div id="sq-filter-notice"></div>
@@ -617,7 +617,7 @@ tr:hover td{background:var(--surface2);}
           <div><label>Đến ngày</label><input type="date" id="cak-to"></div>
           <div><label>Chi nhánh</label><select id="cak-filter-branch"><option value="ALL">Tất cả</option></select></div>
           <div><label>Phương thức</label><select id="cak-filter-method"><option value="ALL">Tất cả</option></select></div>
-          <div><button class="ghost" id="cak-range-clear">Xóa khoảng ngày</button></div>
+          <div><button class="ghost" id="cak-range-clear">Bỏ lọc khoảng ngày</button></div>
         </div>
       </div>
       <div id="cak-filter-notice"></div>
@@ -1361,9 +1361,28 @@ document.getElementById('cc-month').addEventListener('change', renderCCTable);
 document.getElementById('cc-month-branch').addEventListener('change', renderCCTable);
 document.getElementById('cc-from').addEventListener('change', renderCCTable);
 document.getElementById('cc-to').addEventListener('change', renderCCTable);
-document.getElementById('cc-range-clear').addEventListener('click', ()=>{
-  document.getElementById('cc-from').value=''; document.getElementById('cc-to').value='';
+document.getElementById('cc-range-clear').addEventListener('click', async ()=>{
+  const from = document.getElementById('cc-from').value, to = document.getElementById('cc-to').value;
+  const m = document.getElementById('cc-month').value;
+  const useRange = !!(from && to);
+  if(!useRange && !m){ toast('⚠ Chưa chọn khoảng ngày (Từ ngày/Đến ngày) hoặc Tháng để xóa'); return; }
+  const fb = document.getElementById('cc-month-branch').value;
+  const branches = fb==='ALL'? CHOTCA_BRANCHES : [fb];
+  // Tìm trước các dòng sẽ bị xóa (đúng theo bộ lọc đang hiển thị) để hỏi xác nhận rõ ràng
+  const keysToDelete = Object.keys(CHOTCA).filter(key=>{
+    const [d,b] = key.split('|');
+    if(!branches.includes(b)) return false;
+    return useRange ? (d>=from && d<=to) : d.slice(0,7)===m;
+  });
+  if(keysToDelete.length===0){ toast('Không có dòng nào trong khoảng đang lọc để xóa'); return; }
+  const rangeLabel = useRange ? `từ ${from} đến ${to}` : `tháng ${m}`;
+  if(!confirm(`Xóa TOÀN BỘ ${keysToDelete.length} dòng chốt ca (${rangeLabel}${fb!=='ALL'?', chi nhánh '+fb:''})? Không thể hoàn tác.`)) return;
+  keysToDelete.forEach(key=>delete CHOTCA[key]);
+  const ok = await sset('chotca:data', CHOTCA);
+  toast((ok?`✓ Đã xóa ${keysToDelete.length} dòng`:'⚠ Lỗi xóa')+(STORAGE_MODE==='cloud'?' (Cloud)':' (Local)'));
   renderCCTable();
+  renderCCForm();
+  if(document.getElementById('p11').classList.contains('active')) renderLog();
 });
 
 /* ===================================================================
