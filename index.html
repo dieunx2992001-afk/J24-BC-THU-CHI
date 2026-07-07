@@ -990,11 +990,42 @@ async function sget(key, fallback){
 }
 
 /* ============ NAV ============ */
+// Ghi nhớ trạng thái đang xem (ngày/tháng/bộ lọc đang chọn + trang đang mở) vào bộ nhớ trình duyệt.
+// Trên điện thoại, chuyển sang app khác (Zalo, Facebook...) rồi quay lại có thể khiến trình duyệt
+// tự tải lại tab này từ đầu — nhờ ghi nhớ này, app sẽ khôi phục đúng ngày/trang bạn đang xem
+// thay vì reset về mặc định (hôm nay, trang đầu tiên).
+const UI_STATE_PREFIX = 'j24app:ui:';
+document.addEventListener('change', e=>{
+  const el = e.target;
+  if(el && el.id && (el.tagName==='INPUT' || el.tagName==='SELECT')){
+    try{ localStorage.setItem(UI_STATE_PREFIX+el.id, el.value); }catch(err){}
+  }
+});
+function restoreUIState(){
+  try{
+    const activePage = localStorage.getItem(UI_STATE_PREFIX+'__activePage');
+    Object.keys(localStorage).forEach(k=>{
+      if(!k.startsWith(UI_STATE_PREFIX) || k===UI_STATE_PREFIX+'__activePage') return;
+      const id = k.slice(UI_STATE_PREFIX.length);
+      const el = document.getElementById(id);
+      if(!el) return;
+      const val = localStorage.getItem(k);
+      if(val==null) return;
+      if(el.tagName==='SELECT' && !Array.from(el.options).some(o=>o.value===val)) return; // tránh set giá trị không có trong danh sách
+      if(el.value !== val){ el.value = val; el.dispatchEvent(new Event('change', {bubbles:true})); }
+    });
+    if(activePage){
+      const btn = document.querySelector(`.nav-item[data-p="${activePage}"]`);
+      if(btn) btn.click();
+    }
+  }catch(e){ console.error('Lỗi khôi phục trạng thái giao diện', e); }
+}
 document.querySelectorAll('.nav-item').forEach(b=>{
   b.addEventListener('click', ()=>{
     document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
     document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
     b.classList.add('active'); document.getElementById(b.dataset.p).classList.add('active');
+    try{ localStorage.setItem(UI_STATE_PREFIX+'__activePage', b.dataset.p); }catch(e){}
     if(b.dataset.p==='p11' && typeof renderLog==='function') renderLog();
     if(b.dataset.p==='p12' && typeof renderDoiChieuTong==='function') renderDoiChieuTong();
     if(b.dataset.p==='p15' && typeof renderCAKTable==='function') renderCAKTable();
@@ -3135,6 +3166,7 @@ function renderLog(){
   if(hasCache){
     applyData(cached.map((v,i)=>v===null?KEYS[i][1]:v));
     initAllUI();
+    restoreUIState();
     // Báo nhỏ là đang đồng bộ ngầm, không chặn thao tác
     toast('🔄 Đang đồng bộ dữ liệu mới nhất từ Firebase...', 2000);
   } else {
@@ -3164,6 +3196,7 @@ function renderLog(){
     }));
     if(loadToast){ loadToast.textContent = '✓ Đã tải xong dữ liệu!'; setTimeout(()=>loadToast.remove(), 1500); }
     initAllUI();
+    restoreUIState();
   } else {
     // Đã hiện sẵn bằng cache. Với TỪNG key, chỉ nhận dữ liệu Firebase nếu updatedAt của nó
     // mới hơn mốc thời gian lưu cục bộ đang có — tránh ghi đè lùi về dữ liệu cũ.
