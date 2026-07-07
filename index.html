@@ -373,6 +373,7 @@ tr:hover td{background:var(--surface2);}
           <div><label>Đến ngày</label><input type="date" id="tp-raw-to"></div>
           <div><label>Chi nhánh</label><select id="tp-raw-branch"><option value="ALL">Tất cả</option></select></div>
           <div><button class="ghost" id="tp-raw-clear">Xóa lọc</button></div>
+          <div style="flex:1;min-width:200px"><label>🔍 Lọc từ khóa</label><input type="text" id="tp-raw-kw" placeholder="Chi nhánh, diễn giải..."></div>
         </div>
         <div id="tp-filter-notice"></div>
         <div class="kpi" id="tp-raw-kpi" style="margin-bottom:10px"></div>
@@ -406,6 +407,7 @@ tr:hover td{background:var(--surface2);}
       </div>
       <div class="card">
         <h3 style="font-size:14px;margin:0 0 8px">Dữ liệu đã import (xem nhanh)</h3>
+        <div class="row" style="margin-bottom:10px"><div style="flex:1;min-width:200px"><label>🔍 Lọc từ khóa</label><input type="text" id="vt-raw-kw" placeholder="Chi nhánh, nội dung, tài khoản..."></div></div>
         <div class="scroll" style="max-height:340px;overflow-y:auto"><table id="vt-raw"></table></div>
       </div>
     </section>
@@ -428,6 +430,7 @@ tr:hover td{background:var(--surface2);}
       <div class="kpi" id="kt-kpi"></div>
       <div class="card">
         <h3 style="font-size:14px;margin:0 0 8px">Dữ liệu đã import (xem nhanh)</h3>
+        <div class="row" style="margin-bottom:10px"><div style="flex:1;min-width:200px"><label>🔍 Lọc từ khóa</label><input type="text" id="kt-raw-kw" placeholder="Chi nhánh, diễn giải, TK..."></div></div>
         <div class="scroll" style="max-height:380px;overflow-y:auto"><table id="kt-raw"></table></div>
       </div>
     </section>
@@ -448,6 +451,7 @@ tr:hover td{background:var(--surface2);}
           <div><label>Đến ngày</label><input type="date" id="sq-to"></div>
           <div><label>Lọc</label><select id="sq-filter"><option value="ALL">Tất cả</option><option value="matched">Đã khớp ngân hàng</option><option value="unmatched">Chưa khớp</option><option value="tienmat">Tiền mặt</option></select></div>
           <div><button class="ghost" id="sq-range-clear">Bỏ lọc khoảng ngày</button></div>
+          <div style="flex:1;min-width:200px"><label>🔍 Lọc từ khóa</label><input type="text" id="sq-kw" placeholder="Mã phiếu, chi nhánh, nội dung..."></div>
         </div>
       </div>
       <div id="sq-filter-notice"></div>
@@ -618,6 +622,7 @@ tr:hover td{background:var(--surface2);}
           <div><label>Chi nhánh</label><select id="cak-filter-branch"><option value="ALL">Tất cả</option></select></div>
           <div><label>Phương thức</label><select id="cak-filter-method"><option value="ALL">Tất cả</option></select></div>
           <div><button class="ghost" id="cak-range-clear">Bỏ lọc khoảng ngày</button></div>
+          <div style="flex:1;min-width:200px"><label>🔍 Lọc từ khóa</label><input type="text" id="cak-kw" placeholder="Mã phiếu, chi nhánh, nội dung..."></div>
         </div>
       </div>
       <div id="cak-filter-notice"></div>
@@ -1540,6 +1545,14 @@ function findCol(headerRow, candidates){
 // Làm tròn 1 Date về đúng mốc nửa đêm UTC gần nhất — khắc phục sai số thập phân rất nhỏ
 // mà số serial ngày trong Excel hay gặp (vd. 23:59:30 thay vì đúng 00:00:00), tránh bị lùi 1 ngày.
 function roundToUTCDate(date){ return new Date(Math.round(date.getTime()/86400000)*86400000); }
+// Hàm lọc từ khóa dùng chung cho các bảng dữ liệu (TP Bank, Viettin, Kho tổng, B2, Ngân hàng Kiot)
+function matchesKeyword(row, keyword){
+  if(!keyword) return true;
+  const kw = keyword.toLowerCase();
+  return Object.values(row).some(v => v!=null && typeof v!=='object' && String(v).toLowerCase().includes(kw));
+}
+// Trì hoãn nhẹ khi gõ từ khóa để không render lại liên tục từng phím bấm
+function debounce(fn, ms=250){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
 function excelDateToISO(v){
   if(v instanceof Date){ const d=roundToUTCDate(v); return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`; }
   if(typeof v==='number'){ const d=roundToUTCDate(new Date((v-25569)*86400*1000)); return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`; }
@@ -1566,10 +1579,12 @@ function initTPBankUI(){
   ['tp-raw-from','tp-raw-to','tp-raw-branch'].forEach(id=>{
     document.getElementById(id).addEventListener('change', renderTPRaw);
   });
+  document.getElementById('tp-raw-kw').addEventListener('input', debounce(renderTPRaw));
   document.getElementById('tp-raw-clear').addEventListener('click', ()=>{
     document.getElementById('tp-raw-from').value='';
     document.getElementById('tp-raw-to').value='';
     document.getElementById('tp-raw-branch').value='ALL';
+    document.getElementById('tp-raw-kw').value='';
     renderTPRaw();
   });
   renderTPCount(); renderTPRaw(); renderTPRecon();
@@ -1690,6 +1705,8 @@ function renderTPRaw(){
     if(fb!=='ALL'&&r.branch!==fb) return false;
     return true;
   });
+  const kw = (document.getElementById('tp-raw-kw').value||'').trim();
+  if(kw) rows = rows.filter(r=>matchesKeyword(r, kw));
   const totalDebit=rows.reduce((s,r)=>s+(r.debit||0),0);
   const totalCredit=rows.reduce((s,r)=>s+(r.credit||0),0);
   document.getElementById('tp-raw-kpi').innerHTML=`
@@ -1752,6 +1769,7 @@ let VT_STAGE = [];
 function initVietinUI(){
   document.getElementById('vt-month').value = todayISO().slice(0,7);
   setupDrop('vt-drop','vt-file', handleVTFile);
+  document.getElementById('vt-raw-kw').addEventListener('input', debounce(renderVTRaw));
   document.getElementById('vt-stage-save').addEventListener('click', saveVTStage);
   document.getElementById('vt-stage-cancel').addEventListener('click', ()=>{ VT_STAGE=[]; document.getElementById('vt-stage-banner').style.display='none'; });
   // Xóa lần import cuối (xóa những dòng có key trùng với VT_STAGE_LAST nếu còn nhớ, hoặc xóa theo batch cuối)
@@ -1890,8 +1908,10 @@ document.getElementById('vt-clear').addEventListener('click', async ()=>{
   VIETTIN=[]; await sset('viettin:list', VIETTIN); renderVTCount(); renderVTRaw(); renderVTRecon();
 });
 function renderVTRaw(){
+  const kw = (document.getElementById('vt-raw-kw').value||'').trim();
+  const source = kw ? VIETTIN.filter(r=>matchesKeyword(r, kw)) : VIETTIN.slice(-200);
   let html='<thead><tr><th class="l">Thời gian ngân hàng</th><th>Ngày đối chiếu</th><th class="l">Tài khoản</th><th class="l">Chi nhánh</th><th class="l">Nội dung</th><th>Số tiền</th></tr></thead><tbody>';
-  VIETTIN.slice(-200).forEach(r=>{
+  source.slice(0,300).forEach(r=>{
     const ngHangDom = parseInt((r.dateRaw||'00/00').split('/')[0]);
     const changed = r.day && ngHangDom && ngHangDom!==r.day;
     html+=`<tr>
@@ -1998,6 +2018,7 @@ let KHOTONG = [];
 let KT_STAGE = [];
 function initKhoTongUI(){
   setupDrop('kt-drop','kt-file', handleKTFile);
+  document.getElementById('kt-raw-kw').addEventListener('input', debounce(renderKTRaw));
   document.getElementById('kt-stage-save').addEventListener('click', saveKTStage);
   document.getElementById('kt-stage-cancel').addEventListener('click', ()=>{ KT_STAGE=[]; document.getElementById('kt-stage-banner').style.display='none'; });
   renderKTCount(); renderKTRaw(); renderKTKpi();
@@ -2103,13 +2124,15 @@ function renderKTKpi(){
     <div class="box"><div class="v">${fmt(sum(m2,'debit'))}</div><div class="l">Mart2 — Tổng chi</div></div>`;
 }
 function renderKTRaw(){
+  const kw = (document.getElementById('kt-raw-kw').value||'').trim();
+  const source = kw ? KHOTONG.filter(r=>matchesKeyword(r, kw)) : KHOTONG.slice(-200);
   let html='<thead><tr><th class="l">Ngày</th><th class="l">Diễn giải</th><th>Ghi nợ</th><th>Ghi có</th><th class="l">TK</th><th class="l">Chi nhánh</th><th class="l">Loại</th></tr></thead><tbody>';
-  KHOTONG.slice(-200).forEach(r=>{
+  source.slice(0,300).forEach(r=>{
     html+=`<tr><td class="l">${r.date||''}</td><td class="l" style="max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}</td><td>${fmt(r.debit)}</td><td>${fmt(r.credit)}</td><td class="l">${r.account}</td><td class="l">${r.branch}</td><td class="l">${r.type}</td></tr>`;
   });
   html+='</tbody>';
   document.getElementById('kt-raw').innerHTML = KHOTONG.length? html : '<tbody><tr><td class="l small">Chưa import dữ liệu</td></tr></tbody>';
-  renderFilterNotice('kt-filter-notice', {count: KHOTONG.slice(-200).length, total: KHOTONG.length});
+  renderFilterNotice('kt-filter-notice', {count: source.slice(0,300).length, total: KHOTONG.length});
 }
 
 /* ===================================================================
@@ -2225,6 +2248,8 @@ function renderSQTable(){
     if(filter==='tienmat' && !String(r.loaiSoQuy).toLowerCase().includes('tiền mặt') && !String(r.loaiSoQuy).toLowerCase().includes('tien mat')) return false;
     return true;
   });
+  const sqKw = (document.getElementById('sq-kw').value||'').trim();
+  if(sqKw) rows = rows.filter(r=>matchesKeyword(r, sqKw));
   rows.sort((a,c)=>(a.time||'').localeCompare(c.time||''));
 
   const totalThu = rows.filter(r=>r.amount>0).reduce((s,r)=>s+r.amount,0);
@@ -2254,6 +2279,7 @@ document.getElementById('sq-month').addEventListener('change', renderSQTable);
 document.getElementById('sq-filter').addEventListener('change', renderSQTable);
 document.getElementById('sq-from').addEventListener('change', renderSQTable);
 document.getElementById('sq-to').addEventListener('change', renderSQTable);
+document.getElementById('sq-kw').addEventListener('input', debounce(renderSQTable));
 document.getElementById('sq-range-clear').addEventListener('click', ()=>{
   document.getElementById('sq-from').value=''; document.getElementById('sq-to').value='';
   renderSQTable();
@@ -3280,8 +3306,10 @@ function initCaTheKiotUI(){
   ['cak-month','cak-from','cak-to','cak-filter-branch','cak-filter-method'].forEach(id=>{
     document.getElementById(id).addEventListener('change', renderCAKTable);
   });
+  document.getElementById('cak-kw').addEventListener('input', debounce(renderCAKTable));
   document.getElementById('cak-range-clear').addEventListener('click',()=>{
     document.getElementById('cak-from').value=''; document.getElementById('cak-to').value='';
+    document.getElementById('cak-kw').value='';
     renderCAKTable();
   });
   document.getElementById('cak-clear').addEventListener('click', async ()=>{
@@ -3381,6 +3409,8 @@ function renderCAKTable(){
     if(fm!=='ALL'&&r.phuongThuc!==fm) return false;
     return true;
   });
+  const cakKw = (document.getElementById('cak-kw').value||'').trim();
+  if(cakKw) rows = rows.filter(r=>matchesKeyword(r, cakKw));
   rows.sort((a,c)=>a.time.localeCompare(c.time));
   const totalThu = rows.filter(r=>r.amount>0).reduce((s,r)=>s+r.amount,0);
   const totalChi = rows.filter(r=>r.amount<0).reduce((s,r)=>s+r.amount,0);
