@@ -2344,22 +2344,34 @@ async function handleSQFile(file){
 }
 function normContent(s){ return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
 async function matchB2WithKhoTong(){
-  // build searchable list from KHOTONG content, ưu tiên khớp đúng dấu số tiền (thu khớp ghi có, chi khớp ghi nợ)
   const unmatched = B2.filter(r=>!r.bankMatch);
-  const CHUNK = 2000;
+  if(unmatched.length===0) return;
+
+  // Tiền xử lý Kho tổng 1 LẦN DUY NHẤT (chuẩn hoá nội dung + tách theo chiều Thu/Chi) —
+  // trước đây bước chuẩn hoá này bị làm lại cho MỌI dòng Kho tổng ứng với TỪNG phiếu B2,
+  // khiến 123 nghìn phiếu × vài nghìn dòng Kho tổng = hàng trăm triệu lần tính toán dư thừa,
+  // đây chính là lý do việc đối chiếu bị treo rất lâu. Giờ chỉ tính 1 lần rồi tái sử dụng.
+  const khoCredit = [], khoDebit = [], khoNeutral = [];
+  KHOTONG.forEach(k=>{
+    const hay = normContent(k.content);
+    if(!hay) return;
+    const entry = { hay, hayPre: hay.slice(0,12), k };
+    if(k.credit>0) khoCredit.push(entry);
+    else if(k.debit>0) khoDebit.push(entry);
+    else khoNeutral.push(entry);
+  });
+  const findHit = (needle, needlePre, bucket) => bucket.find(({hay,hayPre}) => needle.includes(hayPre) || hay.includes(needlePre));
+
+  const CHUNK = 5000;
   for(let i=0;i<unmatched.length;i+=CHUNK){
     unmatched.slice(i, i+CHUNK).forEach(r=>{
       const needle = normContent(r.person)+normContent(r.noiDungCK)+normContent(r.note);
       if(!needle){ return; }
-      const hit = KHOTONG.find(k=>{
-        const hay = normContent(k.content);
-        if(!hay) return false;
-        const sameDirection = (r.amount>0 && k.credit>0) || (r.amount<0 && k.debit>0);
-        const textMatch = needle.includes(hay.slice(0,12)) || hay.includes(needle.slice(0,12));
-        return textMatch && (sameDirection || (!k.credit && !k.debit));
-      });
-      if(hit){
-        r.bankMatch = hit.branch; r.bankAccount = hit.account;
+      const needlePre = needle.slice(0,12);
+      const bucket = r.amount>0 ? khoCredit : khoDebit;
+      const hitEntry = findHit(needle, needlePre, bucket) || findHit(needle, needlePre, khoNeutral);
+      if(hitEntry){
+        r.bankMatch = hitEntry.k.branch; r.bankAccount = hitEntry.k.account;
       }
     });
     if(unmatched.length>CHUNK){
