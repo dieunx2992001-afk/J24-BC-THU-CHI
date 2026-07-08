@@ -1717,12 +1717,37 @@ function renderTPRaw(){
   let html='<thead><tr><th class="l">Ngày GD</th><th class="l">Ngày giá trị</th><th class="l">Chi nhánh</th><th>Ghi nợ</th><th>Ghi có</th><th class="l">Diễn giải</th></tr></thead><tbody>';
   html+=`<tr class="tot"><td class="l">TỔNG (${rows.length} GD)</td><td></td><td></td><td>${fmt(totalDebit)}</td><td>${fmt(totalCredit)}</td><td></td></tr>`;
   rows.slice(0,300).forEach(r=>{
-    html+=`<tr style="${r.excludeRecon?'opacity:.7;background:rgba(0,0,0,.03)':''}"><td class="l" style="white-space:nowrap">${r.kdate||''}</td><td class="l" style="white-space:nowrap;color:var(--muted);font-size:11.5px">${r.valueDate||''}</td><td class="l">${r.branch?(r.branch+(r._filledDown?' <small style="color:var(--muted)">↑fill</small>':'')):'<span class="tag bad">?</span>'}</td><td>${r.debit?fmt(r.debit):''}</td><td>${r.credit?fmt(r.credit):''}</td><td class="l" style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}${r.excludeRecon?' <small style="color:var(--muted)">[không đối chiếu]</small>':''}</td></tr>`;
+    html+=`<tr style="${r.excludeRecon?'opacity:.7;background:rgba(0,0,0,.03)':''}"><td class="l editable-date" title="Bấm để sửa ngày" style="white-space:nowrap;cursor:pointer" onclick="startEditTPDate(this,'${r.k}','kdate')">${r.kdate||''}</td><td class="l editable-date" title="Bấm để sửa ngày" style="white-space:nowrap;color:var(--muted);font-size:11.5px;cursor:pointer" onclick="startEditTPDate(this,'${r.k}','valueDate')">${r.valueDate||''}</td><td class="l">${r.branch?(r.branch+(r._filledDown?' <small style="color:var(--muted)">↑fill</small>':'')):'<span class="tag bad">?</span>'}</td><td>${r.debit?fmt(r.debit):''}</td><td>${r.credit?fmt(r.credit):''}</td><td class="l" style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}${r.excludeRecon?' <small style="color:var(--muted)">[không đối chiếu]</small>':''}</td></tr>`;
   });
   html+='</tbody>';
   document.getElementById('tp-raw').innerHTML=TPBANK.length?html:'<tbody><tr><td class="l small">Chưa import dữ liệu</td></tr></tbody>';
   renderFilterNotice('tp-filter-notice', {from, to, count: rows.length, total: TPBANK.length});
 }
+// Bấm vào ô ngày trong bảng TP Bank để sửa tay — dùng khi ngân hàng ghi sai/chậm ngày giao dịch
+window.startEditTPDate = (td, k, field) => {
+  const row = TPBANK.find(r=>r.k===k);
+  if(!row) return;
+  const iso = row[field] ? row[field].split('/').reverse().join('-') : '';
+  td.onclick = null;
+  td.innerHTML = `<input type="date" value="${iso}" style="width:132px;font-size:12.5px">`;
+  const input = td.querySelector('input');
+  input.focus();
+  if(typeof input.showPicker==='function'){ try{ input.showPicker(); }catch(e){} }
+  let committed = false;
+  const commit = async ()=>{
+    if(committed) return; committed = true;
+    const v = input.value;
+    if(v){
+      const [y,m,dd] = v.split('-');
+      row[field] = `${dd}/${m}/${y}`;
+      await sset('tpbank:list', TPBANK);
+      toast('✓ Đã sửa ngày');
+    }
+    renderTPRaw();
+  };
+  input.addEventListener('change', commit);
+  input.addEventListener('blur', commit);
+};
 
 function renderTPRecon(){
   const m = document.getElementById('tp-month').value; if(!m) return;
