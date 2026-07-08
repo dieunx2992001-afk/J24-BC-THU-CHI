@@ -1956,6 +1956,18 @@ async function handleVTFile(file){
     const seenInStage = new Set();
     VT_STAGE = [];
 
+    // Trích mã giao dịch ổn định (vd "KOVQR071MLB5N1") từ nội dung — mã này KHÔNG đổi qua các lần
+    // xuất file khác nhau, trong khi toàn bộ chuỗi nội dung CÓ THỂ đổi (vd ngân hàng bổ sung thêm
+    // "thoi gian GD:..." ở lần xuất sau cho cùng 1 giao dịch), khiến so trùng theo nội dung bị sai.
+    function extractStableRef(content){
+      const s = String(content||'');
+      const kovqr = s.match(/KOVQR[0-9A-Z]+/);
+      if(kovqr) return kovqr[0];
+      const ct = s.match(/58[0-9][A-Z0-9]{10,}/);
+      if(ct) return ct[0];
+      return null;
+    }
+
     // Lấy danh sách thời gian (phút) của từng dòng hợp lệ theo thứ tự file
     const validRows = [];
     data.forEach(row=>{
@@ -1997,8 +2009,13 @@ async function handleVTFile(file){
       const {row, dRaw, fullM, embedM} = vr;
       const content = row[cIdx.content], amount = parseVNMoney(row[cIdx.amount]);
       const balance = parseVNMoney(row[cIdx.balance]);
-      const k = content+'|'+amount+'|'+balance;
-      if(existKeys.has(k)||seenInStage.has(k)){ dup++; return; }
+      const ref = extractStableRef(content);
+      // Khoá MỚI: dùng mã giao dịch ổn định (nếu có) — không phụ thuộc câu chữ nội dung có đổi hay không.
+      // Vẫn giữ số dư (balance) trong khoá để tránh nhầm 2 giao dịch khác nhau vô tình chung mã tham chiếu.
+      const k = (ref||content)+'|'+amount+'|'+balance;
+      // Khoá CŨ (kiểu trước đây) — để vẫn so khớp đúng với dữ liệu đã lưu TRƯỚC khi có bản sửa này
+      const kOld = content+'|'+amount+'|'+balance;
+      if(existKeys.has(k)||existKeys.has(kOld)||seenInStage.has(k)){ dup++; return; }
       seenInStage.add(k);
       let day='', month='', dRawFinal = dRaw;
       if(embedM){
