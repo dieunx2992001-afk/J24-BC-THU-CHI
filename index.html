@@ -1472,15 +1472,96 @@ function setupDrop(dropId, fileId, handler){
   drop.addEventListener('drop', e=>{e.preventDefault(); drop.classList.remove('over'); if(e.dataTransfer.files[0]) runHandler(e.dataTransfer.files[0]);});
   file.addEventListener('change', e=>{ if(e.target.files[0]) runHandler(e.target.files[0]); file.value=''; });
 }
+// Đọc file Excel trong Web Worker (chạy nền, tách khỏi luồng giao diện chính) — file rất lớn
+// (hàng chục nghìn dòng) trước đây làm ĐƠ cả trang vì XLSX.read() chạy đồng bộ có thể mất
+// hàng chục giây; chuyển sang worker để trang vẫn phản hồi được trong lúc đọc file.
+let _xlsxWorker = null;
+function getXlsxWorker(){
+  if(_xlsxWorker) return _xlsxWorker;
+  const workerSrc = `
+    importScripts('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    function fixSheetRange(ws){
+      let maxR=0, maxC=0, minR=0, minC=0, found=false;
+      Object.keys(ws).forEach(addr=>{
+        if(addr[0]==='!') return;
+        const cell = XLSX.utils.decode_cell(addr);
+        if(!found){ minR=cell.r; minC=cell.c; found=true; }
+        maxR = Math.max(maxR, cell.r); maxC = Math.max(maxC, cell.c);
+        minR = Math.min(minR, cell.r); minC = Math.min(minC, cell.c);
+      });
+      if(found){ ws['!ref'] = XLSX.utils.encode_range({s:{r:minR,c:minC},e:{r:maxR,c:maxC}}); }
+    }
+    function unmergeFillSheet(ws){
+      const merges = ws['!merges'];
+      if(!merges || !merges.length) return;
+      merges.forEach(rng=>{
+        const topLeftAddr = XLSX.utils.encode_cell({r:rng.s.r, c:rng.s.c});
+        const topLeftCell = ws[topLeftAddr];
+        if(!topLeftCell) return;
+        for(let r=rng.s.r; r<=rng.e.r; r++){
+          for(let c=rng.s.c; c<=rng.e.c; c++){
+            const addr = XLSX.utils.encode_cell({r,c});
+            if(addr===topLeftAddr) continue;
+            ws[addr] = {...topLeftCell};
+          }
+        }
+      });
+    }
+    onmessage = function(e){
+      try{
+        const wb = XLSX.read(e.data.buffer, {type:'array', cellDates:true});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        fixSheetRange(ws);
+        unmergeFillSheet(ws);
+        const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+        postMessage({ok:true, rows});
+      }catch(err){
+        postMessage({ok:false, error: err.message});
+      }
+    };
+  `;
+  try{
+    _xlsxWorker = new Worker(URL.createObjectURL(new Blob([workerSrc], {type:'application/javascript'})));
+  }catch(e){ _xlsxWorker = null; }
+  return _xlsxWorker;
+}
 function readSheet(file){
+  return new Promise((resolve,reject)=>{
+    const worker = getXlsxWorker();
+    if(!worker){
+      // Trình duyệt không hỗ trợ Worker — quay lại cách đọc cũ (đồng bộ) để vẫn hoạt động được
+      readSheetSync(file).then(resolve).catch(reject);
+      return;
+    }
+    const onMsg = (e)=>{
+      worker.removeEventListener('message', onMsg);
+      worker.removeEventListener('error', onErr);
+      if(e.data.ok) resolve(e.data.rows);
+      else reject(new Error(e.data.error||'Lỗi đọc file trong worker'));
+    };
+    const onErr = (err)=>{
+      worker.removeEventListener('message', onMsg);
+      worker.removeEventListener('error', onErr);
+      // Worker lỗi (vd. mạng chặn CDN trong worker) — thử lại bằng cách đọc đồng bộ ở luồng chính
+      readSheetSync(file).then(resolve).catch(reject);
+    };
+    worker.addEventListener('message', onMsg);
+    worker.addEventListener('error', onErr);
+    file.arrayBuffer().then(buffer=>{
+      worker.postMessage({buffer}, [buffer]);
+    }).catch(reject);
+  });
+}
+// Cách đọc cũ, chạy đồng bộ ở luồng chính — chỉ dùng khi trình duyệt không hỗ trợ Web Worker
+function readSheetSync(file){
   return new Promise((resolve,reject)=>{
     const r = new FileReader();
     r.onload = e=>{
       try{
         const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
         const ws = wb.Sheets[wb.SheetNames[0]];
-        fixSheetRange(ws); // sửa lại vùng dữ liệu nếu file khai sai dimension
-        unmergeFillSheet(ws); // điền lại giá trị cho các ô bị "Merge & Center" trống
+        fixSheetRange(ws);
+        unmergeFillSheet(ws);
         const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
         resolve(rows);
       }catch(err){ reject(err); }
@@ -2122,7 +2203,7 @@ async function saveKTStage(){
   document.getElementById('kt-stage-banner').style.display='none';
   toast((ok?'✓ Đã lưu':'⚠ Lỗi lưu')+' '+n+' dòng Kho tổng'+(STORAGE_MODE==='cloud'?' (Cloud)':' (Local)')+' — bấm "↩ Xóa lần import cuối" nếu muốn hoàn tác');
   renderKTCount(); renderKTRaw(); renderKTKpi();
-  matchB2WithKhoTong(); await sset('b2:list', B2);
+  await matchB2WithKhoTong(); await sset('b2:list', B2);
 }
 function renderKTCount(){ document.getElementById('kt-count').textContent = KHOTONG.length+' dòng đã lưu'; }
 document.getElementById('kt-undo').addEventListener('click', async ()=>{
@@ -2171,6 +2252,8 @@ function initB2UI(){
 }
 async function handleSQFile(file){
   try{
+    toast('⏳ Đang đọc file... (file lớn có thể mất khoảng vài chục giây)', 4000);
+    await new Promise(r=>setTimeout(r,30)); // để trình duyệt kịp vẽ thông báo trên trước khi xử lý nặng
     const rows = await readSheet(file);
     if(!rows || rows.length<2){ toast('File rỗng hoặc không đúng định dạng Sổ quỹ KiotViet'); return; }
     const header = rows[0];
@@ -2194,31 +2277,40 @@ async function handleSQFile(file){
     const data = rows.slice(1);
     const existIds = new Set(B2.map(r=>r.maPhieu));
     let added=0, skipped=0;
-    data.forEach(row=>{
-      if(!row || row.every(c=>c===null)) return;
-      const maPhieu = row[cIdx.maPhieu]; if(!maPhieu) return;
-      if(existIds.has(maPhieu)) return; // không nhập lại phiếu đã có
-      const amount = parseVNMoney(row[cIdx.amount]);
-      if(isNaN(amount)){ skipped++; return; }
-      const time = cIdx.time>-1 ? row[cIdx.time] : null;
-      const loaiSoQuy = cIdx.loaiSoQuy>-1 ? row[cIdx.loaiSoQuy] : (cIdx.phuongThuc>-1 ? row[cIdx.phuongThuc] : '');
-      B2.push({
-        maPhieu,
-        time: time ? (excelDateToISO(time)||String(time)) : '',
-        branch: cIdx.branch>-1 ? row[cIdx.branch] : '',
-        loaiThuChi: cIdx.loaiThuChi>-1 ? row[cIdx.loaiThuChi] : '',
-        person: cIdx.person>-1 ? row[cIdx.person] : '',
-        soTK: cIdx.soTK>-1 ? String(row[cIdx.soTK]||'') : '',
-        noiDungCK: cIdx.noiDungCK>-1 ? row[cIdx.noiDungCK] : '',
-        note: cIdx.ghiChu>-1 ? row[cIdx.ghiChu] : '',
-        amount,
-        loaiSoQuy: loaiSoQuy||'',
-        bankMatch:'', bankAccount:''
+    // Xử lý theo từng lô (chunk) + nhường lại luồng chính định kỳ, để trình duyệt không bị "đơ"
+    // (Trang không phản hồi) khi file có hàng chục nghìn dòng trở lên.
+    const CHUNK = 3000;
+    for(let i=0;i<data.length;i+=CHUNK){
+      data.slice(i, i+CHUNK).forEach(row=>{
+        if(!row || row.every(c=>c===null)) return;
+        const maPhieu = row[cIdx.maPhieu]; if(!maPhieu) return;
+        if(existIds.has(maPhieu)) return; // không nhập lại phiếu đã có
+        const amount = parseVNMoney(row[cIdx.amount]);
+        if(isNaN(amount)){ skipped++; return; }
+        const time = cIdx.time>-1 ? row[cIdx.time] : null;
+        const loaiSoQuy = cIdx.loaiSoQuy>-1 ? row[cIdx.loaiSoQuy] : (cIdx.phuongThuc>-1 ? row[cIdx.phuongThuc] : '');
+        B2.push({
+          maPhieu,
+          time: time ? (excelDateToISO(time)||String(time)) : '',
+          branch: cIdx.branch>-1 ? row[cIdx.branch] : '',
+          loaiThuChi: cIdx.loaiThuChi>-1 ? row[cIdx.loaiThuChi] : '',
+          person: cIdx.person>-1 ? row[cIdx.person] : '',
+          soTK: cIdx.soTK>-1 ? String(row[cIdx.soTK]||'') : '',
+          noiDungCK: cIdx.noiDungCK>-1 ? row[cIdx.noiDungCK] : '',
+          note: cIdx.ghiChu>-1 ? row[cIdx.ghiChu] : '',
+          amount,
+          loaiSoQuy: loaiSoQuy||'',
+          bankMatch:'', bankAccount:''
+        });
+        existIds.add(maPhieu);
+        added++;
       });
-      existIds.add(maPhieu);
-      added++;
-    });
-    matchB2WithKhoTong();
+      if(data.length>CHUNK){
+        toast(`⏳ Đang xử lý... ${Math.min(i+CHUNK,data.length)}/${data.length} dòng (${added} phiếu mới)`, 2500);
+        await new Promise(r=>setTimeout(r,0)); // nhường luồng chính cho trình duyệt vẽ lại giao diện
+      }
+    }
+    await matchB2WithKhoTong();
     window._b2LastImportIds = new Set(B2.filter(r=>!window._b2PrevIds||!window._b2PrevIds.has(r.maPhieu)).map(r=>r.maPhieu));
     const ok = await sset('b2:list', B2);
     toast(`${ok?'✓':'⚠ Lỗi lưu!'} Đã import ${added} phiếu mới từ KiotViet${skipped?', bỏ qua '+skipped+' dòng':''} — bấm "↩ Xóa lần import cuối" nếu muốn hoàn tác`);
@@ -2226,23 +2318,30 @@ async function handleSQFile(file){
   }catch(err){ toast('Lỗi đọc file: '+err.message); console.error(err); }
 }
 function normContent(s){ return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
-function matchB2WithKhoTong(){
+async function matchB2WithKhoTong(){
   // build searchable list from KHOTONG content, ưu tiên khớp đúng dấu số tiền (thu khớp ghi có, chi khớp ghi nợ)
-  B2.forEach(r=>{
-    if(r.bankMatch) return; // already matched previously
-    const needle = normContent(r.person)+normContent(r.noiDungCK)+normContent(r.note);
-    if(!needle){ return; }
-    const hit = KHOTONG.find(k=>{
-      const hay = normContent(k.content);
-      if(!hay) return false;
-      const sameDirection = (r.amount>0 && k.credit>0) || (r.amount<0 && k.debit>0);
-      const textMatch = needle.includes(hay.slice(0,12)) || hay.includes(needle.slice(0,12));
-      return textMatch && (sameDirection || (!k.credit && !k.debit));
+  const unmatched = B2.filter(r=>!r.bankMatch);
+  const CHUNK = 2000;
+  for(let i=0;i<unmatched.length;i+=CHUNK){
+    unmatched.slice(i, i+CHUNK).forEach(r=>{
+      const needle = normContent(r.person)+normContent(r.noiDungCK)+normContent(r.note);
+      if(!needle){ return; }
+      const hit = KHOTONG.find(k=>{
+        const hay = normContent(k.content);
+        if(!hay) return false;
+        const sameDirection = (r.amount>0 && k.credit>0) || (r.amount<0 && k.debit>0);
+        const textMatch = needle.includes(hay.slice(0,12)) || hay.includes(needle.slice(0,12));
+        return textMatch && (sameDirection || (!k.credit && !k.debit));
+      });
+      if(hit){
+        r.bankMatch = hit.branch; r.bankAccount = hit.account;
+      }
     });
-    if(hit){
-      r.bankMatch = hit.branch; r.bankAccount = hit.account;
+    if(unmatched.length>CHUNK){
+      toast(`⏳ Đang đối chiếu ngân hàng... ${Math.min(i+CHUNK,unmatched.length)}/${unmatched.length}`, 2500);
+      await new Promise(r=>setTimeout(r,0));
     }
-  });
+  }
 }
 function renderSQCount(){ document.getElementById('sq-count').textContent = B2.length+' phiếu đã lưu'; }
 document.getElementById('sq-undo').addEventListener('click', async ()=>{
