@@ -1154,10 +1154,9 @@ function normalizeDateCell(rawDate){
 }
 async function handleChotCaImportFile(file){
   try{
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, {type:'array', cellDates:true, sheetRows:0});
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+    toast('⏳ Đang đọc file... (file lớn có thể mất khoảng vài chục giây)', 4000);
+    await new Promise(r=>setTimeout(r,30));
+    const rows = await readSheet(file);
 
     // 1) Tìm TẤT CẢ các ô "Ngày" trong file — mỗi ô như vậy đánh dấu bắt đầu 1 "khối" dữ liệu của 1 ngày.
     //    Nhờ vậy 1 file có thể chứa nhiều ngày (dán nhiều khối nối tiếp nhau), import 1 lần lưu hết.
@@ -3492,10 +3491,9 @@ function initCaTheKiotUI(){
 
 async function handleCAKFile(file){
   try{
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf,{type:'array',cellDates:true,sheetRows:0});
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+    toast('⏳ Đang đọc file... (file lớn có thể mất khoảng vài chục giây)', 4000);
+    await new Promise(r=>setTimeout(r,30));
+    const rows = await readSheet(file);
     const header = rows[0];
     if(!header) return toast('Không đọc được header file');
     // cIdx
@@ -3515,28 +3513,36 @@ async function handleCAKFile(file){
     const existIds = new Set(CATHE_KV.map(r=>r.maPhieu));
     let added=0, dup=0;
     const newRows = [];
-    rows.slice(1).forEach(row=>{
-      if(!row||!row[cIdx.maPhieu]) return;
-      const maPhieu = String(row[cIdx.maPhieu]||'').trim();
-      if(!maPhieu) return;
-      if(existIds.has(maPhieu)){ dup++; return; }
-      existIds.add(maPhieu);
-      const timeRaw = row[cIdx.time];
-      const time = timeRaw instanceof Date ? (d=>`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`)(roundToUTCDate(timeRaw)) : String(timeRaw||'').slice(0,10);
-      const amount = typeof row[cIdx.amount]==='number' ? row[cIdx.amount] : parseVNMoney(row[cIdx.amount]);
-      newRows.push({
-        maPhieu, time,
-        branch: String(row[cIdx.branch]||''),
-        loai: String(row[cIdx.loai]||''),
-        phuongThuc: String(row[cIdx.phuongThuc]||''),
-        soTK: String(row[cIdx.soTK]||''),
-        person: String(row[cIdx.person]||''),
-        amount: isNaN(amount)?0:amount,
-        content: String(row[cIdx.content]||''),
-        note: String(row[cIdx.note]||'')
+    const dataRows = rows.slice(1);
+    const CHUNK = 5000;
+    for(let i=0;i<dataRows.length;i+=CHUNK){
+      dataRows.slice(i, i+CHUNK).forEach(row=>{
+        if(!row||!row[cIdx.maPhieu]) return;
+        const maPhieu = String(row[cIdx.maPhieu]||'').trim();
+        if(!maPhieu) return;
+        if(existIds.has(maPhieu)){ dup++; return; }
+        existIds.add(maPhieu);
+        const timeRaw = row[cIdx.time];
+        const time = timeRaw instanceof Date ? (d=>`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`)(roundToUTCDate(timeRaw)) : String(timeRaw||'').slice(0,10);
+        const amount = typeof row[cIdx.amount]==='number' ? row[cIdx.amount] : parseVNMoney(row[cIdx.amount]);
+        newRows.push({
+          maPhieu, time,
+          branch: String(row[cIdx.branch]||''),
+          loai: String(row[cIdx.loai]||''),
+          phuongThuc: String(row[cIdx.phuongThuc]||''),
+          soTK: String(row[cIdx.soTK]||''),
+          person: String(row[cIdx.person]||''),
+          amount: isNaN(amount)?0:amount,
+          content: String(row[cIdx.content]||''),
+          note: String(row[cIdx.note]||'')
+        });
+        added++;
       });
-      added++;
-    });
+      if(dataRows.length>CHUNK){
+        toast(`⏳ Đang xử lý... ${Math.min(i+CHUNK,dataRows.length)}/${dataRows.length} dòng (${added} phiếu mới)`, 2500);
+        await new Promise(r=>setTimeout(r,0));
+      }
+    }
     CATHE_KV = CATHE_KV.concat(newRows);
     window._cakLastIds = new Set(newRows.map(r=>r.maPhieu));
     const ok = await sset('cathe_kv:list', CATHE_KV);
