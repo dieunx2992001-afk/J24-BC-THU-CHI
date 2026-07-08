@@ -1963,7 +1963,12 @@ async function handleVTFile(file){
       if(content==null || isNaN(amount)) return;
       const dRaw = String(row[cIdx.date]||'');
       const fullM = dRaw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2})/);
-      validRows.push({row, dRaw, fullM, timeMin: fullM? parseInt(fullM[4])*60+parseInt(fullM[5]) : null});
+      // Một số giao dịch (thường là chuyển khoản qua QR) có ghi rõ "thoi gian GD:dd/mm/yyyy hh:mm:ss"
+      // ngay trong nội dung — đây mới là THỜI ĐIỂM GIAO DỊCH THẬT. Cột "Ngày" đôi khi là giờ ngân hàng
+      // ghi sổ/xử lý, có thể trễ hơn và thậm chí sang NGÀY HÔM SAU — nên phải ưu tiên lấy ngày này khi có,
+      // thay vì chỉ dựa vào cột "Ngày" + đoán ranh giới nửa đêm như trước.
+      const embedM = String(content||'').match(/thoi gian GD\s*:\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2})/i);
+      validRows.push({row, dRaw, fullM, embedM, timeMin: fullM? parseInt(fullM[4])*60+parseInt(fullM[5]) : null});
     });
 
     // Pass 1: tìm ranh giới nửa đêm — khi thời gian nhảy từ NHỎ sang LỚN (vd 00:xx → 23:xx)
@@ -1989,14 +1994,18 @@ async function handleVTFile(file){
 
     // Pass 2: gán ngày đúng cho từng dòng
     validRows.forEach((vr, idx)=>{
-      const {row, dRaw, fullM} = vr;
+      const {row, dRaw, fullM, embedM} = vr;
       const content = row[cIdx.content], amount = parseVNMoney(row[cIdx.amount]);
       const balance = parseVNMoney(row[cIdx.balance]);
       const k = content+'|'+amount+'|'+balance;
       if(existKeys.has(k)||seenInStage.has(k)){ dup++; return; }
       seenInStage.add(k);
-      let day='', month='';
-      if(fullM){
+      let day='', month='', dRawFinal = dRaw;
+      if(embedM){
+        // Có ghi rõ thời gian giao dịch thật trong nội dung -> dùng thẳng, không cần đoán ranh giới nửa đêm
+        day = parseInt(embedM[1]); month = parseInt(embedM[2]);
+        dRawFinal = `${String(embedM[1]).padStart(2,'0')}/${String(embedM[2]).padStart(2,'0')}/${embedM[3]} ${embedM[4]}:${embedM[5]}`;
+      } else if(fullM){
         let baseDay=parseInt(fullM[1]), baseMonth=parseInt(fullM[2]), baseYear=parseInt(fullM[3]);
         if(midnightBoundaryIdx > 0 && idx < midnightBoundaryIdx){
           // Các dòng trước ranh giới = thực ra ngày hôm sau (sau nửa đêm)
@@ -2008,7 +2017,7 @@ async function handleVTFile(file){
       } else if(row[cIdx.date] instanceof Date){
         day = roundToUTCDate(row[cIdx.date]).getUTCDate(); month = roundToUTCDate(row[cIdx.date]).getUTCMonth()+1;
       }
-      VT_STAGE.push({k, content, amount, balance, account: accStr, branch, day, month, dateRaw: dRaw});
+      VT_STAGE.push({k, content, amount, balance, account: accStr, branch, day, month, dateRaw: dRawFinal});
       candidate++;
     });
     const banner = document.getElementById('vt-stage-banner');
