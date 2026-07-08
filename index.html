@@ -3107,13 +3107,13 @@ function _renderDoiChieuTongInner(from, to){
   const onlyMismatch = document.getElementById('dc-onlymismatch').value==='1';
   const inRange = d => d>=from && d<=to;
 
-  // TP Bank: cộng theo (chi nhánh, ngày-ISO)
+  // TP Bank: cộng theo (chi nhánh, ngày-ISO) — dùng đúng ngày/năm thật lưu trong kdate (dd/mm/yyyy),
+  // KHÔNG dùng năm hiện tại nữa (trước đây luôn ghép năm hiện tại, sai nếu dữ liệu ở năm khác)
   let tpAgg = {};
   TPBANK.forEach(r=>{
-    if(!r.branch || !r.day || !r.month) return;
+    if(!r.branch || !r.kdate) return;
     if(r.excludeRecon || TP_RECON_EXCLUDE.some(kw=>(r.content||'').toUpperCase().includes(kw))) return;
-    const dISO = `${new Date().getFullYear()}-${String(r.month).padStart(2,'0')}-${String(r.day).padStart(2,'0')}`;
-    // dùng năm hiện tại làm mặc định; nếu cần chính xác hơn theo năm, có thể mở rộng sau
+    const dISO = r.kdate.split('/').reverse().join('-'); // dd/mm/yyyy -> yyyy-mm-dd
     if(!inRange(dISO)) return;
     const key = r.branch+'|'+dISO;
     tpAgg[key] = (tpAgg[key]||0) + r.credit;
@@ -3122,7 +3122,10 @@ function _renderDoiChieuTongInner(from, to){
   VIETTIN.forEach(r=>{
     if(!r.branch || !r.day || !r.month) return;
     if(r.amount<=0) return;
-    const dISO = `${new Date().getFullYear()}-${String(r.month).padStart(2,'0')}-${String(r.day).padStart(2,'0')}`;
+    // Lấy đúng năm thật từ dateRaw (nếu có), không mặc định năm hiện tại
+    const yr = r.dateRaw ? (r.dateRaw.match(/(\d{4})/)||[])[0] : null;
+    if(!yr) return; // không xác định được năm thật thì bỏ qua, tránh gộp nhầm năm
+    const dISO = `${yr}-${String(r.month).padStart(2,'0')}-${String(r.day).padStart(2,'0')}`;
     if(!inRange(dISO)) return;
     const key = r.branch+'|'+dISO;
     vtAgg[key] = (vtAgg[key]||0) + r.amount;
