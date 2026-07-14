@@ -235,6 +235,8 @@ tr:hover td{background:var(--surface2);}
 .thtc-tip-item{margin-top:6px;padding-left:10px;border-left:3px solid #e7a55e;color:#fff8ee;}
 .thtc-tip-item b{color:#ffd69f;}
 .thtc-tip-branch{margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.16);font-weight:800;color:#ffd69f;}
+.thtc-float-scroll{display:none;position:fixed;bottom:6px;z-index:600;height:22px;overflow-x:auto;overflow-y:hidden;background:#fffdfa;border:1px solid #cdbfae;border-radius:6px;box-shadow:0 4px 14px rgba(55,42,28,.22);scrollbar-gutter:stable;}
+.thtc-float-scroll-inner{height:1px;pointer-events:none;}
 .auth-screen{position:fixed;inset:0;z-index:20000;background:linear-gradient(145deg,#f6f2ea,#e9dfd0);display:flex;align-items:center;justify-content:center;padding:18px;}
 .auth-screen.hidden{display:none;}
 .auth-card{width:min(420px,100%);background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;box-shadow:0 18px 55px rgba(70,50,30,.18);}
@@ -706,8 +708,9 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
       <div class="thtc-design-note" style="margin-bottom:10px">Đã nối dữ liệu nhóm A: VND, Thu chuyển khoản và Thu cà thẻ từ Chốt ca Hiền; Thực thu chuyển khoản từ VietinBank; Thực thu cà thẻ từ TPBank. Rê chuột vào ô chênh lệch để xem ngày, số tiền, chi nhánh và lý do lệch.</div>
       <div class="card">
         <div id="thtc-caption" class="small" style="margin-bottom:10px"></div>
-        <div class="scroll" style="max-height:690px;overflow:auto;border:1px solid var(--border)"><table id="thtc-table" class="thtc-table"></table></div>
-        <p class="note">Hai cột <b>Mã</b> và <b>Cửa hàng</b> được ghim bên trái. Kéo ngang để xem các chi nhánh còn lại.</p>
+        <div id="thtc-scroll" class="scroll" style="max-height:690px;overflow:auto;border:1px solid var(--border)"><table id="thtc-table" class="thtc-table"></table></div>
+        <div id="thtc-float-scroll" class="thtc-float-scroll" aria-label="Thanh kéo ngang bảng Tổng hợp thu chi"><div id="thtc-float-scroll-inner" class="thtc-float-scroll-inner"></div></div>
+        <p class="note">Hai cột <b>Mã</b> và <b>Cửa hàng</b> được ghim bên trái. Thanh kéo ngang sẽ tự nổi ở đáy màn hình khi cuối bảng chưa hiện ra.</p>
       </div>
     </section>
 
@@ -4393,6 +4396,40 @@ function getTHTCSourceData(branches,from,to){
   });
   return values;
 }
+function initTHTCFloatingScrollbar(){
+  const source=document.getElementById('thtc-scroll');
+  const bar=document.getElementById('thtc-float-scroll');
+  const inner=document.getElementById('thtc-float-scroll-inner');
+  const page=document.getElementById('p16');
+  if(!source||!bar||!inner||source.dataset.floatScrollReady)return;
+  source.dataset.floatScrollReady='1';
+  let syncing=false,frame=0;
+  const update=()=>{
+    cancelAnimationFrame(frame);
+    frame=requestAnimationFrame(()=>{
+      const rect=source.getBoundingClientRect();
+      const active=page.classList.contains('active');
+      const overflow=source.scrollWidth>source.clientWidth+2;
+      const tableVisible=rect.top<window.innerHeight-25&&rect.bottom>58;
+      const originalBarBelow=rect.bottom>window.innerHeight-2;
+      const show=active&&overflow&&tableVisible&&originalBarBelow;
+      bar.style.display=show?'block':'none';
+      if(!show)return;
+      const left=Math.max(6,rect.left),width=Math.max(80,Math.min(rect.width,window.innerWidth-left-6));
+      bar.style.left=left+'px';bar.style.width=width+'px';
+      inner.style.width=source.scrollWidth+'px';
+      syncing=true;bar.scrollLeft=source.scrollLeft;syncing=false;
+    });
+  };
+  source.addEventListener('scroll',()=>{if(syncing)return;syncing=true;bar.scrollLeft=source.scrollLeft;syncing=false;},{passive:true});
+  bar.addEventListener('scroll',()=>{if(syncing)return;syncing=true;source.scrollLeft=bar.scrollLeft;syncing=false;},{passive:true});
+  window.addEventListener('scroll',update,{passive:true});
+  window.addEventListener('resize',update,{passive:true});
+  document.addEventListener('click',()=>setTimeout(update,80));
+  if(window.ResizeObserver){const ro=new ResizeObserver(update);ro.observe(source);ro.observe(document.getElementById('thtc-table'));}
+  window._updateTHTCFloatScroll=update;
+  setTimeout(update,80);
+}
 function initTongHopThuChiLayout(){
   document.getElementById('thtc-month').value=todayISO().slice(0,7);
   document.getElementById('thtc-day').value=todayISO();
@@ -4403,6 +4440,7 @@ function initTongHopThuChiLayout(){
   document.getElementById('thtc-run').addEventListener('click',renderTongHopThuChiLayout);
   document.getElementById('thtc-export').addEventListener('click',exportTongHopThuChiLayout);
   initTHTCHoverTips();
+  initTHTCFloatingScrollbar();
   syncTHTCPeriod(); renderTongHopThuChiLayout();
 }
 function renderTongHopThuChiLayout(){
@@ -4439,6 +4477,7 @@ function renderTongHopThuChiLayout(){
   document.getElementById('thtc-table').innerHTML=html;
   document.getElementById('thtc-caption').textContent=`Kỳ báo cáo: ${range.label} · ${branches.length} cột chi nhánh · rê chuột vào ô CL để xem lý do chênh lệch`;
   makeResizable(document.getElementById('thtc-table'));
+  if(window._updateTHTCFloatScroll)setTimeout(window._updateTHTCFloatScroll,30);
 }
 function exportTongHopThuChiLayout(){
   if(typeof XLSX==='undefined'){toast('Không tải được thư viện xuất Excel');return;}
