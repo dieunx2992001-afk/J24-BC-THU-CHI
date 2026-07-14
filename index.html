@@ -761,10 +761,10 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
 
       <div class="card">
         <div id="backup-storage-info" style="margin-bottom:14px;padding:10px 14px;border-radius:7px;font-size:13px;"></div>
-        <h3 style="font-size:13px;font-weight:700;color:var(--title);margin-bottom:8px">🔀 Chuẩn hóa dữ liệu sang SQL từng dòng</h3>
-        <p class="note" style="margin-bottom:12px">Bản mới sẽ tự chuyển dữ liệu cũ khi mở. Nút này dùng để kiểm tra và ghi lại toàn bộ dữ liệu đang hiển thị thành từng bản ghi SQL riêng; không cần nhập lại dữ liệu.</p>
-        <div class="flexend" style="margin-bottom:8px"><button class="ghost" id="btn-recover-legacy">🛟 Khôi phục dữ liệu cũ bị thiếu</button><button class="save" id="btn-migrate-turso">🔀 Kiểm tra / chuyển sang SQL</button></div>
-        <div id="migrate-log" style="font-size:12px;color:var(--muted);white-space:pre-wrap;font-family:var(--mono)"></div>
+        <h3 style="font-size:13px;font-weight:700;color:var(--title);margin-bottom:8px">🔒 SQL là dữ liệu chính</h3>
+        <p class="note" style="margin-bottom:12px">Không cần chuyển hoặc khôi phục dữ liệu cũ từ máy. Chức năng này đã được khóa để bản sao cũ không thể ghi ngược lên SQL sau khi bạn xóa dữ liệu.</p>
+        <div class="flexend" style="margin-bottom:8px"><button class="ghost" id="btn-recover-legacy" disabled>Đã khóa khôi phục cũ</button><button class="ghost" id="btn-migrate-turso" disabled>Không cần chuyển lại SQL</button></div>
+        <div id="migrate-log" style="font-size:12px;color:var(--good);white-space:pre-wrap;font-family:var(--mono)">✓ Dữ liệu trên SQL sẽ được ưu tiên trên tất cả máy.</div>
       </div>
 
       <div class="card">
@@ -1179,17 +1179,18 @@ function storageEntries(dataset,value){
   });
   return {type,entries};
 }
-async function sqlV2WriteDataset(dataset,value,updatedAt=new Date().toISOString()){
+async function sqlV2WriteDataset(dataset,value,updatedAt=new Date().toISOString(),options={}){
   const built=storageEntries(dataset,value);
   const old=_sqlV2Cache[dataset]||new Map();
   const current=new Map(built.entries.map(e=>[e.recordId,e.recordHash]));
   const deleteIds=[];old.forEach((_,recordId)=>{if(!current.has(recordId))deleteIds.push(recordId);});
-  if(deleteIds.length&&CURRENT_USER&&CURRENT_USER.role!=='admin') throw new Error('Chỉ tài khoản quản trị mới được xóa dữ liệu.');
+  const deleteAll=options.deleteAll===true&&current.size===0;
+  if((deleteIds.length||deleteAll)&&CURRENT_USER&&CURRENT_USER.role!=='admin') throw new Error('Chỉ tài khoản quản trị mới được xóa dữ liệu.');
   let result,lastError;
   for(let attempt=1;attempt<=3;attempt++){
     try{
       result=await apiRequest('/api/data/'+encodeURIComponent(dataset)+'/sync',{
-        method:'POST',body:JSON.stringify({value,deleteIds,updatedAt})
+        method:'POST',body:JSON.stringify({value,deleteIds,deleteAll,updatedAt})
       });
       break;
     }catch(error){
@@ -1222,22 +1223,26 @@ function startSqlProgress(dataset,value,options={}){
   const id=++_sqlProgressSeq,totalCount=Array.isArray(value)?value.length:(value&&typeof value==='object'?Object.keys(value).length:0);
   const label=SQL_PROGRESS_LABELS[dataset]||'dữ liệu',unit=SQL_PROGRESS_UNITS[dataset]||'dòng';
   const importedCount=Number.isFinite(options.importedCount)?Math.max(0,options.importedCount):null;
-  document.getElementById('sql-progress-title').textContent=importedCount===null
-    ?`Đang đồng bộ ${totalCount.toLocaleString('vi-VN')} ${unit} ${label} lên SQL...`
-    :`Đang lưu ${importedCount.toLocaleString('vi-VN')} ${unit} mới ${label} lên SQL...`;
-  document.getElementById('sql-progress-sub').textContent=importedCount===null
-    ?'Vui lòng chờ, không tắt trang hoặc bấm F5. Dữ liệu lớn có thể cần vài chục giây.'
-    :`Tổng dữ liệu sau cập nhật: ${totalCount.toLocaleString('vi-VN')} ${unit}. Vui lòng chờ, không tắt trang hoặc bấm F5.`;
+  document.getElementById('sql-progress-title').textContent=options.deleteAll
+    ?`Đang xóa toàn bộ dữ liệu ${label} trên SQL...`
+    :(importedCount===null
+      ?`Đang đồng bộ ${totalCount.toLocaleString('vi-VN')} ${unit} ${label} lên SQL...`
+      :`Đang lưu ${importedCount.toLocaleString('vi-VN')} ${unit} mới ${label} lên SQL...`);
+  document.getElementById('sql-progress-sub').textContent=options.deleteAll
+    ?'Vui lòng chờ SQL xác nhận hoàn tất. Không tắt trang hoặc bấm F5.'
+    :(importedCount===null
+      ?'Vui lòng chờ, không tắt trang hoặc bấm F5. Dữ liệu lớn có thể cần vài chục giây.'
+      :`Tổng dữ liệu sau cập nhật: ${totalCount.toLocaleString('vi-VN')} ${unit}. Vui lòng chờ, không tắt trang hoặc bấm F5.`);
   const time=document.getElementById('sql-progress-time'),started=Date.now();time.textContent='Đã chờ 0 giây';
   clearInterval(_sqlProgressTimer);_sqlProgressTimer=setInterval(()=>{time.textContent=`Đã chờ ${Math.floor((Date.now()-started)/1000)} giây · hệ thống vẫn đang xử lý`;},1000);
   overlay.classList.add('show');return id;
 }
-function finishSqlProgress(id,ok){
+function finishSqlProgress(id,ok,options={}){
   if(!id||id!==_sqlProgressSeq)return;
   clearInterval(_sqlProgressTimer);_sqlProgressTimer=null;
   const title=document.getElementById('sql-progress-title'),sub=document.getElementById('sql-progress-sub');
-  title.textContent=ok?'✓ Đã lưu dữ liệu lên SQL':'⚠ Chưa lưu được dữ liệu';
-  sub.textContent=ok?'Dữ liệu đã đồng bộ xong.':'Hãy kiểm tra thông báo lỗi rồi thử lại.';
+  title.textContent=ok?(options.deleteAll?'✓ Đã xóa dữ liệu trên SQL':'✓ Đã lưu dữ liệu lên SQL'):(options.deleteAll?'⚠ Chưa xóa được dữ liệu':'⚠ Chưa lưu được dữ liệu');
+  sub.textContent=ok?(options.deleteAll?'SQL đã xác nhận xóa hoàn tất.':'Dữ liệu đã đồng bộ xong.'):'Hãy kiểm tra thông báo lỗi rồi thử lại.';
   document.getElementById('sql-progress-time').textContent='';
   setTimeout(()=>{if(id===_sqlProgressSeq)document.getElementById('sql-progress').classList.remove('show');},ok?700:1600);
 }
@@ -1248,8 +1253,8 @@ async function sset(key,val,options={}){
   if(STORAGE_MODE==='turso'){
     const count=Array.isArray(val)?val.length:(val&&typeof val==='object'?Object.keys(val).length:0);
     const progressId=(SQL_PROGRESS_DATASETS.has(key)||count>=100)?startSqlProgress(key,val,options):0;
-    try{const saved=await sqlV2WriteDataset(key,val,nowTs);await cacheSet(key,val,saved.updatedAt);finishSqlProgress(progressId,true);return true;}
-    catch(e){console.error('API save error',e);window._lastSaveError=e.message||'Không lưu được dữ liệu';finishSqlProgress(progressId,false);toast('⚠ '+window._lastSaveError,6000);return false;}
+    try{const saved=await sqlV2WriteDataset(key,val,nowTs,options);await cacheSet(key,val,saved.updatedAt);finishSqlProgress(progressId,true,options);return true;}
+    catch(e){console.error('API save error',e);window._lastSaveError=e.message||'Không lưu được dữ liệu';finishSqlProgress(progressId,false,options);toast('⚠ '+window._lastSaveError,6000);return false;}
   }
   await cacheSet(key,val,nowTs);
   toast('⚠ Chưa kết nối máy chủ — dữ liệu chỉ đang lưu tạm trên máy này',3500);
@@ -1259,9 +1264,10 @@ async function sgetWithMeta(key,fallback){
   if(STORAGE_MODE==='turso'){
     try{
       const v2=await sqlV2ReadDataset(key);if(v2.found) return v2;
-    }catch(e){console.warn('API read error',e);}
+      return {...v2,unavailable:false};
+    }catch(e){console.warn('API read error',e);return {value:fallback,updatedAt:null,found:false,unavailable:true,error:e.message||'Không đọc được SQL'};}
   }
-  return {value:fallback,updatedAt:null,found:false};
+  return {value:fallback,updatedAt:null,found:false,unavailable:STORAGE_MODE==='turso'};
 }
 async function sget(key,fallback){
   const remote=await sgetWithMeta(key,fallback);
@@ -1761,8 +1767,10 @@ document.getElementById('cc-range-clear').addEventListener('click', async ()=>{
   const rangeLabel=`từ ${from} đến ${to}`;
   if(!confirm(`CHỈ xóa ${keysToDelete.length} dòng chốt ca ${rangeLabel}, chi nhánh ${fb}.\nCác ngày và chi nhánh khác được GIỮ LẠI.\n\nTiếp tục?`)) return;
   await saveRangeUndo('chotca:data',CHOTCA);
-  keysToDelete.forEach(key=>delete CHOTCA[key]);
-  const ok = await sset('chotca:data', CHOTCA);
+  const next={...CHOTCA};keysToDelete.forEach(key=>delete next[key]);
+  const ok = await sset('chotca:data', next);
+  if(!ok){toast('⚠ Chưa xóa được Chốt ca — dữ liệu cũ vẫn được giữ nguyên',6500);return;}
+  CHOTCA=next;
   toast((ok?`✓ Đã xóa ${keysToDelete.length} dòng`:'⚠ Lỗi xóa')+(STORAGE_MODE==='turso'?' (Turso)':' (Local)'));
   renderCCTable();
   renderCCForm();
@@ -1771,7 +1779,8 @@ document.getElementById('cc-range-clear').addEventListener('click', async ()=>{
 document.getElementById('cc-undo-range').addEventListener('click',async()=>{
   const saved=await loadRangeUndo('chotca:data');if(!saved){toast('Chưa có lần xóa khoảng ngày nào để hoàn tác');return;}
   if(!confirm('Khôi phục dữ liệu Chốt ca trước lần xóa gần nhất?'))return;
-  CHOTCA=saved.value;await sset('chotca:data',CHOTCA);await clearRangeUndo('chotca:data');
+  const ok=await sset('chotca:data',saved.value);if(!ok){toast('⚠ Chưa hoàn tác được Chốt ca',6000);return;}
+  CHOTCA=saved.value;await clearRangeUndo('chotca:data');
   renderCCTable();renderCCForm();toast('✓ Đã hoàn tác xóa Chốt ca');
 });
 
@@ -2178,16 +2187,18 @@ async function saveTPStage(){
 document.getElementById('tp-undo').addEventListener('click', async ()=>{
   if(!window._tpLastImportKeys || window._tpLastImportKeys.size===0){ toast('Không có lần import nào để hoàn tác'); return; }
   if(!confirm('Xóa '+window._tpLastImportKeys.size+' dòng vừa import?')) return;
-  TPBANK = TPBANK.filter(r=>!window._tpLastImportKeys.has(r.k));
-  window._tpLastImportKeys = new Set();
-  await sset('tpbank:list', TPBANK);
+  const next=TPBANK.filter(r=>!window._tpLastImportKeys.has(r.k));
+  const ok=await sset('tpbank:list',next);if(!ok){toast('⚠ Chưa xóa được lần import TP Bank',6000);return;}
+  TPBANK=next;window._tpLastImportKeys = new Set();
   toast('✓ Đã xóa lần import cuối');
   renderTPCount(); renderTPRaw(); renderTPRecon();
 });
 function renderTPCount(){ document.getElementById('tp-count').textContent = TPBANK.length+' dòng đã lưu'; }
 document.getElementById('tp-clear').addEventListener('click', async ()=>{
-  if(!confirm('Xoá toàn bộ dữ liệu TP Bank đã import?')) return;
-  TPBANK=[]; await sset('tpbank:list', TPBANK); renderTPCount(); renderTPRaw(); renderTPRecon();
+  if(!confirm(`Xóa toàn bộ ${TPBANK.length} dòng TP Bank trên SQL? Chỉ tiếp tục khi bạn muốn xóa sạch dữ liệu này.`)) return;
+  const ok=await sset('tpbank:list',[],{deleteAll:true});
+  if(!ok){toast('⚠ Chưa xóa được TP Bank — dữ liệu cũ vẫn được giữ nguyên',6500);return;}
+  TPBANK=[];window._tpLastImportKeys=new Set();renderTPCount();renderTPRaw();renderTPRecon();toast('✓ SQL đã xác nhận xóa toàn bộ TP Bank');
 });
 document.getElementById('tp-clear-range').addEventListener('click', async ()=>{
   const from = document.getElementById('tp-raw-from').value, to = document.getElementById('tp-raw-to').value;
@@ -2200,8 +2211,9 @@ document.getElementById('tp-clear-range').addEventListener('click', async ()=>{
   const rangeLabel=`từ ${from} đến ${to}`, extra=` — chi nhánh ${fb} — ${accountLabel}`;
   if(!confirmRangeDelete('TP Bank',plan,TPBANK.length,rangeLabel,extra)) return;
   await saveRangeUndo('tpbank:list',TPBANK);
+  const ok = await sset('tpbank:list', plan.keep);
+  if(!ok){toast('⚠ Chưa xóa được TP Bank — dữ liệu cũ vẫn được giữ nguyên',6500);return;}
   TPBANK = plan.keep;
-  const ok = await sset('tpbank:list', TPBANK);
   document.getElementById('tp-raw-from').value='';document.getElementById('tp-raw-to').value='';
   toast((ok?'✓ Đã xóa ':'⚠ Lỗi xóa ')+plan.del.length+' dòng TP Bank · giữ lại '+plan.keep.length+' dòng');
   renderTPCount(); renderTPRaw(); renderTPRecon();
@@ -2209,7 +2221,7 @@ document.getElementById('tp-clear-range').addEventListener('click', async ()=>{
 document.getElementById('tp-undo-range').addEventListener('click',async()=>{
   const saved=await loadRangeUndo('tpbank:list');if(!saved){toast('Chưa có lần xóa theo khoảng nào để hoàn tác');return;}
   if(!confirm(`Khôi phục ${saved.value.length} dòng TP Bank trước lần xóa gần nhất?`)) return;
-  TPBANK=saved.value;await sset('tpbank:list',TPBANK);await clearRangeUndo('tpbank:list');renderTPCount();renderTPRaw();renderTPRecon();toast('✓ Đã hoàn tác xóa TP Bank');
+  const ok=await sset('tpbank:list',saved.value);if(!ok){toast('⚠ Chưa hoàn tác được TP Bank',6000);return;}TPBANK=saved.value;await clearRangeUndo('tpbank:list');renderTPCount();renderTPRaw();renderTPRecon();toast('✓ Đã hoàn tác xóa TP Bank');
 });
 function renderTPRaw(){
   refreshBranchFilter('tp-raw-branch',TPBANK,Object.values(TID_MAP));
@@ -2325,9 +2337,9 @@ function initVietinUI(){
   document.getElementById('vt-undo').addEventListener('click', async ()=>{
     if(!window._vtLastImportKeys || window._vtLastImportKeys.size===0){ toast('Không có lần import nào để hoàn tác'); return; }
     if(!confirm('Xóa '+window._vtLastImportKeys.size+' dòng vừa import?')) return;
-    VIETTIN = VIETTIN.filter(r=>!window._vtLastImportKeys.has(r.k));
-    window._vtLastImportKeys = new Set();
-    await sset('viettin:list', VIETTIN);
+    const next=VIETTIN.filter(r=>!window._vtLastImportKeys.has(r.k));
+    const ok=await sset('viettin:list',next);if(!ok){toast('⚠ Chưa xóa được lần import Viettin',6000);return;}
+    VIETTIN=next;window._vtLastImportKeys = new Set();
     toast('✓ Đã xóa lần import cuối');
     renderVTCount(); renderVTRaw(); renderVTRecon();
   });
@@ -2483,8 +2495,10 @@ async function saveVTStage(){
 }
 function renderVTCount(){ document.getElementById('vt-count').textContent = VIETTIN.length+' dòng đã lưu'; }
 document.getElementById('vt-clear').addEventListener('click', async ()=>{
-  if(!confirm('Xoá toàn bộ dữ liệu Viettin?')) return;
-  VIETTIN=[]; await sset('viettin:list', VIETTIN); renderVTCount(); renderVTRaw(); renderVTRecon();
+  if(!confirm(`Xóa toàn bộ ${VIETTIN.length} dòng Viettin trên SQL? Chỉ tiếp tục khi bạn muốn xóa sạch dữ liệu này.`)) return;
+  const ok=await sset('viettin:list',[],{deleteAll:true});
+  if(!ok){toast('⚠ Chưa xóa được Viettin — dữ liệu cũ vẫn được giữ nguyên',6500);return;}
+  VIETTIN=[];window._vtLastImportKeys=new Set();renderVTCount();renderVTRaw();renderVTRecon();toast('✓ SQL đã xác nhận xóa toàn bộ Viettin');
 });
 document.getElementById('vt-clear-range').addEventListener('click', async ()=>{
   const from = document.getElementById('vt-from').value, to = document.getElementById('vt-to').value;
@@ -2496,8 +2510,9 @@ document.getElementById('vt-clear-range').addEventListener('click', async ()=>{
   const rangeLabel=`từ ${from} đến ${to}`,extra=` — TK ${account}${fb!=='ALL'?' — chi nhánh '+fb:''}`;
   if(!confirmRangeDelete('Viettin',plan,VIETTIN.length,rangeLabel,extra)) return;
   await saveRangeUndo('viettin:list',VIETTIN);
+  const ok = await sset('viettin:list', plan.keep);
+  if(!ok){toast('⚠ Chưa xóa được Viettin — dữ liệu cũ vẫn được giữ nguyên',6500);return;}
   VIETTIN = plan.keep;
-  const ok = await sset('viettin:list', VIETTIN);
   document.getElementById('vt-from').value='';document.getElementById('vt-to').value='';
   toast((ok?'✓ Đã xóa ':'⚠ Lỗi xóa ')+plan.del.length+' dòng Viettin · giữ lại '+plan.keep.length+' dòng');
   renderVTCount(); renderVTRaw(); renderVTRecon();
@@ -2505,7 +2520,7 @@ document.getElementById('vt-clear-range').addEventListener('click', async ()=>{
 document.getElementById('vt-undo-range').addEventListener('click',async()=>{
   const saved=await loadRangeUndo('viettin:list');if(!saved){toast('Chưa có lần xóa theo khoảng nào để hoàn tác');return;}
   if(!confirm(`Khôi phục ${saved.value.length} dòng Viettin trước lần xóa gần nhất?`)) return;
-  VIETTIN=saved.value;await sset('viettin:list',VIETTIN);await clearRangeUndo('viettin:list');renderVTCount();renderVTRaw();renderVTRecon();toast('✓ Đã hoàn tác xóa Viettin');
+  const ok=await sset('viettin:list',saved.value);if(!ok){toast('⚠ Chưa hoàn tác được Viettin',6000);return;}VIETTIN=saved.value;await clearRangeUndo('viettin:list');renderVTCount();renderVTRaw();renderVTRecon();toast('✓ Đã hoàn tác xóa Viettin');
 });
 function renderVTRaw(){
   refreshBranchFilter('vt-filter-branch',VIETTIN,Object.values(VT_ACC_MAP));
@@ -2730,15 +2745,17 @@ function renderKTCount(){ document.getElementById('kt-count').textContent = KHOT
 document.getElementById('kt-undo').addEventListener('click', async ()=>{
   if(!window._ktLastImportKeys || window._ktLastImportKeys.size===0){ toast('Không có lần import nào để hoàn tác'); return; }
   if(!confirm('Xóa '+window._ktLastImportKeys.size+' dòng vừa import?')) return;
-  KHOTONG = KHOTONG.filter(r=>!window._ktLastImportKeys.has(r.k));
-  window._ktLastImportKeys = new Set();
-  await sset('khotong:list', KHOTONG);
+  const next=KHOTONG.filter(r=>!window._ktLastImportKeys.has(r.k));
+  const ok=await sset('khotong:list',next);if(!ok){toast('⚠ Chưa xóa được lần import Kho tổng',6000);return;}
+  KHOTONG=next;window._ktLastImportKeys = new Set();
   toast('✓ Đã xóa lần import cuối');
   renderKTCount(); renderKTRaw(); renderKTKpi();
 });
 document.getElementById('kt-clear').addEventListener('click', async ()=>{
-  if(!confirm('Xoá toàn bộ dữ liệu Kho tổng?')) return;
-  KHOTONG=[]; await sset('khotong:list', KHOTONG); renderKTCount(); renderKTRaw(); renderKTKpi();
+  if(!confirm(`Xóa toàn bộ ${KHOTONG.length} dòng Kho tổng trên SQL? Chỉ tiếp tục khi bạn muốn xóa sạch dữ liệu này.`)) return;
+  const ok=await sset('khotong:list',[],{deleteAll:true});
+  if(!ok){toast('⚠ Chưa xóa được Kho tổng — dữ liệu cũ vẫn được giữ nguyên',6500);return;}
+  KHOTONG=[];window._ktLastImportKeys=new Set();renderKTCount();renderKTRaw();renderKTKpi();toast('✓ SQL đã xác nhận xóa toàn bộ Kho tổng');
 });
 document.getElementById('kt-range-clear').addEventListener('click', ()=>{
   document.getElementById('kt-from').value=''; document.getElementById('kt-to').value='';
@@ -2754,8 +2771,9 @@ document.getElementById('kt-clear-range').addEventListener('click', async ()=>{
   const rangeLabel=`từ ${from} đến ${to}`,extra=` — TK ${account}${fb!=='ALL'?' — chi nhánh '+fb:''}`;
   if(!confirmRangeDelete('Kho tổng',plan,KHOTONG.length,rangeLabel,extra)) return;
   await saveRangeUndo('khotong:list',KHOTONG);
+  const ok = await sset('khotong:list', plan.keep);
+  if(!ok){toast('⚠ Chưa xóa được Kho tổng — dữ liệu cũ vẫn được giữ nguyên',6500);return;}
   KHOTONG = plan.keep;
-  const ok = await sset('khotong:list', KHOTONG);
   document.getElementById('kt-from').value='';document.getElementById('kt-to').value='';
   toast((ok?'✓ Đã xóa ':'⚠ Lỗi xóa ')+plan.del.length+' dòng Kho tổng · giữ lại '+plan.keep.length+' dòng');
   renderKTCount(); renderKTRaw(); renderKTKpi();
@@ -2763,7 +2781,7 @@ document.getElementById('kt-clear-range').addEventListener('click', async ()=>{
 document.getElementById('kt-undo-range').addEventListener('click',async()=>{
   const saved=await loadRangeUndo('khotong:list');if(!saved){toast('Chưa có lần xóa theo khoảng nào để hoàn tác');return;}
   if(!confirm(`Khôi phục ${saved.value.length} dòng Kho tổng trước lần xóa gần nhất?`)) return;
-  KHOTONG=saved.value;await sset('khotong:list',KHOTONG);await clearRangeUndo('khotong:list');renderKTCount();renderKTRaw();renderKTKpi();toast('✓ Đã hoàn tác xóa Kho tổng');
+  const ok=await sset('khotong:list',saved.value);if(!ok){toast('⚠ Chưa hoàn tác được Kho tổng',6000);return;}KHOTONG=saved.value;await clearRangeUndo('khotong:list');renderKTCount();renderKTRaw();renderKTKpi();toast('✓ Đã hoàn tác xóa Kho tổng');
 });
 function renderKTKpi(){
   const m1 = KHOTONG.filter(r=>r.branch==='KHO TỔNG MART 1');
@@ -2922,15 +2940,17 @@ function renderSQCount(){ document.getElementById('sq-count').textContent = B2.l
 document.getElementById('sq-undo').addEventListener('click', async ()=>{
   if(!window._b2LastImportIds || window._b2LastImportIds.size===0){ toast('Không có lần import nào để hoàn tác'); return; }
   if(!confirm('Xóa '+window._b2LastImportIds.size+' phiếu vừa import?')) return;
-  B2 = B2.filter(r=>!window._b2LastImportIds.has(r.maPhieu));
-  window._b2LastImportIds = new Set();
-  await sset('b2:list', B2);
+  const next=B2.filter(r=>!window._b2LastImportIds.has(r.maPhieu));
+  const ok=await sset('b2:list',next);if(!ok){toast('⚠ Chưa xóa được lần import B2',6000);return;}
+  B2=next;window._b2LastImportIds = new Set();
   toast('✓ Đã xóa lần import cuối');
   renderSQCount(); renderSQTable();
 });
 document.getElementById('sq-clear').addEventListener('click', async ()=>{
-  if(!confirm('Xoá toàn bộ dữ liệu B2?')) return;
-  B2=[]; await sset('b2:list', B2); renderSQCount(); renderSQTable();
+  if(!confirm(`Xóa toàn bộ ${B2.length} phiếu B2 trên SQL? Chỉ tiếp tục khi bạn muốn xóa sạch dữ liệu này.`)) return;
+  const ok=await sset('b2:list',[],{deleteAll:true});
+  if(!ok){toast('⚠ Chưa xóa được B2 — dữ liệu cũ vẫn được giữ nguyên',6500);return;}
+  B2=[];window._b2LastImportIds=new Set();renderSQCount();renderSQTable();toast('✓ SQL đã xác nhận xóa toàn bộ B2');
 });
 document.getElementById('sq-clear-range').addEventListener('click', async ()=>{
   const from = document.getElementById('sq-from').value, to = document.getElementById('sq-to').value;
@@ -2940,8 +2960,9 @@ document.getElementById('sq-clear-range').addEventListener('click', async ()=>{
   const rangeLabel=`từ ${from} đến ${to}`,plan=makeRangeDeletePlan(B2,r=>r.time,from,to,r=>r.branch===fb);
   if(!confirmRangeDelete('phiếu B2',plan,B2.length,rangeLabel,` — chi nhánh ${fb}`)) return;
   await saveRangeUndo('b2:list',B2);
+  const ok = await sset('b2:list', plan.keep);
+  if(!ok){toast('⚠ Chưa xóa được B2 — dữ liệu cũ vẫn được giữ nguyên',6500);return;}
   B2 = plan.keep;
-  const ok = await sset('b2:list', B2);
   document.getElementById('sq-from').value='';document.getElementById('sq-to').value='';document.getElementById('sq-month').value='';
   toast((ok?'✓ Đã xóa ':'⚠ Lỗi xóa ')+plan.del.length+' phiếu B2 · giữ lại '+plan.keep.length+' phiếu');
   renderSQCount(); renderSQTable();
@@ -2949,7 +2970,7 @@ document.getElementById('sq-clear-range').addEventListener('click', async ()=>{
 document.getElementById('sq-undo-range').addEventListener('click',async()=>{
   const saved=await loadRangeUndo('b2:list');if(!saved){toast('Chưa có lần xóa theo khoảng nào để hoàn tác');return;}
   if(!confirm(`Khôi phục ${saved.value.length} phiếu B2 trước lần xóa gần nhất?`)) return;
-  B2=saved.value;await sset('b2:list',B2);await clearRangeUndo('b2:list');renderSQCount();renderSQTable();toast('✓ Đã hoàn tác xóa B2');
+  const ok=await sset('b2:list',saved.value);if(!ok){toast('⚠ Chưa hoàn tác được B2',6000);return;}B2=saved.value;await clearRangeUndo('b2:list');renderSQCount();renderSQTable();toast('✓ Đã hoàn tác xóa B2');
 });
 function renderSQTable(){
   refreshBranchFilter('sq-filter-branch',B2,BRANCHES);
@@ -3999,7 +4020,6 @@ function renderLog(){
   // 1) Đọc bản sao ngoại tuyến trong IndexedDB. Bản cũ nằm ở localStorage sẽ tự được chuyển qua.
   const cachedMeta = await Promise.all(KEYS.map(([k])=>cacheGetWithMeta(k,null)));
   const cached = cachedMeta.map(x=>x.found?x.value:null);
-  const cachedTs = cachedMeta.map(x=>x.updatedAt||null);
   const hasCache = cachedMeta.some(x=>x.found);
   let loadToast = null;
 
@@ -4016,7 +4036,7 @@ function renderLog(){
     document.body.appendChild(loadToast);
   }
 
-  // 2) Đọc SQL tuần tự. Ở lần đầu, sgetWithMeta tự tách khối JSON cũ thành từng dòng SQL.
+  // 2) Đọc SQL tuần tự. SQL luôn là nguồn dữ liệu chính; bản sao trên máy chỉ để xem khi mất mạng.
   const results=[];
   for(const [key,fallback] of KEYS) results.push(await sgetWithMeta(key,fallback));
 
@@ -4037,22 +4057,17 @@ function renderLog(){
     let anyApplied = false;
     for(let i=0;i<results.length;i++){
       const r=results[i];
-      // SQL chưa có nhưng máy có dữ liệu: tự đẩy bản trên máy lên SQL, không làm mất dữ liệu.
+      // Mất kết nối: tạm giữ bản sao trên máy để người dùng vẫn xem được, tuyệt đối không tự đẩy ngược lên SQL.
+      if(r.unavailable)continue;
+      // SQL xác nhận chưa có bộ dữ liệu này: xóa bản sao cũ trên máy, không cho dữ liệu đã xóa sống lại.
       if(!r.found){
-        if(STORAGE_MODE==='turso'&&cachedMeta[i].found) await sset(KEYS[i][0],finalVals[i]);
+        finalVals[i]=KEYS[i][1];anyApplied=true;
+        await cacheSet(KEYS[i][0],KEYS[i][1],new Date().toISOString());
         continue;
       }
-      const localTs = cachedTs[i];
-      const remoteTs = r.updatedAt;
-      const remoteIsNewer = !localTs || (remoteTs && remoteTs > localTs);
-      if(remoteIsNewer){
-        finalVals[i] = r.value;
-        anyApplied = true;
-        await cacheSet(KEYS[i][0],r.value,remoteTs);
-      } else if(remoteTs && remoteTs < localTs){
-        console.log(`[sync] Giữ dữ liệu cục bộ mới hơn cho "${KEYS[i][0]}" (local ${localTs} > remote ${remoteTs})`);
-        if(STORAGE_MODE==='turso') await sset(KEYS[i][0],finalVals[i]);
-      }
+      // Có dữ liệu SQL: luôn nhận đúng dữ liệu SQL trên mọi máy, không so giờ máy và không phục hồi cache cũ.
+      finalVals[i]=r.value;anyApplied=true;
+      await cacheSet(KEYS[i][0],r.value,r.updatedAt);
     }
     if(anyApplied){
       applyData(finalVals);
@@ -4081,9 +4096,10 @@ function initCaTheKiotUI(){
     renderCAKTable();
   });
   document.getElementById('cak-clear').addEventListener('click', async ()=>{
-    if(!confirm('Xoá toàn bộ dữ liệu Ngân hàng Kiot?')) return;
-    CATHE_KV=[]; await sset('cathe_kv:list', CATHE_KV);
-    renderCAKCount(); renderCAKTable();
+    if(!confirm(`Xóa toàn bộ ${CATHE_KV.length} phiếu Ngân hàng Kiot trên SQL? Chỉ tiếp tục khi bạn muốn xóa sạch dữ liệu này.`)) return;
+    const ok=await sset('cathe_kv:list',[],{deleteAll:true});
+    if(!ok){toast('⚠ Chưa xóa được Ngân hàng Kiot — dữ liệu cũ vẫn được giữ nguyên',6500);return;}
+    CATHE_KV=[];window._cakLastIds=new Set();renderCAKCount();renderCAKTable();toast('✓ SQL đã xác nhận xóa toàn bộ Ngân hàng Kiot');
   });
   document.getElementById('cak-clear-range').addEventListener('click', async ()=>{
     const from = document.getElementById('cak-from').value, to = document.getElementById('cak-to').value;
@@ -4093,8 +4109,9 @@ function initCaTheKiotUI(){
     const rangeLabel=`từ ${from} đến ${to}`,plan=makeRangeDeletePlan(CATHE_KV,r=>r.time,from,to,r=>r.branch===fb);
     if(!confirmRangeDelete('phiếu Ngân hàng Kiot',plan,CATHE_KV.length,rangeLabel,` — chi nhánh ${fb}`)) return;
     await saveRangeUndo('cathe_kv:list',CATHE_KV);
+    const ok = await sset('cathe_kv:list', plan.keep);
+    if(!ok){toast('⚠ Chưa xóa được Ngân hàng Kiot — dữ liệu cũ vẫn được giữ nguyên',6500);return;}
     CATHE_KV = plan.keep;
-    const ok = await sset('cathe_kv:list', CATHE_KV);
     document.getElementById('cak-from').value='';document.getElementById('cak-to').value='';document.getElementById('cak-month').value='';
     toast((ok?'✓ Đã xóa ':'⚠ Lỗi xóa ')+plan.del.length+' phiếu Ngân hàng Kiot · giữ lại '+plan.keep.length+' phiếu');
     renderCAKCount(); renderCAKTable();
@@ -4102,14 +4119,14 @@ function initCaTheKiotUI(){
   document.getElementById('cak-undo-range').addEventListener('click',async()=>{
     const saved=await loadRangeUndo('cathe_kv:list');if(!saved){toast('Chưa có lần xóa theo khoảng nào để hoàn tác');return;}
     if(!confirm(`Khôi phục ${saved.value.length} phiếu Ngân hàng Kiot trước lần xóa gần nhất?`)) return;
-    CATHE_KV=saved.value;await sset('cathe_kv:list',CATHE_KV);await clearRangeUndo('cathe_kv:list');renderCAKCount();renderCAKTable();toast('✓ Đã hoàn tác xóa Ngân hàng Kiot');
+    const ok=await sset('cathe_kv:list',saved.value);if(!ok){toast('⚠ Chưa hoàn tác được Ngân hàng Kiot',6000);return;}CATHE_KV=saved.value;await clearRangeUndo('cathe_kv:list');renderCAKCount();renderCAKTable();toast('✓ Đã hoàn tác xóa Ngân hàng Kiot');
   });
   document.getElementById('cak-undo').addEventListener('click', async ()=>{
     if(!window._cakLastIds || window._cakLastIds.size===0){ toast('Không có lần import nào để hoàn tác'); return; }
     if(!confirm('Xóa '+window._cakLastIds.size+' phiếu vừa import?')) return;
-    CATHE_KV = CATHE_KV.filter(r=>!window._cakLastIds.has(r.maPhieu));
-    window._cakLastIds = new Set();
-    await sset('cathe_kv:list', CATHE_KV);
+    const next=CATHE_KV.filter(r=>!window._cakLastIds.has(r.maPhieu));
+    const ok=await sset('cathe_kv:list',next);if(!ok){toast('⚠ Chưa xóa được lần import Ngân hàng Kiot',6000);return;}
+    CATHE_KV=next;window._cakLastIds = new Set();
     toast('✓ Đã xóa lần import cuối');
     renderCAKCount(); renderCAKTable();
   });
@@ -4775,8 +4792,8 @@ function initExcelExport(){
 }
 
 function initBackup(){
-  // Hiển thị số lượng và dung lượng ước tính từ dữ liệu đang mở.
-  function renderStorageInfo(){
+  // Hiển thị dung lượng SQL thật và số còn lại trong gói Turso Free 5 GB.
+  async function renderStorageInfo(){
     const el = document.getElementById('backup-storage-info');
     const sets=[
       {label:'Chốt ca',value:CHOTCA},{label:'Chênh lệch',value:CHENHLECH},{label:'TP Bank',value:TPBANK},
@@ -4789,55 +4806,33 @@ function initBackup(){
       const bytes=new Blob([JSON.stringify(x.value||null)]).size;totalBytes+=bytes;totalCount+=count;
       return `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);font-size:12px"><span style="color:var(--text)">${x.label}</span><span style="font-family:var(--mono);color:var(--muted)">${count.toLocaleString()} bản ghi · ${(bytes/1024).toFixed(1)} KB</span></div>`;
     }).join('');
-    const sql=STORAGE_MODE==='turso';
-    el.innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><span style="font-size:22px">${sql?'⚡':'💾'}</span><div><div style="font-weight:700;color:${sql?'var(--good)':'var(--accent2)'}">${sql?'SQL từng dòng — Đồng bộ mọi máy':'IndexedDB — Đang lưu tạm trên máy này'}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">${totalCount.toLocaleString()} bản ghi · khoảng ${(totalBytes/1024/1024).toFixed(2)} MB · bản sao ngoại tuyến không còn giới hạn khoảng 5 MB của LocalStorage</div></div></div><div style="font-weight:600;font-size:12px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Chi tiết từng loại dữ liệu</div>${details}`;
-    el.style.background='var(--surface2)';el.style.border='1px solid var(--border)';el.style.borderRadius='8px';el.style.padding='14px 16px';
+    const sql=STORAGE_MODE==='turso',formatBytes=bytes=>{
+      const n=Math.max(0,Number(bytes)||0);
+      if(n>=1024**3)return (n/1024**3).toFixed(2)+' GB';
+      return (n/1024**2).toFixed(2)+' MB';
+    };
+    let usage=null;
+    if(sql){try{usage=await apiRequest('/api/storage');}catch(e){console.warn('Không đọc được dung lượng SQL',e);}}
+    const used=usage?usage.usedBytes:totalBytes,limit=usage?usage.limitBytes:0,remaining=usage?usage.remainingBytes:0;
+    const percent=usage?Math.max(0,Math.min(100,Number(usage.percentUsed)||0)):0;
+    const usageCards=usage?`
+      <div style="padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:9px;min-width:0"><div style="font-size:11px;color:var(--muted);text-transform:uppercase">SQL đã dùng</div><div style="font-size:20px;font-weight:800;color:var(--title);margin-top:4px">${formatBytes(used)}</div></div>
+      <div style="padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:9px;min-width:0"><div style="font-size:11px;color:var(--muted);text-transform:uppercase">Còn lại ước tính</div><div style="font-size:20px;font-weight:800;color:var(--good);margin-top:4px">${formatBytes(remaining)}</div></div>
+      <div style="padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:9px;min-width:0"><div style="font-size:11px;color:var(--muted);text-transform:uppercase">Gói miễn phí</div><div style="font-size:20px;font-weight:800;color:var(--accent);margin-top:4px">${formatBytes(limit)}</div></div>`:`
+      <div style="padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:9px"><div style="font-size:11px;color:var(--muted);text-transform:uppercase">Dữ liệu đang mở</div><div style="font-size:20px;font-weight:800;color:var(--title);margin-top:4px">${formatBytes(totalBytes)}</div></div>`;
+    el.innerHTML=`
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;margin-bottom:12px;width:100%">
+        <div style="min-width:0"><div style="font-weight:800;color:${sql?'var(--good)':'var(--accent2)'}">${sql?'⚡ SQL từng dòng — Đồng bộ mọi máy':'💾 IndexedDB — Đang lưu tạm trên máy này'}</div><div style="font-size:12px;color:var(--muted);margin-top:3px">${totalCount.toLocaleString('vi-VN')} bản ghi${usage?' · '+usage.recordCount.toLocaleString('vi-VN')+' dòng đang có trên SQL':''}</div></div>
+        <div style="font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap">${usage?percent.toFixed(2)+'% đã dùng':'Đang ước tính'}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:10px;width:100%">${usageCards}</div>
+      ${usage?`<div style="height:8px;background:var(--surface);border:1px solid var(--border);border-radius:20px;overflow:hidden;margin-bottom:8px"><div style="height:100%;width:${Math.max(.2,percent)}%;background:var(--good);border-radius:20px"></div></div><div style="font-size:11px;color:var(--muted);margin-bottom:12px">Số còn lại được ước tính theo gói Turso Free 5 GB và dung lượng của cơ sở dữ liệu này.</div>`:''}
+      <div style="font-weight:700;font-size:12px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Chi tiết dữ liệu đang mở</div>${details}`;
+    el.style.background='var(--surface2)';el.style.border='1px solid var(--border)';el.style.borderRadius='8px';el.style.padding='14px 16px';el.style.width='100%';el.style.boxSizing='border-box';
   }
   renderStorageInfo();
 
-  // Bản an toàn không cho trình duyệt gửi SQL thô. Worker sẽ tự đọc kho cũ khi một nhóm chưa có dữ liệu v2.
-  document.getElementById('btn-recover-legacy').addEventListener('click',()=>{
-    document.getElementById('migrate-log').textContent='Kết nối bảo mật đang hoạt động. Dữ liệu SQL cũ được Worker kiểm tra tự động khi tải từng nhóm. Nếu cần phục hồi từ một file cũ trên máy, hãy dùng file Backup JSON.';
-  });
-
-  // Ghi lại toàn bộ dữ liệu đang hiển thị theo cấu trúc SQL từng bản ghi.
-  document.getElementById('btn-migrate-turso').addEventListener('click', async ()=>{
-    const btn = document.getElementById('btn-migrate-turso');
-    const log = document.getElementById('migrate-log');
-    const MIGRATE_KEYS = [
-      ['chotca:data',()=>CHOTCA],['chenhlech:list',()=>CHENHLECH],['tpbank:list',()=>TPBANK],
-      ['viettin:list',()=>VIETTIN],['khotong:list',()=>KHOTONG],['b2:list',()=>B2],
-      ['quyktet:list',()=>QK],['cathe_kv:list',()=>CATHE_KV],['bk_overrides:map',()=>BK_OVERRIDES]
-    ];
-    if(!confirm('Kiểm tra và chuyển toàn bộ dữ liệu đang hiển thị sang SQL từng dòng? Dữ liệu cũ vẫn được giữ làm bản dự phòng.')) return;
-    btn.disabled=true;btn.textContent='⏳ Đang chuẩn hóa SQL...';
-    log.textContent = '';
-    const appendLog = (s)=>{ log.textContent += s + '\n'; log.scrollTop = log.scrollHeight; };
-
-    if(STORAGE_MODE!=='turso'){
-      appendLog('❌ Chưa kết nối được SQL. Hãy kiểm tra Internet rồi mở lại file.');
-      btn.disabled=false;btn.textContent='🔀 Kiểm tra / chuyển sang SQL';
-      return;
-    }
-
-    let okCount = 0, failCount = 0;
-    for(const [key,getValue] of MIGRATE_KEYS){
-      try{
-        const val=getValue();
-        const count = Array.isArray(val) ? val.length : (typeof val==='object'&&val ? Object.keys(val).length : 0);
-        appendLog(`⏳ ${key}: ${count} bản ghi...`);
-        const ok = await sset(key, val);
-        if(ok){appendLog(`   ✓ Đã lưu SQL từng dòng`);okCount++;}
-        else{appendLog(`   ⚠ Chưa lưu được lên SQL`);failCount++;}
-      }catch(e){
-        appendLog(`   ❌ Lỗi ở "${key}": ${e.message}`);
-        failCount++;
-      }
-    }
-    appendLog(`\n${failCount===0?'✅ HOÀN TẤT':'⚠ HOÀN TẤT (có lỗi)'} — ${okCount}/${MIGRATE_KEYS.length} nhóm dữ liệu.`);
-    if(failCount===0) appendLog('Từ bây giờ dữ liệu mới sẽ tiếp tục lưu theo từng dòng SQL.');
-    btn.disabled=false;btn.textContent='🔀 Kiểm tra lại SQL';renderStorageInfo();
-  });
+  // Không cho bản sao cũ trên trình duyệt ghi ngược lên SQL. Phục hồi chỉ thực hiện có chủ ý bằng file Backup JSON.
 
   // Xuất backup
   document.getElementById('btn-export-backup').addEventListener('click', async ()=>{
