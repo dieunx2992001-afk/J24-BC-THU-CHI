@@ -252,6 +252,15 @@ tr:hover td{background:var(--surface2);}
 .auth-logout{padding:5px 9px!important;font-size:11px!important;}
 .role-note{font-size:10.5px;color:var(--muted);}
 body.role-editor table button.danger,body.role-viewer table button.danger{display:none!important;}
+.sql-progress{display:none;position:fixed;inset:0;z-index:19000;background:rgba(42,35,28,.34);align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(1px);}
+.sql-progress.show{display:flex;}
+.sql-progress-card{width:min(430px,94vw);background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 24px;box-shadow:0 18px 52px rgba(0,0,0,.25);text-align:center;}
+.sql-progress-title{font-size:15px;font-weight:800;color:var(--title);margin-top:10px;}
+.sql-progress-sub{font-size:12px;line-height:1.55;color:var(--muted);margin-top:6px;}
+.sql-progress-track{height:7px;background:var(--surface2);border-radius:20px;overflow:hidden;margin-top:16px;border:1px solid var(--border);}
+.sql-progress-bar{height:100%;width:38%;border-radius:20px;background:linear-gradient(90deg,var(--accent),#e6a164);animation:sqlProgressMove 1.15s ease-in-out infinite;}
+.sql-progress-time{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:9px;}
+@keyframes sqlProgressMove{0%{transform:translateX(-110%)}100%{transform:translateX(285%)}}
 </style>
 </head>
 <body>
@@ -267,6 +276,15 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
     <button type="submit" id="auth-submit">Đăng nhập</button>
     <div id="auth-error" class="auth-error"></div>
   </form>
+</div>
+<div id="sql-progress" class="sql-progress" role="status" aria-live="polite">
+  <div class="sql-progress-card">
+    <span class="spinner" style="width:28px;height:28px;border-width:3px;margin:0"></span>
+    <div id="sql-progress-title" class="sql-progress-title">Đang tải dữ liệu lên SQL...</div>
+    <div id="sql-progress-sub" class="sql-progress-sub">Vui lòng chờ, không tắt trang hoặc bấm F5.</div>
+    <div class="sql-progress-track"><div class="sql-progress-bar"></div></div>
+    <div id="sql-progress-time" class="sql-progress-time">Đã chờ 0 giây</div>
+  </div>
 </div>
 <div id="offline-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#c0392b;color:#fff;text-align:center;padding:10px 16px;font-size:13.5px;font-weight:600;font-family:var(--sans);">
   📡 Mất kết nối mạng — Dữ liệu đang lưu tạm trong IndexedDB trên máy này, CHƯA đồng bộ lên SQL. Vui lòng kết nối mạng rồi tải lại trang để đồng bộ.
@@ -1171,12 +1189,39 @@ async function sqlV2ReadDataset(dataset){
   _sqlV2Cache[dataset]=new Map(Object.entries(data.hashes||{}));
   return {found:!!data.found,value:data.value,updatedAt:data.updatedAt||null};
 }
+const SQL_PROGRESS_DATASETS=new Set(['tpbank:list','viettin:list','khotong:list','b2:list','cathe_kv:list']);
+const SQL_PROGRESS_LABELS={
+  'tpbank:list':'TP Bank','viettin:list':'Viettin','khotong:list':'TP Bank Kho tổng',
+  'b2:list':'CT Thu Chi (B2)','cathe_kv:list':'Ngân hàng Kiot','chotca:data':'Chốt ca'
+};
+let _sqlProgressSeq=0,_sqlProgressTimer=null;
+function startSqlProgress(dataset,value){
+  const overlay=document.getElementById('sql-progress');if(!overlay)return 0;
+  const id=++_sqlProgressSeq,count=Array.isArray(value)?value.length:(value&&typeof value==='object'?Object.keys(value).length:0);
+  const label=SQL_PROGRESS_LABELS[dataset]||'dữ liệu';
+  document.getElementById('sql-progress-title').textContent=`Đang tải ${count.toLocaleString('vi-VN')} dòng ${label} lên SQL...`;
+  document.getElementById('sql-progress-sub').textContent='Vui lòng chờ, không tắt trang hoặc bấm F5. File lớn có thể cần vài chục giây.';
+  const time=document.getElementById('sql-progress-time'),started=Date.now();time.textContent='Đã chờ 0 giây';
+  clearInterval(_sqlProgressTimer);_sqlProgressTimer=setInterval(()=>{time.textContent=`Đã chờ ${Math.floor((Date.now()-started)/1000)} giây · hệ thống vẫn đang xử lý`;},1000);
+  overlay.classList.add('show');return id;
+}
+function finishSqlProgress(id,ok){
+  if(!id||id!==_sqlProgressSeq)return;
+  clearInterval(_sqlProgressTimer);_sqlProgressTimer=null;
+  const title=document.getElementById('sql-progress-title'),sub=document.getElementById('sql-progress-sub');
+  title.textContent=ok?'✓ Đã lưu dữ liệu lên SQL':'⚠ Chưa lưu được dữ liệu';
+  sub.textContent=ok?'Dữ liệu đã đồng bộ xong.':'Hãy kiểm tra thông báo lỗi rồi thử lại.';
+  document.getElementById('sql-progress-time').textContent='';
+  setTimeout(()=>{if(id===_sqlProgressSeq)document.getElementById('sql-progress').classList.remove('show');},ok?700:1600);
+}
 async function sset(key,val){
   const nowTs=new Date().toISOString();
   if(CURRENT_USER&&CURRENT_USER.role==='viewer'){toast('⛔ Tài khoản này chỉ được xem dữ liệu');return false;}
   if(STORAGE_MODE==='turso'){
-    try{const saved=await sqlV2WriteDataset(key,val,nowTs);await cacheSet(key,val,saved.updatedAt);return true;}
-    catch(e){console.error('API save error',e);toast('⚠ '+(e.message||'Không lưu được dữ liệu'));return false;}
+    const count=Array.isArray(val)?val.length:(val&&typeof val==='object'?Object.keys(val).length:0);
+    const progressId=(SQL_PROGRESS_DATASETS.has(key)||count>=100)?startSqlProgress(key,val):0;
+    try{const saved=await sqlV2WriteDataset(key,val,nowTs);await cacheSet(key,val,saved.updatedAt);finishSqlProgress(progressId,true);return true;}
+    catch(e){console.error('API save error',e);finishSqlProgress(progressId,false);toast('⚠ '+(e.message||'Không lưu được dữ liệu'));return false;}
   }
   await cacheSet(key,val,nowTs);
   toast('⚠ Chưa kết nối máy chủ — dữ liệu chỉ đang lưu tạm trên máy này',3500);
