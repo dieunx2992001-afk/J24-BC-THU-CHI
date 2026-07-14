@@ -1194,13 +1194,19 @@ const SQL_PROGRESS_LABELS={
   'tpbank:list':'TP Bank','viettin:list':'Viettin','khotong:list':'TP Bank Kho tổng',
   'b2:list':'CT Thu Chi (B2)','cathe_kv:list':'Ngân hàng Kiot','chotca:data':'Chốt ca'
 };
+const SQL_PROGRESS_UNITS={'b2:list':'phiếu','cathe_kv:list':'phiếu'};
 let _sqlProgressSeq=0,_sqlProgressTimer=null;
-function startSqlProgress(dataset,value){
+function startSqlProgress(dataset,value,options={}){
   const overlay=document.getElementById('sql-progress');if(!overlay)return 0;
-  const id=++_sqlProgressSeq,count=Array.isArray(value)?value.length:(value&&typeof value==='object'?Object.keys(value).length:0);
-  const label=SQL_PROGRESS_LABELS[dataset]||'dữ liệu';
-  document.getElementById('sql-progress-title').textContent=`Đang tải ${count.toLocaleString('vi-VN')} dòng ${label} lên SQL...`;
-  document.getElementById('sql-progress-sub').textContent='Vui lòng chờ, không tắt trang hoặc bấm F5. File lớn có thể cần vài chục giây.';
+  const id=++_sqlProgressSeq,totalCount=Array.isArray(value)?value.length:(value&&typeof value==='object'?Object.keys(value).length:0);
+  const label=SQL_PROGRESS_LABELS[dataset]||'dữ liệu',unit=SQL_PROGRESS_UNITS[dataset]||'dòng';
+  const importedCount=Number.isFinite(options.importedCount)?Math.max(0,options.importedCount):null;
+  document.getElementById('sql-progress-title').textContent=importedCount===null
+    ?`Đang đồng bộ ${totalCount.toLocaleString('vi-VN')} ${unit} ${label} lên SQL...`
+    :`Đang lưu ${importedCount.toLocaleString('vi-VN')} ${unit} mới ${label} lên SQL...`;
+  document.getElementById('sql-progress-sub').textContent=importedCount===null
+    ?'Vui lòng chờ, không tắt trang hoặc bấm F5. Dữ liệu lớn có thể cần vài chục giây.'
+    :`Tổng dữ liệu sau cập nhật: ${totalCount.toLocaleString('vi-VN')} ${unit}. Vui lòng chờ, không tắt trang hoặc bấm F5.`;
   const time=document.getElementById('sql-progress-time'),started=Date.now();time.textContent='Đã chờ 0 giây';
   clearInterval(_sqlProgressTimer);_sqlProgressTimer=setInterval(()=>{time.textContent=`Đã chờ ${Math.floor((Date.now()-started)/1000)} giây · hệ thống vẫn đang xử lý`;},1000);
   overlay.classList.add('show');return id;
@@ -1214,12 +1220,12 @@ function finishSqlProgress(id,ok){
   document.getElementById('sql-progress-time').textContent='';
   setTimeout(()=>{if(id===_sqlProgressSeq)document.getElementById('sql-progress').classList.remove('show');},ok?700:1600);
 }
-async function sset(key,val){
+async function sset(key,val,options={}){
   const nowTs=new Date().toISOString();
   if(CURRENT_USER&&CURRENT_USER.role==='viewer'){toast('⛔ Tài khoản này chỉ được xem dữ liệu');return false;}
   if(STORAGE_MODE==='turso'){
     const count=Array.isArray(val)?val.length:(val&&typeof val==='object'?Object.keys(val).length:0);
-    const progressId=(SQL_PROGRESS_DATASETS.has(key)||count>=100)?startSqlProgress(key,val):0;
+    const progressId=(SQL_PROGRESS_DATASETS.has(key)||count>=100)?startSqlProgress(key,val,options):0;
     try{const saved=await sqlV2WriteDataset(key,val,nowTs);await cacheSet(key,val,saved.updatedAt);finishSqlProgress(progressId,true);return true;}
     catch(e){console.error('API save error',e);finishSqlProgress(progressId,false);toast('⚠ '+(e.message||'Không lưu được dữ liệu'));return false;}
   }
@@ -2080,7 +2086,7 @@ async function saveTPStage(){
   TPBANK = TPBANK.concat(TP_STAGE);
   const n = TP_STAGE.length;
   TP_STAGE = [];
-  const ok = await sset('tpbank:list', TPBANK);
+  const ok = await sset('tpbank:list', TPBANK, {importedCount:n});
   document.getElementById('tp-stage-banner').style.display='none';
   toast((ok?'✓ Đã lưu':'⚠ Lỗi lưu')+' '+n+' dòng TP Bank'+(STORAGE_MODE==='turso'?' (Turso)':' (Local)')+' — bấm "↩ Xóa lần import cuối" nếu muốn hoàn tác');
   renderTPCount(); renderTPRaw(); renderTPRecon();
@@ -2374,7 +2380,7 @@ async function saveVTStage(){
   VIETTIN = VIETTIN.concat(VT_STAGE);
   const n = VT_STAGE.length;
   VT_STAGE = [];
-  const ok = await sset('viettin:list', VIETTIN);
+  const ok = await sset('viettin:list', VIETTIN, {importedCount:n});
   document.getElementById('vt-stage-banner').style.display='none';
   toast((ok?'✓ Đã lưu':'⚠ Lỗi lưu')+' '+n+' dòng Viettin'+(STORAGE_MODE==='turso'?' (Turso)':' (Local)')+' — bấm "↩ Xóa lần import cuối" nếu muốn hoàn tác');
   renderVTCount(); renderVTRaw(); renderVTRecon();
@@ -2589,7 +2595,7 @@ async function saveKTStage(){
   KHOTONG = KHOTONG.concat(KT_STAGE);
   const n = KT_STAGE.length;
   KT_STAGE = [];
-  const ok = await sset('khotong:list', KHOTONG);
+  const ok = await sset('khotong:list', KHOTONG, {importedCount:n});
   document.getElementById('kt-stage-banner').style.display='none';
   toast((ok?'✓ Đã lưu':'⚠ Lỗi lưu')+' '+n+' dòng Kho tổng'+(STORAGE_MODE==='turso'?' (Turso)':' (Local)')+' — bấm "↩ Xóa lần import cuối" nếu muốn hoàn tác');
   renderKTCount(); renderKTRaw(); renderKTKpi();
@@ -2724,7 +2730,7 @@ async function handleSQFile(file){
     }
     await matchB2WithKhoTong();
     window._b2LastImportIds = new Set(B2.filter(r=>!window._b2PrevIds||!window._b2PrevIds.has(r.maPhieu)).map(r=>r.maPhieu));
-    const ok = await sset('b2:list', B2);
+    const ok = await sset('b2:list', B2, {importedCount:added});
     toast(`${ok?'✓':'⚠ Lỗi lưu!'} Đã import ${added} phiếu mới từ KiotViet${skipped?', bỏ qua '+skipped+' dòng':''} — bấm "↩ Xóa lần import cuối" nếu muốn hoàn tác`);
     renderSQCount(); renderSQTable();
   }catch(err){ toast('Lỗi đọc file: '+err.message); console.error(err); }
@@ -4025,7 +4031,7 @@ async function handleCAKFile(file){
     }
     CATHE_KV = CATHE_KV.concat(newRows);
     window._cakLastIds = new Set(newRows.map(r=>r.maPhieu));
-    const ok = await sset('cathe_kv:list', CATHE_KV);
+    const ok = await sset('cathe_kv:list', CATHE_KV, {importedCount:added});
     toast(`${ok?'✓':'⚠ Lỗi lưu!'} Đã import ${added} phiếu mới${dup?' (bỏ qua '+dup+' trùng)':''}`);
     // fill phương thức select
     renderCAKCount(); renderCAKTable();
