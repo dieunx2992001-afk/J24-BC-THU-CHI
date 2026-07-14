@@ -359,8 +359,9 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
           <div><label>Xem theo tháng</label><input type="month" id="cc-month"></div>
           <div><label>Hoặc từ ngày</label><input type="date" id="cc-from"></div>
           <div><label>Đến ngày</label><input type="date" id="cc-to"></div>
-          <div><label>Chi nhánh</label><select id="cc-month-branch"><option value="ALL">Tất cả chi nhánh</option></select></div>
-          <div><button class="ghost" id="cc-range-clear">Xóa khoảng ngày</button></div>
+          <div><label>Chi nhánh</label><select id="cc-month-branch"><option value="ALL">Tất cả chi nhánh (chỉ xem)</option></select></div>
+          <div><button class="ghost" id="cc-undo-range">↩ Hoàn tác xóa</button></div>
+          <div><button class="danger" id="cc-range-clear">🗑 Xóa đúng Từ ngày/Đến ngày/Chi nhánh</button></div>
         </div>
         <p class="note">Nếu chọn "Từ ngày / Đến ngày" thì bảng sẽ ưu tiên lọc theo khoảng ngày đó thay vì theo tháng.</p>
         <div class="scroll" style="margin-top:14px;max-height:420px;overflow-y:auto"><table id="cc-table"></table></div>
@@ -431,11 +432,12 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
         <div class="row" style="margin-bottom:10px">
           <div><label>Từ ngày</label><input type="date" id="tp-raw-from"></div>
           <div><label>Đến ngày</label><input type="date" id="tp-raw-to"></div>
-          <div><label>Chi nhánh</label><select id="tp-raw-branch"><option value="ALL">Tất cả</option></select></div>
+          <div><label>Chi nhánh</label><select id="tp-raw-branch"><option value="ALL">Tất cả (chỉ xem)</option></select></div>
+          <div><label>Số tài khoản / TID</label><select id="tp-raw-account"><option value="ALL">Tất cả (chỉ xem)</option></select></div>
           <div><button class="ghost" id="tp-raw-clear">Xóa lọc</button></div>
           <div style="flex:1;min-width:200px"><label>🔍 Lọc từ khóa</label><input type="text" id="tp-raw-kw" placeholder="Chi nhánh, diễn giải..."></div>
         </div>
-        <div class="flexend" style="margin-top:8px"><button class="ghost" id="tp-undo-range">↩ Hoàn tác xóa gần nhất</button><button class="danger" id="tp-clear-range">🗑 Xóa dữ liệu TP Bank trong khoảng đã lọc (Từ ngày/Đến ngày/Chi nhánh ở trên)</button></div>
+        <div class="flexend" style="margin-top:8px"><button class="ghost" id="tp-undo-range">↩ Hoàn tác xóa gần nhất</button><button class="danger" id="tp-clear-range">🗑 Xóa đúng Ngày/Chi nhánh/Số tài khoản hoặc TID đã chọn</button></div>
         <div id="tp-filter-notice"></div>
         <div class="kpi" id="tp-raw-kpi" style="margin-bottom:10px"></div>
         <div class="scroll" style="max-height:340px;overflow-y:auto"><table id="tp-raw"></table></div>
@@ -460,9 +462,11 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
           <div><label>Tháng đối chiếu</label><input type="month" id="vt-month"></div>
           <div><label>Hoặc từ ngày</label><input type="date" id="vt-from"></div>
           <div><label>Đến ngày</label><input type="date" id="vt-to"></div>
+          <div><label>Chi nhánh</label><select id="vt-filter-branch"><option value="ALL">Tất cả (chỉ xem)</option></select></div>
+          <div><label>Số tài khoản</label><select id="vt-filter-account"><option value="ALL">Tất cả (chỉ xem)</option></select></div>
           <div><button class="ghost" id="vt-range-clear">Bỏ lọc khoảng ngày</button></div>
         </div>
-        <div class="flexend" style="margin-top:8px"><button class="ghost" id="vt-undo-range">↩ Hoàn tác xóa gần nhất</button><button class="danger" id="vt-clear-range">🗑 Xóa dữ liệu Viettin trong khoảng đã lọc (Từ ngày/Đến ngày ở trên)</button></div>
+        <div class="flexend" style="margin-top:8px"><button class="ghost" id="vt-undo-range">↩ Hoàn tác xóa gần nhất</button><button class="danger" id="vt-clear-range">🗑 Xóa đúng Từ ngày/Đến ngày/Số tài khoản đã chọn</button></div>
         <h3 style="font-size:14px;margin:16px 0 8px">Đối chiếu Thu chuyển khoản theo chi nhánh — ngày</h3>
         <div id="vt-filter-notice"></div>
         <div class="scroll"><div id="vt-recon"></div></div>
@@ -492,9 +496,11 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
         <div class="row">
           <div><label>Từ ngày</label><input type="date" id="kt-from"></div>
           <div><label>Đến ngày</label><input type="date" id="kt-to"></div>
+          <div><label>Chi nhánh</label><select id="kt-filter-branch"><option value="ALL">Tất cả (chỉ xem)</option></select></div>
+          <div><label>Số tài khoản</label><select id="kt-filter-account"><option value="ALL">Tất cả (chỉ xem)</option></select></div>
           <div><button class="ghost" id="kt-range-clear">Bỏ lọc khoảng ngày</button></div>
         </div>
-        <div class="flexend" style="margin-top:8px"><button class="ghost" id="kt-undo-range">↩ Hoàn tác xóa gần nhất</button><button class="danger" id="kt-clear-range">🗑 Xóa dữ liệu Kho tổng trong khoảng đã lọc (Từ ngày/Đến ngày ở trên)</button></div>
+        <div class="flexend" style="margin-top:8px"><button class="ghost" id="kt-undo-range">↩ Hoàn tác xóa gần nhất</button><button class="danger" id="kt-clear-range">🗑 Xóa đúng Từ ngày/Đến ngày/Số tài khoản đã chọn</button></div>
       </div>
       <div id="kt-filter-notice"></div>
       <div class="kpi" id="kt-kpi"></div>
@@ -519,11 +525,12 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
           <div><label>Tháng</label><input type="month" id="sq-month"></div>
           <div><label>Hoặc từ ngày</label><input type="date" id="sq-from"></div>
           <div><label>Đến ngày</label><input type="date" id="sq-to"></div>
+          <div><label>Chi nhánh</label><select id="sq-filter-branch"><option value="ALL">Tất cả (chỉ xem)</option></select></div>
           <div><label>Lọc</label><select id="sq-filter"><option value="ALL">Tất cả</option><option value="matched">Đã khớp ngân hàng</option><option value="unmatched">Chưa khớp</option><option value="tienmat">Tiền mặt</option></select></div>
           <div><button class="ghost" id="sq-range-clear">Bỏ lọc khoảng ngày</button></div>
           <div style="flex:1;min-width:200px"><label>🔍 Lọc từ khóa</label><input type="text" id="sq-kw" placeholder="Mã phiếu, chi nhánh, nội dung..."></div>
         </div>
-        <div class="flexend" style="margin-top:8px"><button class="ghost" id="sq-undo-range">↩ Hoàn tác xóa gần nhất</button><button class="danger" id="sq-clear-range">🗑 Xóa dữ liệu B2 trong khoảng đã lọc (Tháng, hoặc Từ ngày/Đến ngày ở trên)</button></div>
+        <div class="flexend" style="margin-top:8px"><button class="ghost" id="sq-undo-range">↩ Hoàn tác xóa gần nhất</button><button class="danger" id="sq-clear-range">🗑 Xóa đúng Từ ngày/Đến ngày/Chi nhánh đã chọn</button></div>
       </div>
       <div id="sq-filter-notice"></div>
       <div class="kpi" id="sq-kpi"></div>
@@ -693,12 +700,12 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
           <div><label>Tháng</label><input type="month" id="cak-month"></div>
           <div><label>Hoặc từ ngày</label><input type="date" id="cak-from"></div>
           <div><label>Đến ngày</label><input type="date" id="cak-to"></div>
-          <div><label>Chi nhánh</label><select id="cak-filter-branch"><option value="ALL">Tất cả</option></select></div>
+          <div><label>Chi nhánh</label><select id="cak-filter-branch"><option value="ALL">Tất cả (chỉ xem)</option></select></div>
           <div><label>Phương thức</label><select id="cak-filter-method"><option value="ALL">Tất cả</option></select></div>
           <div><button class="ghost" id="cak-range-clear">Bỏ lọc khoảng ngày</button></div>
           <div style="flex:1;min-width:200px"><label>🔍 Lọc từ khóa</label><input type="text" id="cak-kw" placeholder="Mã phiếu, chi nhánh, nội dung..."></div>
         </div>
-        <div class="flexend" style="margin-top:8px"><button class="ghost" id="cak-undo-range">↩ Hoàn tác xóa gần nhất</button><button class="danger" id="cak-clear-range">🗑 Xóa dữ liệu Ngân hàng Kiot trong khoảng đã lọc (Tháng, hoặc Từ ngày/Đến ngày/Chi nhánh ở trên)</button></div>
+        <div class="flexend" style="margin-top:8px"><button class="ghost" id="cak-undo-range">↩ Hoàn tác xóa gần nhất</button><button class="danger" id="cak-clear-range">🗑 Xóa đúng Từ ngày/Đến ngày/Chi nhánh đã chọn</button></div>
       </div>
       <div id="cak-filter-notice"></div>
       <div class="kpi" id="cak-kpi"></div>
@@ -1385,6 +1392,38 @@ if(_hd) _hd.textContent = new Date().toLocaleDateString('vi-VN',{weekday:'short'
 function fillSelect(sel, arr, withAll){
   sel.innerHTML = (withAll? '<option value="ALL">Tất cả</option>':'') + arr.map(b=>`<option value="${b}">${b}</option>`).join('');
 }
+function refreshExactSelect(id,items,allLabel='Tất cả (chỉ xem)'){
+  const sel=document.getElementById(id);if(!sel)return;
+  const current=sel.value||'ALL',unique=new Map();
+  (items||[]).forEach(item=>{
+    const value=String(item&&typeof item==='object'?item.value:item||'').trim();
+    if(!value)return;
+    const label=String(item&&typeof item==='object'?(item.label||value):value);
+    if(!unique.has(value))unique.set(value,label);
+  });
+  sel.innerHTML='';
+  const all=document.createElement('option');all.value='ALL';all.textContent=allLabel;sel.appendChild(all);
+  [...unique.entries()].sort((a,b)=>a[1].localeCompare(b[1],'vi')).forEach(([value,label])=>{
+    const option=document.createElement('option');option.value=value;option.textContent=label;sel.appendChild(option);
+  });
+  sel.value=unique.has(current)?current:'ALL';
+}
+function refreshBranchFilter(id,rows,fixed=[]){
+  refreshExactSelect(id,[...fixed,...(rows||[]).map(r=>String(r.branch||'').trim())]);
+}
+function refreshAccountFilter(id,rows,fixedMap={}){
+  const items=Object.entries(fixedMap).map(([account,branch])=>({value:String(account),label:`TK ${account}${branch?' — '+branch:''}`}));
+  (rows||[]).forEach(r=>{
+    const account=String(r.account||'').replace(/\D/g,'');
+    if(account)items.push({value:account,label:`TK ${account}${r.branch?' — '+r.branch:''}`});
+  });
+  refreshExactSelect(id,items);
+}
+function requireDeleteChoice(id,label){
+  const sel=document.getElementById(id),value=sel&&sel.value;
+  if(!value||value==='ALL'){toast(`⚠ Hãy chọn một ${label} cụ thể trước khi xóa`,4500);return null;}
+  return value;
+}
 
 /* ===================================================================
    PAGE 1 — CHOT CA
@@ -1393,7 +1432,7 @@ let CHOTCA = {}; // key date|branch -> {vnd,...}
 function initChotCaUI(){
   fillSelect(document.getElementById('cc-branch'), CHOTCA_BRANCHES, false);
   fillSelect(document.getElementById('cc-month-branch'), CHOTCA_BRANCHES, false);
-  document.getElementById('cc-month-branch').insertAdjacentHTML('afterbegin','<option value="ALL" selected>Tất cả chi nhánh</option>');
+  document.getElementById('cc-month-branch').insertAdjacentHTML('afterbegin','<option value="ALL" selected>Tất cả chi nhánh (chỉ xem)</option>');
   document.getElementById('cc-date').value = todayISO();
   document.getElementById('cc-month').value = todayISO().slice(0,7);
   document.getElementById('cc-template-btn').addEventListener('click', downloadChotCaTemplate);
@@ -1695,26 +1734,30 @@ document.getElementById('cc-from').addEventListener('change', renderCCTable);
 document.getElementById('cc-to').addEventListener('change', renderCCTable);
 document.getElementById('cc-range-clear').addEventListener('click', async ()=>{
   const from = document.getElementById('cc-from').value, to = document.getElementById('cc-to').value;
-  const m = document.getElementById('cc-month').value;
-  const useRange = !!(from && to);
-  if(!useRange && !m){ toast('⚠ Chưa chọn khoảng ngày (Từ ngày/Đến ngày) hoặc Tháng để xóa'); return; }
-  const fb = document.getElementById('cc-month-branch').value;
-  const branches = fb==='ALL'? CHOTCA_BRANCHES : [fb];
+  if(!from||!to){toast('Phải chọn ĐỦ Từ ngày và Đến ngày trước khi xóa');return;}
+  if(from>to){toast('Từ ngày không được lớn hơn Đến ngày');return;}
+  const fb=requireDeleteChoice('cc-month-branch','chi nhánh');if(!fb)return;
   // Tìm trước các dòng sẽ bị xóa (đúng theo bộ lọc đang hiển thị) để hỏi xác nhận rõ ràng
   const keysToDelete = Object.keys(CHOTCA).filter(key=>{
     const [d,b] = key.split('|');
-    if(!branches.includes(b)) return false;
-    return useRange ? (d>=from && d<=to) : d.slice(0,7)===m;
+    return b===fb&&d>=from&&d<=to;
   });
   if(keysToDelete.length===0){ toast('Không có dòng nào trong khoảng đang lọc để xóa'); return; }
-  const rangeLabel = useRange ? `từ ${from} đến ${to}` : `tháng ${m}`;
-  if(!confirm(`Xóa TOÀN BỘ ${keysToDelete.length} dòng chốt ca (${rangeLabel}${fb!=='ALL'?', chi nhánh '+fb:''})? Không thể hoàn tác.`)) return;
+  const rangeLabel=`từ ${from} đến ${to}`;
+  if(!confirm(`CHỈ xóa ${keysToDelete.length} dòng chốt ca ${rangeLabel}, chi nhánh ${fb}.\nCác ngày và chi nhánh khác được GIỮ LẠI.\n\nTiếp tục?`)) return;
+  await saveRangeUndo('chotca:data',CHOTCA);
   keysToDelete.forEach(key=>delete CHOTCA[key]);
   const ok = await sset('chotca:data', CHOTCA);
   toast((ok?`✓ Đã xóa ${keysToDelete.length} dòng`:'⚠ Lỗi xóa')+(STORAGE_MODE==='turso'?' (Turso)':' (Local)'));
   renderCCTable();
   renderCCForm();
   if(document.getElementById('p11').classList.contains('active')) renderLog();
+});
+document.getElementById('cc-undo-range').addEventListener('click',async()=>{
+  const saved=await loadRangeUndo('chotca:data');if(!saved){toast('Chưa có lần xóa khoảng ngày nào để hoàn tác');return;}
+  if(!confirm('Khôi phục dữ liệu Chốt ca trước lần xóa gần nhất?'))return;
+  CHOTCA=saved.value;await sset('chotca:data',CHOTCA);await clearRangeUndo('chotca:data');
+  renderCCTable();renderCCForm();toast('✓ Đã hoàn tác xóa Chốt ca');
 });
 
 /* ===================================================================
@@ -1980,15 +2023,30 @@ function excelDateToISO(v){
 =================================================================== */
 let TPBANK = [];
 let TP_STAGE = [];
+function refreshTPAccountFilter(){
+  const items=[];
+  TPBANK.forEach(r=>{
+    const account=String(r.account||'').replace(/\D/g,'');
+    const tid=String(r.tid||'').replace(/\D/g,'');
+    if(account)items.push({value:'ACCOUNT:'+account,label:'TK '+account});
+    if(tid)items.push({value:'TID:'+tid,label:'TID '+tid+(r.branch?' — '+r.branch:'')});
+  });
+  refreshExactSelect('tp-raw-account',items);
+}
+function tpAccountMatches(row,choice){
+  if(choice==='ALL')return true;
+  if(choice.startsWith('ACCOUNT:'))return String(row.account||'').replace(/\D/g,'')===choice.slice(8);
+  if(choice.startsWith('TID:'))return String(row.tid||'').replace(/\D/g,'')===choice.slice(4);
+  return false;
+}
 function initTPBankUI(){
   document.getElementById('tp-month').value = todayISO().slice(0,7);
   setupDrop('tp-drop','tp-file', handleTPFile);
   document.getElementById('tp-stage-save').addEventListener('click', saveTPStage);
   document.getElementById('tp-stage-cancel').addEventListener('click', ()=>{ TP_STAGE=[]; document.getElementById('tp-stage-banner').style.display='none'; });
-  // Fill branch select cho raw filter
-  const brSel = document.getElementById('tp-raw-branch');
-  Object.values(TID_MAP).filter((v,i,a)=>a.indexOf(v)===i).forEach(b=>{ const o=document.createElement('option'); o.value=b; o.textContent=b; brSel.appendChild(o); });
-  ['tp-raw-from','tp-raw-to','tp-raw-branch'].forEach(id=>{
+  refreshBranchFilter('tp-raw-branch',TPBANK,Object.values(TID_MAP));
+  refreshTPAccountFilter();
+  ['tp-raw-from','tp-raw-to','tp-raw-branch','tp-raw-account'].forEach(id=>{
     document.getElementById(id).addEventListener('change', renderTPRaw);
   });
   document.getElementById('tp-raw-kw').addEventListener('input', debounce(renderTPRaw));
@@ -1996,6 +2054,7 @@ function initTPBankUI(){
     document.getElementById('tp-raw-from').value='';
     document.getElementById('tp-raw-to').value='';
     document.getElementById('tp-raw-branch').value='ALL';
+    document.getElementById('tp-raw-account').value='ALL';
     document.getElementById('tp-raw-kw').value='';
     renderTPRaw();
   });
@@ -2005,6 +2064,12 @@ async function handleTPFile(file){
   try{
     const rows = await readSheet(file);
     if(!rows || rows.length<11){ toast('File rỗng hoặc không đủ 10 dòng tiêu đề như sao kê TPBank chuẩn.'); return; }
+    let accStr='';
+    for(let i=0;i<10&&i<rows.length;i++){
+      const text=(rows[i]||[]).map(c=>c==null?'':String(c)).join(' ');
+      const match=text.match(/(?:số tài khoản|so tai khoan|account(?:\s+number)?)\s*:?\s*([0-9][0-9 .-]{5,})/i);
+      if(match){accStr=match[1].replace(/\D/g,'');if(accStr.length>=6)break;}
+    }
     // Dò vị trí cột theo tên tiêu đề (đề phòng file có thứ tự cột khác) — ưu tiên dòng có "Diễn giải"+"Ghi nợ"
     let headerIdx = -1, cIdx = {date:0,valueDate:1,content:2,debit:3,credit:4,balance:5};
     for(let i=0;i<12 && i<rows.length;i++){
@@ -2058,7 +2123,7 @@ async function handleTPFile(file){
       const valueDate = valueDateRaw ? (excelDateToISO(valueDateRaw)||String(valueDateRaw)) : kdate;
       // Đánh dấu dòng không tính vào đối chiếu cà thẻ (tiền lãi, phí dịch vụ...)
       const excludeRecon = TP_RECON_EXCLUDE.some(kw=>content.toUpperCase().includes(kw));
-      TP_STAGE.push({k, content, debit, credit, balance, tid, kdate, valueDate, day, month, branch, excludeRecon});
+      TP_STAGE.push({k, content, debit, credit, balance, tid, account:accStr, kdate, valueDate, day, month, branch, excludeRecon});
       candidate++;
     });
     // Fill-down: dòng không có TID/chi nhánh → lấy chi nhánh của dòng phía trên gần nhất
@@ -2107,11 +2172,13 @@ document.getElementById('tp-clear').addEventListener('click', async ()=>{
 });
 document.getElementById('tp-clear-range').addEventListener('click', async ()=>{
   const from = document.getElementById('tp-raw-from').value, to = document.getElementById('tp-raw-to').value;
-  const fb = document.getElementById('tp-raw-branch').value;
   if(!from||!to){toast('Phải chọn ĐỦ Từ ngày và Đến ngày trước khi xóa');return;}
   if(from>to){toast('Từ ngày không được lớn hơn Đến ngày');return;}
-  const plan=makeRangeDeletePlan(TPBANK,r=>r.kdate||r.valueDate,from,to,r=>fb==='ALL'||r.branch===fb);
-  const rangeLabel=`từ ${from} đến ${to}`, extra=fb!=='ALL'?` — chi nhánh ${fb}`:'';
+  const fb=requireDeleteChoice('tp-raw-branch','chi nhánh');if(!fb)return;
+  const accountChoice=requireDeleteChoice('tp-raw-account','số tài khoản hoặc TID');if(!accountChoice)return;
+  const accountLabel=document.getElementById('tp-raw-account').selectedOptions[0].textContent;
+  const plan=makeRangeDeletePlan(TPBANK,r=>r.kdate||r.valueDate,from,to,r=>r.branch===fb&&tpAccountMatches(r,accountChoice));
+  const rangeLabel=`từ ${from} đến ${to}`, extra=` — chi nhánh ${fb} — ${accountLabel}`;
   if(!confirmRangeDelete('TP Bank',plan,TPBANK.length,rangeLabel,extra)) return;
   await saveRangeUndo('tpbank:list',TPBANK);
   TPBANK = plan.keep;
@@ -2126,15 +2193,19 @@ document.getElementById('tp-undo-range').addEventListener('click',async()=>{
   TPBANK=saved.value;await sset('tpbank:list',TPBANK);await clearRangeUndo('tpbank:list');renderTPCount();renderTPRaw();renderTPRecon();toast('✓ Đã hoàn tác xóa TP Bank');
 });
 function renderTPRaw(){
+  refreshBranchFilter('tp-raw-branch',TPBANK,Object.values(TID_MAP));
+  refreshTPAccountFilter();
   const from = document.getElementById('tp-raw-from').value;
   const to = document.getElementById('tp-raw-to').value;
   const fb = document.getElementById('tp-raw-branch').value;
+  const accountChoice = document.getElementById('tp-raw-account').value;
   let rows = TPBANK.filter(r=>{    if(from||to){
       const d=r.kdate?r.kdate.split('/').reverse().join('-'):'';
       if(from&&d<from) return false;
       if(to&&d>to) return false;
     }
     if(fb!=='ALL'&&r.branch!==fb) return false;
+    if(!tpAccountMatches(r,accountChoice)) return false;
     return true;
   });
   const kw = (document.getElementById('tp-raw-kw').value||'').trim();
@@ -2146,10 +2217,10 @@ function renderTPRaw(){
     <div class="box"><div class="v" style="color:var(--bad)">${fmt(totalDebit)}</div><div class="l">Tổng Ghi nợ</div></div>
     <div class="box"><div class="v" style="color:var(--good)">${fmt(totalCredit)}</div><div class="l">Tổng Ghi có</div></div>
     <div class="box"><div class="v">${fmt(totalCredit-totalDebit)}</div><div class="l">Chênh lệch (Có − Nợ)</div></div>`;
-  let html='<thead><tr><th class="l">Ngày GD</th><th class="l">Ngày giá trị</th><th class="l">Chi nhánh</th><th>Ghi nợ</th><th>Ghi có</th><th class="l">Diễn giải</th></tr></thead><tbody>';
-  html+=`<tr class="tot"><td class="l">TỔNG (${rows.length} GD)</td><td></td><td></td><td>${fmt(totalDebit)}</td><td>${fmt(totalCredit)}</td><td></td></tr>`;
+  let html='<thead><tr><th class="l">Ngày GD</th><th class="l">Ngày giá trị</th><th class="l">Chi nhánh</th><th class="l">TK / TID</th><th>Ghi nợ</th><th>Ghi có</th><th class="l">Diễn giải</th></tr></thead><tbody>';
+  html+=`<tr class="tot"><td class="l">TỔNG (${rows.length} GD)</td><td></td><td></td><td></td><td>${fmt(totalDebit)}</td><td>${fmt(totalCredit)}</td><td></td></tr>`;
   rows.slice(0,300).forEach(r=>{
-    html+=`<tr style="${r.excludeRecon?'opacity:.7;background:rgba(0,0,0,.03)':''}"><td class="l editable-date" title="Bấm để sửa ngày" style="white-space:nowrap;cursor:pointer" onclick="startEditTPDate(this,'${r.k}','kdate')">${r.kdate||''}</td><td class="l editable-date" title="Bấm để sửa ngày" style="white-space:nowrap;color:var(--muted);font-size:11.5px;cursor:pointer" onclick="startEditTPDate(this,'${r.k}','valueDate')">${r.valueDate||''}</td><td class="l">${r.branch?(r.branch+(r._filledDown?' <small style="color:var(--muted)">↑fill</small>':'')):'<span class="tag bad">?</span>'}</td><td>${r.debit?fmt(r.debit):''}</td><td>${r.credit?fmt(r.credit):''}</td><td class="l" style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}${r.excludeRecon?' <small style="color:var(--muted)">[không đối chiếu]</small>':''}</td></tr>`;
+    html+=`<tr style="${r.excludeRecon?'opacity:.7;background:rgba(0,0,0,.03)':''}"><td class="l editable-date" title="Bấm để sửa ngày" style="white-space:nowrap;cursor:pointer" onclick="startEditTPDate(this,'${r.k}','kdate')">${r.kdate||''}</td><td class="l editable-date" title="Bấm để sửa ngày" style="white-space:nowrap;color:var(--muted);font-size:11.5px;cursor:pointer" onclick="startEditTPDate(this,'${r.k}','valueDate')">${r.valueDate||''}</td><td class="l">${r.branch?(r.branch+(r._filledDown?' <small style="color:var(--muted)">↑fill</small>':'')):'<span class="tag bad">?</span>'}</td><td class="l" style="white-space:nowrap">${r.account?'TK '+r.account:(r.tid?'TID '+r.tid:'')}</td><td>${r.debit?fmt(r.debit):''}</td><td>${r.credit?fmt(r.credit):''}</td><td class="l" style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}${r.excludeRecon?' <small style="color:var(--muted)">[không đối chiếu]</small>':''}</td></tr>`;
   });
   html+='</tbody>';
   document.getElementById('tp-raw').innerHTML=TPBANK.length?html:'<tbody><tr><td class="l small">Chưa import dữ liệu</td></tr></tbody>';
@@ -2225,6 +2296,8 @@ let VIETTIN = [];
 let VT_STAGE = [];
 function initVietinUI(){
   document.getElementById('vt-month').value = todayISO().slice(0,7);
+  refreshBranchFilter('vt-filter-branch',VIETTIN,Object.values(VT_ACC_MAP));
+  refreshAccountFilter('vt-filter-account',VIETTIN,VT_ACC_MAP);
   setupDrop('vt-drop','vt-file', handleVTFile);
   document.getElementById('vt-raw-kw').addEventListener('input', debounce(renderVTRaw));
   document.getElementById('vt-stage-save').addEventListener('click', saveVTStage);
@@ -2239,13 +2312,13 @@ function initVietinUI(){
     toast('✓ Đã xóa lần import cuối');
     renderVTCount(); renderVTRaw(); renderVTRecon();
   });
-  // Bộ lọc khoảng ngày
-  document.getElementById('vt-month').addEventListener('change', renderVTRecon);
-  document.getElementById('vt-from').addEventListener('change', renderVTRecon);
-  document.getElementById('vt-to').addEventListener('change', renderVTRecon);
+  // Bộ lọc khoảng ngày + chi nhánh + số tài khoản dùng chung cho bảng xem và xóa
+  ['vt-month','vt-from','vt-to','vt-filter-branch','vt-filter-account'].forEach(id=>{
+    document.getElementById(id).addEventListener('change',()=>{renderVTRaw();renderVTRecon();});
+  });
   document.getElementById('vt-range-clear').addEventListener('click', ()=>{
     document.getElementById('vt-from').value=''; document.getElementById('vt-to').value='';
-    renderVTRecon();
+    renderVTRaw();renderVTRecon();
   });
   renderVTCount(); renderVTRaw(); renderVTRecon();
 }
@@ -2394,9 +2467,11 @@ document.getElementById('vt-clear-range').addEventListener('click', async ()=>{
   const from = document.getElementById('vt-from').value, to = document.getElementById('vt-to').value;
   if(!from||!to){toast('Phải chọn ĐỦ Từ ngày và Đến ngày trước khi xóa');return;}
   if(from>to){toast('Từ ngày không được lớn hơn Đến ngày');return;}
-  const plan=makeRangeDeletePlan(VIETTIN,r=>r.dateRaw,from,to);
-  const rangeLabel=`từ ${from} đến ${to}`;
-  if(!confirmRangeDelete('Viettin',plan,VIETTIN.length,rangeLabel)) return;
+  const account=requireDeleteChoice('vt-filter-account','số tài khoản');if(!account)return;
+  const fb=document.getElementById('vt-filter-branch').value;
+  const plan=makeRangeDeletePlan(VIETTIN,r=>r.dateRaw,from,to,r=>String(r.account||'').replace(/\D/g,'')===account&&(fb==='ALL'||r.branch===fb));
+  const rangeLabel=`từ ${from} đến ${to}`,extra=` — TK ${account}${fb!=='ALL'?' — chi nhánh '+fb:''}`;
+  if(!confirmRangeDelete('Viettin',plan,VIETTIN.length,rangeLabel,extra)) return;
   await saveRangeUndo('viettin:list',VIETTIN);
   VIETTIN = plan.keep;
   const ok = await sset('viettin:list', VIETTIN);
@@ -2410,8 +2485,21 @@ document.getElementById('vt-undo-range').addEventListener('click',async()=>{
   VIETTIN=saved.value;await sset('viettin:list',VIETTIN);await clearRangeUndo('viettin:list');renderVTCount();renderVTRaw();renderVTRecon();toast('✓ Đã hoàn tác xóa Viettin');
 });
 function renderVTRaw(){
+  refreshBranchFilter('vt-filter-branch',VIETTIN,Object.values(VT_ACC_MAP));
+  refreshAccountFilter('vt-filter-account',VIETTIN,VT_ACC_MAP);
+  const m=document.getElementById('vt-month').value;
+  const from=document.getElementById('vt-from').value,to=document.getElementById('vt-to').value,useRange=!!(from&&to);
+  const fb=document.getElementById('vt-filter-branch').value,account=document.getElementById('vt-filter-account').value;
   const kw = (document.getElementById('vt-raw-kw').value||'').trim();
-  const source = kw ? VIETTIN.filter(r=>matchesKeyword(r, kw)) : VIETTIN.slice(-200);
+  let source=VIETTIN.filter(r=>{
+    const d=storageISODate(r.dateRaw);
+    if(useRange){if(!d||d<from||d>to)return false;}
+    else if(m&&(!d||d.slice(0,7)!==m))return false;
+    if(fb!=='ALL'&&r.branch!==fb)return false;
+    if(account!=='ALL'&&String(r.account||'').replace(/\D/g,'')!==account)return false;
+    return true;
+  });
+  if(kw)source=source.filter(r=>matchesKeyword(r,kw));
   let html='<thead><tr><th class="l">Thời gian ngân hàng</th><th>Ngày đối chiếu</th><th class="l">Tài khoản</th><th class="l">Chi nhánh</th><th class="l">Nội dung</th><th>Số tiền</th></tr></thead><tbody>';
   source.slice(0,300).forEach(r=>{
     const ngHangDom = parseInt((r.dateRaw||'00/00').split('/')[0]);
@@ -2425,13 +2513,17 @@ function renderVTRaw(){
       <td>${r.amount.toLocaleString('vi-VN')}</td>
     </tr>`;
   });
+  if(source.length===0)html+='<tr><td class="l small" colspan="6">Không có dữ liệu đúng bộ lọc đã chọn</td></tr>';
   html+='</tbody>';
   document.getElementById('vt-raw').innerHTML = VIETTIN.length? html : '<tbody><tr><td class="l small">Chưa import dữ liệu</td></tr></tbody>';
 }
 function renderVTRecon(){
+  refreshBranchFilter('vt-filter-branch',VIETTIN,Object.values(VT_ACC_MAP));
+  refreshAccountFilter('vt-filter-account',VIETTIN,VT_ACC_MAP);
   const m = document.getElementById('vt-month').value;
   const from = document.getElementById('vt-from').value, to = document.getElementById('vt-to').value;
   const useRange = !!(from && to);
+  const fb=document.getElementById('vt-filter-branch').value,account=document.getElementById('vt-filter-account').value;
   if(!useRange && !m) return;
 
   // Tổng hợp theo (branch, day)
@@ -2439,6 +2531,8 @@ function renderVTRecon(){
   VIETTIN.forEach(r=>{
     if(!r.branch || !r.day || !r.month) return;
     if(r.amount<=0) return;
+    if(fb!=='ALL'&&r.branch!==fb)return;
+    if(account!=='ALL'&&String(r.account||'').replace(/\D/g,'')!==account)return;
     if(useRange){
       const yr = r.dateRaw ? parseInt((r.dateRaw.match(/(\d{4})/)||[])[0]||new Date().getFullYear()) : new Date().getFullYear();
       const dISO = `${yr}-${String(r.month).padStart(2,'0')}-${String(r.day).padStart(2,'0')}`;
@@ -2463,7 +2557,8 @@ function renderVTRecon(){
     const dateStr = useRange
       ? `${(from||m).slice(0,4)}-${String((VIETTIN.find(r=>r.day===d)||{}).month||1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
       : `${m}-${String(d).padStart(2,'0')}`;
-    const branches = CHOTCA_BRANCHES.filter(b=> agg[b+'|'+d] || (CHOTCA[ccKey(dateStr,b)]||{}).tck);
+    const branchPool=fb==='ALL'?CHOTCA_BRANCHES:[fb];
+    const branches = branchPool.filter(b=> agg[b+'|'+d] || (CHOTCA[ccKey(dateStr,b)]||{}).tck);
     if(!branches.length) return;
 
     let dayVt=0, dayTck=0, dayMismatch=false;
@@ -2519,8 +2614,11 @@ function renderVTRecon(){
 let KHOTONG = [];
 let KT_STAGE = [];
 function initKhoTongUI(){
+  refreshBranchFilter('kt-filter-branch',KHOTONG,Object.values(KHO_ACC_MAP));
+  refreshAccountFilter('kt-filter-account',KHOTONG,KHO_ACC_MAP);
   setupDrop('kt-drop','kt-file', handleKTFile);
   document.getElementById('kt-raw-kw').addEventListener('input', debounce(renderKTRaw));
+  ['kt-from','kt-to','kt-filter-branch','kt-filter-account'].forEach(id=>document.getElementById(id).addEventListener('change',renderKTRaw));
   document.getElementById('kt-stage-save').addEventListener('click', saveKTStage);
   document.getElementById('kt-stage-cancel').addEventListener('click', ()=>{ KT_STAGE=[]; document.getElementById('kt-stage-banner').style.display='none'; });
   renderKTCount(); renderKTRaw(); renderKTKpi();
@@ -2617,14 +2715,17 @@ document.getElementById('kt-clear').addEventListener('click', async ()=>{
 });
 document.getElementById('kt-range-clear').addEventListener('click', ()=>{
   document.getElementById('kt-from').value=''; document.getElementById('kt-to').value='';
+  renderKTRaw();
 });
 document.getElementById('kt-clear-range').addEventListener('click', async ()=>{
   const from = document.getElementById('kt-from').value, to = document.getElementById('kt-to').value;
   if(!from||!to){toast('Phải chọn ĐỦ Từ ngày và Đến ngày trước khi xóa');return;}
   if(from>to){toast('Từ ngày không được lớn hơn Đến ngày');return;}
-  const plan=makeRangeDeletePlan(KHOTONG,r=>r.date,from,to);
-  const rangeLabel=`từ ${from} đến ${to}`;
-  if(!confirmRangeDelete('Kho tổng',plan,KHOTONG.length,rangeLabel)) return;
+  const account=requireDeleteChoice('kt-filter-account','số tài khoản');if(!account)return;
+  const fb=document.getElementById('kt-filter-branch').value;
+  const plan=makeRangeDeletePlan(KHOTONG,r=>r.date,from,to,r=>String(r.account||'').replace(/\D/g,'')===account&&(fb==='ALL'||r.branch===fb));
+  const rangeLabel=`từ ${from} đến ${to}`,extra=` — TK ${account}${fb!=='ALL'?' — chi nhánh '+fb:''}`;
+  if(!confirmRangeDelete('Kho tổng',plan,KHOTONG.length,rangeLabel,extra)) return;
   await saveRangeUndo('khotong:list',KHOTONG);
   KHOTONG = plan.keep;
   const ok = await sset('khotong:list', KHOTONG);
@@ -2648,15 +2749,27 @@ function renderKTKpi(){
     <div class="box"><div class="v">${fmt(sum(m2,'debit'))}</div><div class="l">Mart2 — Tổng chi</div></div>`;
 }
 function renderKTRaw(){
+  refreshBranchFilter('kt-filter-branch',KHOTONG,Object.values(KHO_ACC_MAP));
+  refreshAccountFilter('kt-filter-account',KHOTONG,KHO_ACC_MAP);
+  const from=document.getElementById('kt-from').value,to=document.getElementById('kt-to').value;
+  const fb=document.getElementById('kt-filter-branch').value,account=document.getElementById('kt-filter-account').value;
   const kw = (document.getElementById('kt-raw-kw').value||'').trim();
-  const source = kw ? KHOTONG.filter(r=>matchesKeyword(r, kw)) : KHOTONG.slice(-200);
+  let source=KHOTONG.filter(r=>{
+    const d=storageISODate(r.date);
+    if(from&&(!d||d<from))return false;if(to&&(!d||d>to))return false;
+    if(fb!=='ALL'&&r.branch!==fb)return false;
+    if(account!=='ALL'&&String(r.account||'').replace(/\D/g,'')!==account)return false;
+    return true;
+  });
+  if(kw)source=source.filter(r=>matchesKeyword(r,kw));
   let html='<thead><tr><th class="l">Ngày</th><th class="l">Diễn giải</th><th>Ghi nợ</th><th>Ghi có</th><th class="l">TK</th><th class="l">Chi nhánh</th><th class="l">Loại</th></tr></thead><tbody>';
   source.slice(0,300).forEach(r=>{
     html+=`<tr><td class="l">${r.date||''}</td><td class="l" style="max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}</td><td>${fmt(r.debit)}</td><td>${fmt(r.credit)}</td><td class="l">${r.account}</td><td class="l">${r.branch}</td><td class="l">${r.type}</td></tr>`;
   });
+  if(source.length===0)html+='<tr><td class="l small" colspan="7">Không có dữ liệu đúng bộ lọc đã chọn</td></tr>';
   html+='</tbody>';
   document.getElementById('kt-raw').innerHTML = KHOTONG.length? html : '<tbody><tr><td class="l small">Chưa import dữ liệu</td></tr></tbody>';
-  renderFilterNotice('kt-filter-notice', {count: source.slice(0,300).length, total: KHOTONG.length});
+  renderFilterNotice('kt-filter-notice', {from,to,count: source.slice(0,300).length, total: KHOTONG.length});
 }
 
 /* ===================================================================
@@ -2665,6 +2778,7 @@ function renderKTRaw(){
 let B2 = []; // {maPhieu, time, branch, type, person, amount, note, loaiSoQuy, bankMatch, bankAccount}
 function initB2UI(){
   document.getElementById('sq-month').value = window._latestB2Month || todayISO().slice(0,7);
+  refreshBranchFilter('sq-filter-branch',B2,BRANCHES);
   setupDrop('sq-drop','sq-file', handleSQFile);
   renderSQCount(); renderSQTable();
 }
@@ -2789,13 +2903,11 @@ document.getElementById('sq-clear').addEventListener('click', async ()=>{
 });
 document.getElementById('sq-clear-range').addEventListener('click', async ()=>{
   const from = document.getElementById('sq-from').value, to = document.getElementById('sq-to').value;
-  const m = document.getElementById('sq-month').value;
-  if((from&&!to)||(!from&&to)){toast('Phải chọn ĐỦ Từ ngày và Đến ngày; không được chỉ chọn một ngày');return;}
-  let range=from&&to?{from,to,label:`từ ${from} đến ${to}`}:rangeFromMonth(m);
-  if(!range){toast('Hãy chọn Tháng, hoặc chọn đủ Từ ngày và Đến ngày');return;}
-  if(range.from>range.to){toast('Từ ngày không được lớn hơn Đến ngày');return;}
-  const plan=makeRangeDeletePlan(B2,r=>r.time,range.from,range.to);
-  if(!confirmRangeDelete('phiếu B2',plan,B2.length,range.label)) return;
+  if(!from||!to){toast('Phải chọn ĐỦ Từ ngày và Đến ngày trước khi xóa');return;}
+  if(from>to){toast('Từ ngày không được lớn hơn Đến ngày');return;}
+  const fb=requireDeleteChoice('sq-filter-branch','chi nhánh');if(!fb)return;
+  const rangeLabel=`từ ${from} đến ${to}`,plan=makeRangeDeletePlan(B2,r=>r.time,from,to,r=>r.branch===fb);
+  if(!confirmRangeDelete('phiếu B2',plan,B2.length,rangeLabel,` — chi nhánh ${fb}`)) return;
   await saveRangeUndo('b2:list',B2);
   B2 = plan.keep;
   const ok = await sset('b2:list', B2);
@@ -2809,15 +2921,18 @@ document.getElementById('sq-undo-range').addEventListener('click',async()=>{
   B2=saved.value;await sset('b2:list',B2);await clearRangeUndo('b2:list');renderSQCount();renderSQTable();toast('✓ Đã hoàn tác xóa B2');
 });
 function renderSQTable(){
+  refreshBranchFilter('sq-filter-branch',B2,BRANCHES);
   const m = document.getElementById('sq-month').value;
   const from = document.getElementById('sq-from').value, to = document.getElementById('sq-to').value;
   const useRange = !!(from && to);
   const filter = document.getElementById('sq-filter').value;
+  const fb = document.getElementById('sq-filter-branch').value;
 
   let rows = B2.filter(r=>{
     const d = (r.time||'').slice(0,10);
     if(useRange){ if(d<from || d>to) return false; }
     else if(m){ if(!r.time || r.time.slice(0,7)!==m) return false; }
+    if(fb!=='ALL'&&r.branch!==fb)return false;
     if(filter==='matched' && !r.bankMatch) return false;
     if(filter==='unmatched' && r.bankMatch) return false;
     if(filter==='tienmat' && !String(r.loaiSoQuy).toLowerCase().includes('tiền mặt') && !String(r.loaiSoQuy).toLowerCase().includes('tien mat')) return false;
@@ -2852,6 +2967,7 @@ function renderSQTable(){
 }
 document.getElementById('sq-month').addEventListener('change', renderSQTable);
 document.getElementById('sq-filter').addEventListener('change', renderSQTable);
+document.getElementById('sq-filter-branch').addEventListener('change', renderSQTable);
 document.getElementById('sq-from').addEventListener('change', renderSQTable);
 document.getElementById('sq-to').addEventListener('change', renderSQTable);
 document.getElementById('sq-kw').addEventListener('input', debounce(renderSQTable));
@@ -3922,9 +4038,7 @@ let BK_OVERRIDES = {}; // {maPhieu: {status:'matched'|'ignored', ktContent, ktAm
 
 function initCaTheKiotUI(){
   document.getElementById('cak-month').value = todayISO().slice(0,7);
-  // fill chi nhánh
-  const brSel = document.getElementById('cak-filter-branch');
-  CHOTCA_BRANCHES.forEach(b=>{ const o=document.createElement('option'); o.value=b; o.textContent=b; brSel.appendChild(o); });
+  refreshBranchFilter('cak-filter-branch',CATHE_KV,CHOTCA_BRANCHES);
   setupDrop('cak-drop','cak-file', handleCAKFile);
   ['cak-month','cak-from','cak-to','cak-filter-branch','cak-filter-method'].forEach(id=>{
     document.getElementById(id).addEventListener('change', renderCAKTable);
@@ -3942,15 +4056,11 @@ function initCaTheKiotUI(){
   });
   document.getElementById('cak-clear-range').addEventListener('click', async ()=>{
     const from = document.getElementById('cak-from').value, to = document.getElementById('cak-to').value;
-    const m = document.getElementById('cak-month').value;
-    const fb = document.getElementById('cak-filter-branch').value;
-    if((from&&!to)||(!from&&to)){toast('Phải chọn ĐỦ Từ ngày và Đến ngày; không được chỉ chọn một ngày');return;}
-    let range=from&&to?{from,to,label:`từ ${from} đến ${to}`}:rangeFromMonth(m);
-    if(!range){toast('Hãy chọn Tháng, hoặc chọn đủ Từ ngày và Đến ngày');return;}
-    if(range.from>range.to){toast('Từ ngày không được lớn hơn Đến ngày');return;}
-    const plan=makeRangeDeletePlan(CATHE_KV,r=>r.time,range.from,range.to,r=>fb==='ALL'||r.branch===fb);
-    const extra=fb!=='ALL'?` — chi nhánh ${fb}`:'';
-    if(!confirmRangeDelete('phiếu Ngân hàng Kiot',plan,CATHE_KV.length,range.label,extra)) return;
+    if(!from||!to){toast('Phải chọn ĐỦ Từ ngày và Đến ngày trước khi xóa');return;}
+    if(from>to){toast('Từ ngày không được lớn hơn Đến ngày');return;}
+    const fb=requireDeleteChoice('cak-filter-branch','chi nhánh');if(!fb)return;
+    const rangeLabel=`từ ${from} đến ${to}`,plan=makeRangeDeletePlan(CATHE_KV,r=>r.time,from,to,r=>r.branch===fb);
+    if(!confirmRangeDelete('phiếu Ngân hàng Kiot',plan,CATHE_KV.length,rangeLabel,` — chi nhánh ${fb}`)) return;
     await saveRangeUndo('cathe_kv:list',CATHE_KV);
     CATHE_KV = plan.keep;
     const ok = await sset('cathe_kv:list', CATHE_KV);
@@ -4050,6 +4160,7 @@ function renderCAKCount(){
 }
 
 function renderCAKTable(){
+  refreshBranchFilter('cak-filter-branch',CATHE_KV,CHOTCA_BRANCHES);
   const m = document.getElementById('cak-month').value;
   const from = document.getElementById('cak-from').value, to = document.getElementById('cak-to').value;
   const useRange = !!(from&&to);
@@ -4590,7 +4701,7 @@ function exportChenhLech(){
   return {name:'Chênh lệch', rows};
 }
 function exportTPBank(){
-  const rows = TPBANK.map(r=>({'Ngày GD':r.kdate,'Ngày GT':r.valueDate||'','Chi nhánh':r.branch||'','Ghi nợ':r.debit||0,'Ghi có':r.credit||0,'Số dư':r.balance||0,'TID':r.tid||'','Diễn giải':r.content||''}));
+  const rows = TPBANK.map(r=>({'Ngày GD':r.kdate,'Ngày GT':r.valueDate||'','Chi nhánh':r.branch||'','Số tài khoản':r.account||'','Ghi nợ':r.debit||0,'Ghi có':r.credit||0,'Số dư':r.balance||0,'TID':r.tid||'','Diễn giải':r.content||''}));
   return {name:'TP Bank', rows};
 }
 function exportViettin(){
