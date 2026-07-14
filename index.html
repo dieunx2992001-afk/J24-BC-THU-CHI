@@ -2021,6 +2021,23 @@ function findCol(headerRow, candidates){
   }
   return -1;
 }
+// Lấy số tài khoản chính ở phần đầu sao kê. Hỗ trợ đúng mẫu TPBank:
+// "Tài khoản giao dịch (account number):" ở cột A và số tài khoản ở cột C.
+function extractStatementAccount(rows,maxRows=12){
+  const limit=Math.min(maxRows,(rows||[]).length);
+  for(let i=0;i<limit;i++){
+    const cells=(rows[i]||[]).map(v=>v==null?'':String(v).trim());
+    const joined=cells.join(' ');
+    const match=joined.match(/(?:tài khoản giao dịch|tai khoan giao dich|số tài khoản|so tai khoan|account\s*number)\s*\)?\s*:?\s*([0-9][0-9 .-]{5,})/i);
+    if(match){const account=match[1].replace(/\D/g,'');if(account.length>=6)return account;}
+    const hasLabel=cells.some(v=>/(?:tài khoản giao dịch|tai khoan giao dich|số tài khoản|so tai khoan|account\s*number)/i.test(v));
+    if(hasLabel){
+      const accountCell=cells.map(v=>v.replace(/\D/g,'')).find(v=>v.length>=6);
+      if(accountCell)return accountCell;
+    }
+  }
+  return '';
+}
 // Làm tròn 1 Date về đúng mốc nửa đêm UTC gần nhất — khắc phục sai số thập phân rất nhỏ
 // mà số serial ngày trong Excel hay gặp (vd. 23:59:30 thay vì đúng 00:00:00), tránh bị lùi 1 ngày.
 function roundToUTCDate(date){ return new Date(Math.round(date.getTime()/86400000)*86400000); }
@@ -2047,6 +2064,8 @@ function excelDateToISO(v){
 =================================================================== */
 let TPBANK = [];
 let TP_STAGE = [];
+let TP_STAGE_ACCOUNT_PATCHES = new Set();
+let TP_STAGE_ACCOUNT = '';
 function refreshTPAccountFilter(){
   const items=[];
   TPBANK.forEach(r=>{
@@ -2067,7 +2086,7 @@ function initTPBankUI(){
   document.getElementById('tp-month').value = todayISO().slice(0,7);
   setupDrop('tp-drop','tp-file', handleTPFile);
   document.getElementById('tp-stage-save').addEventListener('click', saveTPStage);
-  document.getElementById('tp-stage-cancel').addEventListener('click', ()=>{ TP_STAGE=[]; document.getElementById('tp-stage-banner').style.display='none'; });
+  document.getElementById('tp-stage-cancel').addEventListener('click', ()=>{ TP_STAGE=[];TP_STAGE_ACCOUNT_PATCHES=new Set();TP_STAGE_ACCOUNT='';document.getElementById('tp-stage-banner').style.display='none'; });
   refreshBranchFilter('tp-raw-branch',TPBANK,Object.values(TID_MAP));
   refreshTPAccountFilter();
   ['tp-raw-from','tp-raw-to','tp-raw-branch','tp-raw-account'].forEach(id=>{
@@ -2088,12 +2107,7 @@ async function handleTPFile(file){
   try{
     const rows = await readSheet(file);
     if(!rows || rows.length<11){ toast('File rỗng hoặc không đủ 10 dòng tiêu đề như sao kê TPBank chuẩn.'); return; }
-    let accStr='';
-    for(let i=0;i<10&&i<rows.length;i++){
-      const text=(rows[i]||[]).map(c=>c==null?'':String(c)).join(' ');
-      const match=text.match(/(?:số tài khoản|so tai khoan|account(?:\s+number)?)\s*:?\s*([0-9][0-9 .-]{5,})/i);
-      if(match){accStr=match[1].replace(/\D/g,'');if(accStr.length>=6)break;}
-    }
+    const accStr=extractStatementAccount(rows);
     // Dò vị trí cột theo tên tiêu đề (đề phòng file có thứ tự cột khác) — ưu tiên dòng có "Diễn giải"+"Ghi nợ"
     let headerIdx = -1, cIdx = {date:0,valueDate:1,content:2,debit:3,credit:4,balance:5};
     for(let i=0;i<12 && i<rows.length;i++){
@@ -2116,8 +2130,10 @@ async function handleTPFile(file){
     const data = rows.slice(startRow);
     let candidate=0, noTid=0, skipped=0, dup=0;
     const existKeys = new Set(TPBANK.map(r=>r.k));
+    const existRows = new Map(TPBANK.map(r=>[r.k,r]));
     const seenInStage = new Set();
     TP_STAGE = [];
+    TP_STAGE_ACCOUNT_PATCHES=new Set();TP_STAGE_ACCOUNT=accStr;
     data.forEach(row=>{
       if(!row || row.every(c=>c===null)) return;
       // Bỏ qua dòng tổng kết cuối sao kê (Tổng ghi Có/Nợ, Số dư cuối kỳ...) — không phải giao dịch thật
@@ -2126,7 +2142,12 @@ async function handleTPFile(file){
       const content = row[cIdx.content]; if(!content){ skipped++; return; }
       const debit = parseVNMoney(row[cIdx.debit])||0, credit = parseVNMoney(row[cIdx.credit])||0, balance = parseVNMoney(row[cIdx.balance])||0;
       const k = (content||'')+'|'+balance+'|'+debit+'|'+credit;
-      if(existKeys.has(k) || seenInStage.has(k)){ dup++; return; }
+      if(existKeys.has(k)){
+        const existing=existRows.get(k);
+        if(accStr&&existing&&!String(existing.account||'').trim())TP_STAGE_ACCOUNT_PATCHES.add(k);
+        dup++;return;
+      }
+      if(seenInStage.has(k)){dup++;return;}
       seenInStage.add(k);
       let tid=''; const tidM = String(content).match(/TID[\s:\-\.]{0,3}(\d{5,})/i); if(tidM) tid = tidM[1];
       // Ưu tiên ngày THẬT của giao dịch dò trong nội dung (vì ngân hàng có khi ghi nhận trễ 1 ngày),
@@ -2157,12 +2178,13 @@ async function handleTPFile(file){
       else if(lastBranch){ r.branch = lastBranch; r._filledDown = true; }
     });
     const banner = document.getElementById('tp-stage-banner');
-    if(candidate===0){
+    if(candidate===0&&TP_STAGE_ACCOUNT_PATCHES.size===0){
       banner.style.display='none';
       toast(`Không có dòng mới (${dup} dòng trùng, ${skipped} dòng rỗng). File đã được lưu trước đó rồi.`);
     } else {
-      let msg = `Đọc được ${candidate} dòng mới từ file — chưa lưu`;
+      let msg = `Đọc được ${candidate} dòng mới từ file — TK ${accStr||'chưa nhận diện'} — chưa lưu`;
       if(dup) msg += `, bỏ qua ${dup} dòng trùng`;
+      if(TP_STAGE_ACCOUNT_PATCHES.size)msg+=`, sẽ bổ sung số tài khoản cho ${TP_STAGE_ACCOUNT_PATCHES.size} dòng cũ`;
       if(noTid) msg += `, ${noTid} dòng chưa nhận diện TID`;
       document.getElementById('tp-stage-msg').textContent = msg;
       banner.style.display='flex';
@@ -2170,18 +2192,20 @@ async function handleTPFile(file){
   }catch(err){ toast('Lỗi đọc file: '+err.message); console.error(err); }
 }
 async function saveTPStage(){
-  if(TP_STAGE.length===0) return;
-  const pending=TP_STAGE.slice(),n=pending.length,next=TPBANK.concat(pending);
-  const ok = await sset('tpbank:list', next, {importedCount:n});
+  if(TP_STAGE.length===0&&TP_STAGE_ACCOUNT_PATCHES.size===0) return;
+  const pending=TP_STAGE.slice(),n=pending.length,patched=TP_STAGE_ACCOUNT_PATCHES.size;
+  const existing=patched?TPBANK.map(r=>TP_STAGE_ACCOUNT_PATCHES.has(r.k)?{...r,account:TP_STAGE_ACCOUNT}:r):TPBANK;
+  const next=existing.concat(pending),progressOptions=n?{importedCount:n}:{};
+  const ok = await sset('tpbank:list', next, progressOptions);
   if(!ok){
-    document.getElementById('tp-stage-msg').textContent=`Chưa lưu được ${n} dòng. Lý do: ${window._lastSaveError||'kết nối SQL bị gián đoạn'}. Dữ liệu vẫn đang chờ — hãy bấm Lưu lại.`;
+    document.getElementById('tp-stage-msg').textContent=`Chưa lưu được ${n} dòng mới${patched?' và chưa bổ sung tài khoản cho '+patched+' dòng cũ':''}. Lý do: ${window._lastSaveError||'kết nối SQL bị gián đoạn'}. Dữ liệu vẫn đang chờ — hãy bấm Lưu lại.`;
     document.getElementById('tp-stage-banner').style.display='flex';
     return;
   }
-  TPBANK=next;TP_STAGE=[];
+  TPBANK=next;TP_STAGE=[];TP_STAGE_ACCOUNT_PATCHES=new Set();TP_STAGE_ACCOUNT='';
   window._tpLastImportKeys = new Set(pending.map(r=>r.k));
   document.getElementById('tp-stage-banner').style.display='none';
-  toast('✓ Đã lưu '+n+' dòng TP Bank'+(STORAGE_MODE==='turso'?' (SQL)':' (Local)')+' — bấm "↩ Xóa lần import cuối" nếu muốn hoàn tác');
+  toast(`✓ Đã lưu ${n} dòng TP Bank${patched?' · bổ sung số tài khoản cho '+patched+' dòng cũ':''}${STORAGE_MODE==='turso'?' (SQL)':' (Local)'} — bấm "↩ Xóa lần import cuối" nếu muốn hoàn tác`);
   renderTPCount(); renderTPRaw(); renderTPRecon();
 }
 document.getElementById('tp-undo').addEventListener('click', async ()=>{
@@ -2357,12 +2381,7 @@ async function handleVTFile(file){
   try{
     const rows = await readSheet(file);
     if(!rows || rows.length<7){ toast('File rỗng hoặc không đúng định dạng sao kê Vietin'); return; }
-    let accStr = '';
-    for(let i=0;i<6 && i<rows.length;i++){
-      const txt = (rows[i]||[]).map(c=>c==null?'':String(c)).join(' ');
-      const m = txt.match(/[Ss]ố tài khoản:?\s*(\d{6,})/) || txt.match(/account number\)?:?\s*(\d{6,})/i);
-      if(m){ accStr = m[1]; break; }
-    }
+    const accStr=extractStatementAccount(rows,8);
     const branch = VT_ACC_MAP[accStr] || '';
     if(!branch){ toast('Không nhận diện được tài khoản/chi nhánh trong file (tìm thấy TK: '+(accStr||'không có')+'). Vẫn xem trước nhưng cần kiểm tra bảng mã chi nhánh.'); }
     let headerIdx = -1, cIdx = {date:1,content:2,amount:3,balance:4};
@@ -2665,15 +2684,7 @@ async function handleKTFile(file){
   try{
     const rows = await readSheet(file);
     if(!rows || rows.length<11){ toast('File rỗng hoặc không đủ 10 dòng tiêu đề như sao kê TPBank chuẩn.'); return; }
-    let accStr = '';
-    for(let i=0;i<10 && i<rows.length;i++){
-      const r = rows[i]; if(!r) continue;
-      for(let j=0;j<r.length;j++){
-        const v = String(r[j]||'');
-        if(/^\d{6,}$/.test(v.trim())){ accStr = v.trim(); break; }
-      }
-      if(accStr) break;
-    }
+    const accStr=extractStatementAccount(rows);
     const branch = KHO_ACC_MAP[accStr] || (accStr? ('TK '+accStr) : 'TK không rõ');
     let headerIdx=-1, cIdx={date:0,content:2,debit:3,credit:4,balance:5};
     for(let i=0;i<12 && i<rows.length;i++){
