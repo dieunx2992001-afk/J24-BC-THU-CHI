@@ -1370,16 +1370,39 @@ function restoreUIState(){
     });
   }catch(e){ console.error('Lỗi khôi phục trạng thái giao diện', e); }
 }
+// Vẽ lại đúng dữ liệu hiện tại mỗi khi SQL đồng bộ xong hoặc người dùng chuyển trang.
+// Chỉ vẽ trang đang xem để máy cấu hình thấp không phải dựng lại tất cả bảng lớn cùng lúc.
+function refreshPageData(pageId){
+  const run=(name,fn)=>{
+    if(typeof fn!=='function')return;
+    try{
+      const result=fn();
+      if(result&&typeof result.catch==='function')result.catch(e=>console.error('Lỗi làm mới '+name+':',e));
+    }catch(e){console.error('Lỗi làm mới '+name+':',e);}
+  };
+  switch(pageId){
+    case 'p1': run('Chốt ca',()=>{renderCCForm();renderCCTable();});break;
+    case 'p2': run('Chênh lệch',renderCLTable);break;
+    case 'p3': run('TP Bank',()=>{refreshBranchFilter('tp-raw-branch',TPBANK,Object.values(TID_MAP));refreshTPAccountFilter();renderTPCount();renderTPRaw();renderTPRecon();});break;
+    case 'p4': run('Vietin',()=>{refreshBranchFilter('vt-filter-branch',VIETTIN,Object.values(VT_ACC_MAP));refreshAccountFilter('vt-filter-account',VIETTIN,VT_ACC_MAP);renderVTCount();renderVTRaw();renderVTRecon();});break;
+    case 'p5': run('Kho tổng',()=>{refreshBranchFilter('kt-filter-branch',KHOTONG,Object.values(KHO_ACC_MAP));refreshAccountFilter('kt-filter-account',KHOTONG,KHO_ACC_MAP);renderKTCount();renderKTRaw();renderKTKpi();});break;
+    case 'p6': run('CT Thu Chi',()=>{refreshBranchFilter('sq-filter-branch',B2,BRANCHES);renderSQCount();renderSQTable();});break;
+    case 'p7': run('Số dư ngân hàng',()=>{document.getElementById('bal-source').dispatchEvent(new Event('change'));return renderBalance();});break;
+    case 'p8': run('BC Kho tổng',renderBK);break;
+    case 'p10': run('Quỹ két',renderQK);break;
+    case 'p11': run('Nhật ký',renderLog);break;
+    case 'p12': run('Báo cáo chốt ca',()=>{renderTH();return renderDoiChieuTong();});break;
+    case 'p15': run('Ngân hàng Kiot',()=>{renderCAKCount();renderCAKTable();});break;
+    case 'p16': run('Tổng hợp thu chi',()=>{renderTongHopThuChiLayout();if(window._updateTHTCFloatScroll)setTimeout(window._updateTHTCFloatScroll,80);});break;
+  }
+}
 document.querySelectorAll('.nav-item').forEach(b=>{
   b.addEventListener('click', ()=>{
     document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
     document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
     b.classList.add('active'); document.getElementById(b.dataset.p).classList.add('active');
     try{ localStorage.setItem(UI_STATE_PREFIX+'__activePage', b.dataset.p); }catch(e){}
-    if(b.dataset.p==='p11' && typeof renderLog==='function') renderLog();
-    if(b.dataset.p==='p12' && typeof renderDoiChieuTong==='function') renderDoiChieuTong();
-    if(b.dataset.p==='p12' && typeof renderTH==='function') renderTH();
-    if(b.dataset.p==='p15' && typeof renderCAKTable==='function') renderCAKTable();
+    refreshPageData(b.dataset.p);
     if(b.dataset.p==='p14'){
       if(typeof initBackup==='function'){
         const el=document.getElementById('backup-storage-info');
@@ -4082,7 +4105,9 @@ function renderLog(){
     }
     if(anyApplied){
       applyData(finalVals);
-      toast('✓ Đã có dữ liệu mới nhất — đổi bộ lọc hoặc chuyển tab để xem cập nhật', 3500);
+      const activePage=document.querySelector('.page.active');
+      refreshPageData(activePage?activePage.id:'p1');
+      toast('✓ Đã đồng bộ và hiển thị dữ liệu SQL mới nhất', 3000);
     }
   }
 })();
