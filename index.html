@@ -736,6 +736,7 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
           <div><label>Chi nhánh</label><select id="thtc-branch"><option value="ALL">Tất cả chi nhánh</option></select></div>
           <div><button class="save" id="thtc-run">Xem báo cáo</button></div>
           <div><button class="ghost" id="thtc-export">⬇ Xuất Excel</button></div>
+          <div><button class="ghost" id="thtc-category-open">🗂 Danh mục phiếu B2</button></div>
         </div>
       </div>
       <div class="thtc-design-note" style="margin-bottom:10px">Các nhóm A–D và F được tổng hợp tự động từ Chốt ca, B2, VietinBank, TPBank và TPBank Kho tổng. Các khoản cuối tháng ở nhóm E được nhập bổ sung bên dưới và lưu SQL. Rê chuột vào ô chênh lệch để xem ngày, số tiền, chi nhánh và lý do lệch.</div>
@@ -760,7 +761,7 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
           <div id="thtc-manual-status" class="thtc-manual-status">Chưa chọn ngày và chi nhánh.</div>
         </div>
       </details>
-      <details class="thtc-manual" id="thtc-category-box">
+      <details class="thtc-manual" id="thtc-category-box" open>
         <summary>🗂 Danh mục phiếu: phân loại Hàng / Khác / Điều chuyển</summary>
         <div class="thtc-manual-body">
           <p class="note" style="margin-top:0">Danh mục Hàng/Khác/0 trong sheet B0 đã được cài sẵn. Khi import B2 có loại phiếu mới, phiếu vẫn được nhận và đưa lên bảng; chỉ cần chọn phân loại một lần. Lựa chọn được lưu SQL và dùng cho mọi máy.</p>
@@ -768,6 +769,7 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
             <div style="flex:1;min-width:300px"><label>Tên loại phiếu B2</label><select id="thtc-category-type" style="width:100%"></select></div>
             <div><label>Phân loại khoản mục</label><select id="thtc-category-value"><option value="Hàng">Hàng</option><option value="Khác">Khác</option><option value="0">Điều chuyển / không quyết toán (0)</option></select></div>
             <div><button class="save" id="thtc-category-save">Lưu phân loại</button></div>
+            <div><button class="ghost" id="thtc-category-export">⬇ Xuất file danh mục</button></div>
           </div>
           <div id="thtc-category-status" class="thtc-manual-status">Danh mục sẽ hiển thị sau khi dữ liệu B2 được tải.</div>
         </div>
@@ -1039,15 +1041,22 @@ function applyCurrentUser(user){
   }else{chip.style.display='none';logout.style.display='none';}
 }
 async function apiRequest(path,options={},withAuth=true){
-  const headers={...(options.headers||{})};
-  if(options.body&&!headers['Content-Type']) headers['Content-Type']='application/json';
+  const {timeoutMs=0,...fetchOptions}=options;
+  const headers={...(fetchOptions.headers||{})};
+  if(fetchOptions.body&&!headers['Content-Type']) headers['Content-Type']='application/json';
   if(withAuth){
     const token=authToken();if(!token){const e=new Error('Bạn chưa đăng nhập');e.status=401;throw e;}
     headers.Authorization='Bearer '+token;
   }
-  let response;
-  try{response=await fetch(API_BASE+path,{...options,headers});}
-  catch(e){const err=new Error('Không kết nối được máy chủ. Hãy kiểm tra Internet.');err.status=0;throw err;}
+  let response,timer=null;
+  const controller=timeoutMs>0&&typeof AbortController!=='undefined'?new AbortController():null;
+  if(controller){fetchOptions.signal=controller.signal;timer=setTimeout(()=>controller.abort(),timeoutMs);}
+  try{response=await fetch(API_BASE+path,{...fetchOptions,headers});}
+  catch(e){
+    const timedOut=!!(controller&&controller.signal.aborted);
+    const err=new Error(timedOut?'Máy chủ phản hồi quá lâu. Hệ thống sẽ thử lại.':'Không kết nối được máy chủ. Hãy kiểm tra Internet.');
+    err.status=0;err.timedOut=timedOut;throw err;
+  }finally{if(timer)clearTimeout(timer);}
   let data={};try{data=await response.json();}catch(e){}
   if(!response.ok){
     const err=new Error(data.error||('Máy chủ báo lỗi '+response.status));err.status=response.status;
@@ -1189,6 +1198,9 @@ async function cacheSet(key,value,updatedAt){
 
 // ============ LỚP LƯU TRỮ SQL TỪNG BẢN GHI ============
 const _sqlV2Cache={};
+// Mỗi yêu cầu chỉ gửi tối đa 100 bản ghi. Turso/Cloudflare ổn định hơn nhiều so với
+// một pipeline 400-1.000 lệnh; lô đã lưu có thể được gửi lại an toàn vì SQL dùng UPSERT.
+const SQL_SYNC_BATCH_SIZE=100;
 function storageHash(text){
   const s=String(text||'');let h1=2166136261,h2=(2166136261^s.length)>>>0;
   for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);h1=Math.imul(h1^c,16777619);h2=Math.imul(h2^(c+i),2246822519);}
@@ -1231,31 +1243,51 @@ async function sqlV2WriteDataset(dataset,value,updatedAt=new Date().toISOString(
   const deleteIds=[];old.forEach((_,recordId)=>{if(!current.has(recordId))deleteIds.push(recordId);});
   const deleteAll=options.deleteAll===true&&current.size===0;
   if((deleteIds.length||deleteAll)&&CURRENT_USER&&CURRENT_USER.role!=='admin') throw new Error('Chỉ tài khoản quản trị mới được xóa dữ liệu.');
-  let result,lastError;
-  for(let attempt=1;attempt<=3;attempt++){
-    try{
-      const url='/api/data/'+encodeURIComponent(dataset)+'/sync';
-      const body=deleteAll
-        ?{value,deleteIds,deleteAll,updatedAt}
-        :{entries:changedEntries,dataType:built.type,deleteIds,updatedAt,deltaVersion:1};
-      try{
-        result=await apiRequest(url,{method:'POST',body:JSON.stringify(body)});
-      }catch(error){
-        // Trong lúc người dùng chưa kịp cập nhật Worker mới, tự quay về cách cũ để
-        // không làm gián đoạn việc lưu. Sau khi Worker mới được cài, nhánh này không chạy.
-        if(!deleteAll&&error.status===400&&/Thiếu dữ liệu cần đồng bộ/i.test(error.message||'')){
-          result=await apiRequest(url,{method:'POST',body:JSON.stringify({value,deleteIds,deleteAll,updatedAt})});
-        }else throw error;
-      }
-      break;
-    }catch(error){
-      lastError=error;
-      const retryable=error.status===0||error.status===429||error.status>=500;
-      if(!retryable||attempt===3)throw error;
-      const sub=document.getElementById('sql-progress-sub');
-      if(sub)sub.textContent=`Kết nối SQL đang chậm — hệ thống tự thử lại lần ${attempt+1}/3. Không tắt trang.`;
-      await new Promise(resolve=>setTimeout(resolve,attempt*900));
+  const url='/api/data/'+encodeURIComponent(dataset)+'/sync';
+  const batches=deleteAll
+    ?[null]
+    :(changedEntries.length
+      ?Array.from({length:Math.ceil(changedEntries.length/SQL_SYNC_BATCH_SIZE)},(_,i)=>changedEntries.slice(i*SQL_SYNC_BATCH_SIZE,(i+1)*SQL_SYNC_BATCH_SIZE))
+      :[[]]);
+  let result,lastError,legacyFallback=false;
+  for(let batchIndex=0;batchIndex<batches.length;batchIndex++){
+    const batch=batches[batchIndex],isLast=batchIndex===batches.length-1;
+    const sentBefore=deleteAll?0:Math.min(batchIndex*SQL_SYNC_BATCH_SIZE,changedEntries.length);
+    const sentAfter=deleteAll?0:Math.min(sentBefore+(batch?batch.length:0),changedEntries.length);
+    const sub=document.getElementById('sql-progress-sub');
+    if(sub&&!deleteAll){
+      sub.textContent=changedEntries.length
+        ?`Đang gửi lô ${batchIndex+1}/${batches.length}: ${sentAfter.toLocaleString('vi-VN')}/${changedEntries.length.toLocaleString('vi-VN')} dòng mới hoặc thay đổi. Không tắt trang.`
+        :'Đang xác nhận dữ liệu với SQL. Không tắt trang.';
     }
+    for(let attempt=1;attempt<=3;attempt++){
+      try{
+        const body=deleteAll
+          ?{value,deleteIds,deleteAll,updatedAt}
+          :{entries:batch,dataType:built.type,deleteIds:isLast?deleteIds:[],updatedAt,deltaVersion:2,batchIndex,batchCount:batches.length};
+        try{
+          result=await apiRequest(url,{method:'POST',body:JSON.stringify(body),timeoutMs:45000});
+        }catch(error){
+          // Tương thích Worker rất cũ chưa hiểu chế độ đồng bộ từng bản ghi.
+          if(!deleteAll&&batchIndex===0&&error.status===400&&/Thiếu dữ liệu cần đồng bộ/i.test(error.message||'')){
+            if(sub)sub.textContent='Worker đang dùng bản cũ — chuyển sang cách lưu tương thích. Không tắt trang.';
+            result=await apiRequest(url,{method:'POST',body:JSON.stringify({value,deleteIds,deleteAll,updatedAt}),timeoutMs:90000});
+            legacyFallback=true;
+          }else throw error;
+        }
+        break;
+      }catch(error){
+        lastError=error;
+        const retryable=error.status===0||error.status===429||error.status>=500;
+        if(!retryable||attempt===3)throw error;
+        if(sub){
+          const cause=error.status?`máy chủ báo lỗi ${error.status}`:(error.timedOut?'máy chủ phản hồi quá lâu':'mất kết nối');
+          sub.textContent=`Lô ${batchIndex+1}/${batches.length} gặp ${cause} — tự thử lại lần ${attempt+1}/3. Các lô đã lưu được giữ nguyên.`;
+        }
+        await new Promise(resolve=>setTimeout(resolve,attempt*1200));
+      }
+    }
+    if(legacyFallback)break;
   }
   if(!result)throw lastError||new Error('Không lưu được dữ liệu lên SQL.');
   _sqlV2Cache[dataset]=current;
@@ -4571,14 +4603,30 @@ function thtcEsc(s){
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 // Nguồn lý do dùng chung cho Báo cáo chốt ca và Tổng hợp thu chi.
-// Giữ đúng quy tắc hiện có: khớp Ngày + Chi nhánh + Ngân hàng; riêng RIGEL không lấy lý do tay.
-function findReconciliationReason(date,branch,bank){
+// Chuẩn hóa các cách viết TPBank/TP Bank và Vietin/Viettin để dữ liệu cũ vẫn ghép được.
+function thtcReasonBankKey(value){
+  const n=String(value||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/[^a-z0-9]/g,'');
+  if(n.includes('viet'))return 'vietin';
+  if(n.includes('tpbank')&&n.includes('khotong')&&n.includes('mart1'))return 'tpkho1';
+  if(n.includes('tpbank')&&n.includes('khotong')&&n.includes('mart2'))return 'tpkho2';
+  if(n.includes('tpbank'))return 'tpbank';
+  return n;
+}
+function findReconciliationReason(date,branch,bank,expectedDiff=null){
   if(thtcNorm(branch)==='rigel')return null;
-  return CHENHLECH.find(r=>r.d===date&&thtcBranchMatch(r.b,branch)&&r.bank===bank)||null;
+  const targetDate=thtcISODate(date),targetBank=thtcReasonBankKey(bank);
+  const matches=CHENHLECH.filter(r=>thtcISODate(r.d)===targetDate&&thtcBranchMatch(r.b,branch)&&thtcReasonBankKey(r.bank)===targetBank);
+  if(!matches.length)return null;
+  const diff=Math.abs(Number(expectedDiff)||0);
+  if(diff){
+    const byMoney=matches.filter(r=>Math.abs(Math.abs(Number(r.amt)||0)-diff)<1);
+    if(byMoney.length)return byMoney.sort((a,b)=>String(b.savedAt||'').localeCompare(String(a.savedAt||'')))[0];
+  }
+  return matches.sort((a,b)=>String(b.savedAt||'').localeCompare(String(a.savedAt||'')))[0];
 }
 function thtcManualReasonItem(date,reason){
   const note=String(reason&&reason.note||'').trim()||'(chưa nhập lý do)';
-  return `<b>Lý do đã nhập ngày ${thtcDateLabel(date)}:</b> ${fmt(reason.amt)} — ${thtcEsc(note)}`;
+  return `<b>Lý do từ sheet Chênh lệch — ngày ${thtcDateLabel(date)}:</b> ${fmt(reason.amt)} — ${thtcEsc(note)}`;
 }
 function thtcReconKey(branch,date){ return branch+'|'+date; }
 function thtcDailyAdd(obj,branch,date,amount){
@@ -4627,7 +4675,7 @@ function thtcReconInfo(kind,branch,from,to,recon,allBranches){
   const manualBank=kind==='tck'?'Viettinbank':'TP Bank';
   mainDates.forEach(d=>{
     if(ccAt(d)===bankAt(d))return;
-    const reason=findReconciliationReason(d,branch,manualBank);
+    const reason=findReconciliationReason(d,branch,manualBank,bankAt(d)-ccAt(d));
     if(reason){items.push(thtcManualReasonItem(d,reason));used.add(d);}
   });
 
@@ -4996,6 +5044,26 @@ async function saveTHTCCategory(){
   if(!ok)return;
   refreshTHTCCategoryUI();renderTongHopThuChiLayout();toast('✓ Đã lưu phân loại phiếu — áp dụng cho mọi máy');
 }
+function exportTHTCCategoryFile(){
+  if(typeof XLSX==='undefined'){toast('Không tải được thư viện xuất Excel');return;}
+  const items=new Map();
+  THTC_DETAIL_NAMES.forEach(name=>items.set(thtcLayoutKey(name),{name,row:{loaiThuChi:name},count:0}));
+  B2.forEach(r=>{
+    const name=String(r.loaiThuChi||'').trim();if(!name)return;
+    const key=thtcLayoutKey(name),item=items.get(key)||{name,row:r,count:0};item.row=r;item.count++;items.set(key,item);
+  });
+  const rows=[['TÊN LOẠI PHIẾU B2','PHÂN LOẠI','SỐ DÒNG B2','NGUỒN DANH MỤC']];
+  [...items.entries()].map(([key,x])=>{
+    const category=thtcCategoryFor(x.row);
+    const source=thtcNormalizeCategory(THTC_CATEGORIES[key])?'SQL — đã chỉnh tay'
+      :(thtcNormalizeCategory(x.row&&x.row.category)?'Cột phân loại trong file B2'
+      :(THTC_DEFAULT_HANG.has(key)||THTC_DEFAULT_KHAC.has(key)||THTC_DEFAULT_ZERO.has(key)?'B0.Danh mục':'Chưa phân loại'));
+    return [x.name,category||'CHƯA PHÂN LOẠI',x.count,source];
+  }).sort((a,b)=>a[0].localeCompare(b[0],'vi')).forEach(r=>rows.push(r));
+  const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:72},{wch:22},{wch:14},{wch:30}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Danh mục phiếu B2');
+  XLSX.writeFile(wb,'Danh-muc-phieu-B2-'+todayISO()+'.xlsx');
+}
 
 function thtcManualKey(date,branch){return String(date||'')+'|'+String(branch||'');}
 function loadTHTCManualForm(){
@@ -5039,6 +5107,11 @@ function initTHTCExtraInputs(){
   document.getElementById('thtc-manual-delete').addEventListener('click',deleteTHTCManual);
   document.getElementById('thtc-category-type').addEventListener('change',loadTHTCCategoryChoice);
   document.getElementById('thtc-category-save').addEventListener('click',saveTHTCCategory);
+  document.getElementById('thtc-category-export').addEventListener('click',exportTHTCCategoryFile);
+  document.getElementById('thtc-category-open').addEventListener('click',()=>{
+    const box=document.getElementById('thtc-category-box');box.open=true;
+    box.scrollIntoView({behavior:'smooth',block:'center'});
+  });
   loadTHTCManualForm();refreshTHTCCategoryUI();
 }
 function initTongHopThuChiLayout(){
@@ -5087,7 +5160,11 @@ function renderTongHopThuChiLayout(){
   html+=`<tr class="thtc-detail-title"><td></td><td>CHI TIẾT THU CHI THEO MỤC THU CHI</td>${branches.map(()=>'<td></td>').join('')}<td></td></tr>`;
   html+=`<tr class="thtc-subhead"><td>MÃ</td><td>Phân loại mục thu / chi</td>${branches.map(b=>`<td style="text-align:center">${b}</td>`).join('')}<td style="text-align:center">CỘNG</td></tr>`;
   const seen=new Set(),detailNames=[];
-  [...THTC_DETAIL_NAMES,...(sourceData.__detailNames||[])].forEach(name=>{const k=thtcLayoutKey(name);if(k&&!seen.has(k)){seen.add(k);detailNames.push(name);}});
+  [...THTC_DETAIL_NAMES,...(sourceData.__detailNames||[])].forEach(name=>{
+    const k=thtcLayoutKey(name),detail=sourceData.__details&&sourceData.__details[k];
+    // Chỉ hiện mục có ít nhất một phiếu phát sinh trong các địa điểm đang xem.
+    if(k&&!seen.has(k)&&detail&&detail.count>0){seen.add(k);detailNames.push(name);}
+  });
   detailNames.forEach((name,i)=>{
     const detail=sourceData.__details&&sourceData.__details[thtcLayoutKey(name)],vals=detail&&detail.vals||{};
     const key='detail_'+(i+1)+'_'+thtcLayoutKey(name),unknown=detail&&!detail.category;
@@ -5095,6 +5172,7 @@ function renderTongHopThuChiLayout(){
     const total=branches.reduce((s,b)=>s+(Number(vals[b])||0),0);
     html+=`<tr class="thtc-detail-row" data-layout-row="${key}"><td></td><td title="${thtcEsc(name)}">${thtcEsc(name)}${unknown?' <span class="thtc-count" style="color:var(--bad)">Chưa phân loại</span>':''}</td>${cells}<td class="${total<0?'thtc-value cell-bad':'thtc-value'}" data-row="${key}" data-branch="cong">${total?fmt(total):'–'}</td></tr>`;
   });
+  if(!detailNames.length)html+=`<tr><td></td><td class="thtc-empty" colspan="${branches.length+2}">Không có mục thu/chi phát sinh trong kỳ đang xem</td></tr>`;
   html+='</tbody>';
   document.getElementById('thtc-table').innerHTML=html;
   const warnings=[];
@@ -5120,7 +5198,10 @@ function exportTongHopThuChiLayout(){
   rows.push(['','CHI TIẾT THU CHI THEO MỤC THU CHI',...branches.map(()=>''),'']);
   rows.push(['MÃ','Phân loại mục thu / chi',...branches,'CỘNG']);
   const seen=new Set(),detailNames=[];
-  [...THTC_DETAIL_NAMES,...(sourceData.__detailNames||[])].forEach(name=>{const k=thtcLayoutKey(name);if(k&&!seen.has(k)){seen.add(k);detailNames.push(name);}});
+  [...THTC_DETAIL_NAMES,...(sourceData.__detailNames||[])].forEach(name=>{
+    const k=thtcLayoutKey(name),detail=sourceData.__details&&sourceData.__details[k];
+    if(k&&!seen.has(k)&&detail&&detail.count>0){seen.add(k);detailNames.push(name);}
+  });
   detailNames.forEach(name=>{
     const detail=sourceData.__details&&sourceData.__details[thtcLayoutKey(name)],vals=detail&&detail.vals||{};
     const branchVals=branches.map(b=>Number(vals[b])||0);
