@@ -517,7 +517,7 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
       <p class="sub">Import phiếu từ KiotViet (sheet SQ) — đối chiếu tự động với TP Bank Kho tổng theo nội dung chuyển khoản</p>
       <div class="card">
         <div class="drop" id="sq-drop">Kéo thả hoặc bấm để chọn file kết xuất Sổ quỹ KiotViet (.xlsx)<input type="file" id="sq-file" accept=".xlsx,.xls" style="display:none"></div>
-        <p class="note">Mã phiếu đã từng import sẽ không bị lấy/đếm lại lần sau (chống trùng theo Mã phiếu). Cột N "phát sinh ngân hàng" được suy ra bằng cách so khớp Người nộp/nhận &amp; Ghi chú với nội dung giao dịch ở sheet TP Bank Kho tổng. Số dương → Thu ngân hàng; số âm → đối chiếu với Chi ngân hàng theo tài khoản (Mart1/Mart2). Dòng "Loại sổ quỹ" = Tiền mặt được gom riêng sang Sổ quỹ tiền mặt (xem tab Quỹ két).</p>
+        <p class="note"><b>Tự động bỏ qua “Phiếu thu Tiền khách trả” và “Phiếu chi Tiền trả khách”</b> vì đây là dữ liệu bán hàng số lượng rất lớn, không dùng trong báo cáo thu chi nội bộ. Mã phiếu đã từng import sẽ không bị lấy/đếm lại lần sau (chống trùng theo Mã phiếu). Cột N "phát sinh ngân hàng" được suy ra bằng cách so khớp Người nộp/nhận &amp; Ghi chú với nội dung giao dịch ở sheet TP Bank Kho tổng. Số dương → Thu ngân hàng; số âm → đối chiếu với Chi ngân hàng theo tài khoản (Mart1/Mart2). Dòng "Loại sổ quỹ" = Tiền mặt được gom riêng sang Sổ quỹ tiền mặt (xem tab Quỹ két).</p>
         <div class="flexend"><span class="small" id="sq-count"></span><button class="ghost" id="sq-undo">↩ Xóa lần import cuối</button><button class="danger" id="sq-clear">Xoá toàn bộ dữ liệu B2</button></div>
       </div>
       <div class="card">
@@ -1183,15 +1183,28 @@ async function sqlV2WriteDataset(dataset,value,updatedAt=new Date().toISOString(
   const built=storageEntries(dataset,value);
   const old=_sqlV2Cache[dataset]||new Map();
   const current=new Map(built.entries.map(e=>[e.recordId,e.recordHash]));
+  // Chỉ gửi các dòng mới/thay đổi. Trước đây mỗi lần import lại gửi toàn bộ hàng nghìn
+  // dòng đã có, khiến thời gian lưu tăng dần dù file mới không lớn.
+  const changedEntries=built.entries.filter(e=>old.get(e.recordId)!==e.recordHash);
   const deleteIds=[];old.forEach((_,recordId)=>{if(!current.has(recordId))deleteIds.push(recordId);});
   const deleteAll=options.deleteAll===true&&current.size===0;
   if((deleteIds.length||deleteAll)&&CURRENT_USER&&CURRENT_USER.role!=='admin') throw new Error('Chỉ tài khoản quản trị mới được xóa dữ liệu.');
   let result,lastError;
   for(let attempt=1;attempt<=3;attempt++){
     try{
-      result=await apiRequest('/api/data/'+encodeURIComponent(dataset)+'/sync',{
-        method:'POST',body:JSON.stringify({value,deleteIds,deleteAll,updatedAt})
-      });
+      const url='/api/data/'+encodeURIComponent(dataset)+'/sync';
+      const body=deleteAll
+        ?{value,deleteIds,deleteAll,updatedAt}
+        :{entries:changedEntries,dataType:built.type,deleteIds,updatedAt,deltaVersion:1};
+      try{
+        result=await apiRequest(url,{method:'POST',body:JSON.stringify(body)});
+      }catch(error){
+        // Trong lúc người dùng chưa kịp cập nhật Worker mới, tự quay về cách cũ để
+        // không làm gián đoạn việc lưu. Sau khi Worker mới được cài, nhánh này không chạy.
+        if(!deleteAll&&error.status===400&&/Thiếu dữ liệu cần đồng bộ/i.test(error.message||'')){
+          result=await apiRequest(url,{method:'POST',body:JSON.stringify({value,deleteIds,deleteAll,updatedAt})});
+        }else throw error;
+      }
       break;
     }catch(error){
       lastError=error;
@@ -1232,7 +1245,7 @@ function startSqlProgress(dataset,value,options={}){
     ?'Vui lòng chờ SQL xác nhận hoàn tất. Không tắt trang hoặc bấm F5.'
     :(importedCount===null
       ?'Vui lòng chờ, không tắt trang hoặc bấm F5. Dữ liệu lớn có thể cần vài chục giây.'
-      :`Tổng dữ liệu sau cập nhật: ${totalCount.toLocaleString('vi-VN')} ${unit}. Vui lòng chờ, không tắt trang hoặc bấm F5.`);
+      :`Tổng dữ liệu sau cập nhật: ${totalCount.toLocaleString('vi-VN')} ${unit}. Chỉ phần mới/thay đổi được gửi; các dòng cũ không gửi lại.`);
   const time=document.getElementById('sql-progress-time'),started=Date.now();time.textContent='Đã chờ 0 giây';
   clearInterval(_sqlProgressTimer);_sqlProgressTimer=setInterval(()=>{time.textContent=`Đã chờ ${Math.floor((Date.now()-started)/1000)} giây · hệ thống vẫn đang xử lý`;},1000);
   overlay.classList.add('show');return id;
@@ -1928,14 +1941,33 @@ function getXlsxWorker(){
         }
       });
     }
+    function normalizeB2Type(v){
+      return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/\\s+/g,' ').trim();
+    }
+    function skipB2CustomerType(v){
+      const n=normalizeB2Type(v);return n.includes('phieu thu tien khach tra')||n.includes('phieu chi tien tra khach');
+    }
     onmessage = function(e){
       try{
         const wb = XLSX.read(e.data.buffer, {type:'array', cellDates:true});
         const ws = wb.Sheets[wb.SheetNames[0]];
         fixSheetRange(ws);
         unmergeFillSheet(ws);
-        const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
-        postMessage({ok:true, rows});
+        let rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+        let customerSkipped=0;
+        if(e.data.mode==='b2-internal'&&rows.length){
+          const header=rows[0]||[];
+          const typeCol=header.findIndex(v=>normalizeB2Type(v).includes('loai thu chi'));
+          if(typeCol>=0){
+            const kept=[header];
+            for(let i=1;i<rows.length;i++){
+              if(skipB2CustomerType(rows[i]&&rows[i][typeCol]))customerSkipped++;
+              else kept.push(rows[i]);
+            }
+            rows=kept;
+          }
+        }
+        postMessage({ok:true, rows, customerSkipped});
       }catch(err){
         postMessage({ok:false, error: err.message});
       }
@@ -1946,30 +1978,41 @@ function getXlsxWorker(){
   }catch(e){ _xlsxWorker = null; }
   return _xlsxWorker;
 }
-function readSheet(file){
+function filterB2RowsForImport(rows){
+  if(!rows||!rows.length)return {rows:rows||[],customerSkipped:0};
+  const header=rows[0]||[],typeCol=findCol(header,['loại thu chi','loai thu chi']);
+  if(typeCol<0)return {rows,customerSkipped:0};
+  const kept=[header];let customerSkipped=0;
+  for(let i=1;i<rows.length;i++){
+    if(shouldSkipB2CustomerReceipt(rows[i]&&rows[i][typeCol]))customerSkipped++;
+    else kept.push(rows[i]);
+  }
+  return {rows:kept,customerSkipped};
+}
+function readSheet(file,options={}){
   return new Promise((resolve,reject)=>{
     const worker = getXlsxWorker();
     if(!worker){
       // Trình duyệt không hỗ trợ Worker — quay lại cách đọc cũ (đồng bộ) để vẫn hoạt động được
-      readSheetSync(file).then(resolve).catch(reject);
+      readSheetSync(file).then(rows=>resolve(options.mode==='b2-internal'?filterB2RowsForImport(rows):rows)).catch(reject);
       return;
     }
     const onMsg = (e)=>{
       worker.removeEventListener('message', onMsg);
       worker.removeEventListener('error', onErr);
-      if(e.data.ok) resolve(e.data.rows);
+      if(e.data.ok) resolve(options.mode==='b2-internal'?{rows:e.data.rows,customerSkipped:e.data.customerSkipped||0}:e.data.rows);
       else reject(new Error(e.data.error||'Lỗi đọc file trong worker'));
     };
     const onErr = (err)=>{
       worker.removeEventListener('message', onMsg);
       worker.removeEventListener('error', onErr);
       // Worker lỗi (vd. mạng chặn CDN trong worker) — thử lại bằng cách đọc đồng bộ ở luồng chính
-      readSheetSync(file).then(resolve).catch(reject);
+      readSheetSync(file).then(rows=>resolve(options.mode==='b2-internal'?filterB2RowsForImport(rows):rows)).catch(reject);
     };
     worker.addEventListener('message', onMsg);
     worker.addEventListener('error', onErr);
     file.arrayBuffer().then(buffer=>{
-      worker.postMessage({buffer}, [buffer]);
+      worker.postMessage({buffer,mode:options.mode||''}, [buffer]);
     }).catch(reject);
   });
 }
@@ -2855,6 +2898,10 @@ function renderKTRaw(){
    PAGE 6 — B2 CT THU CHI (import SQ + match)
 =================================================================== */
 let B2 = []; // {maPhieu, time, branch, type, person, amount, note, loaiSoQuy, bankMatch, bankAccount}
+function shouldSkipB2CustomerReceipt(value){
+  const normalized=String(value||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/\s+/g,' ').trim();
+  return normalized.includes('phieu thu tien khach tra')||normalized.includes('phieu chi tien tra khach');
+}
 function initB2UI(){
   document.getElementById('sq-month').value = window._latestB2Month || todayISO().slice(0,7);
   refreshBranchFilter('sq-filter-branch',B2,BRANCHES);
@@ -2865,7 +2912,8 @@ async function handleSQFile(file){
   try{
     toast('⏳ Đang đọc file... (file lớn có thể mất khoảng vài chục giây)', 4000);
     await new Promise(r=>setTimeout(r,30)); // để trình duyệt kịp vẽ thông báo trên trước khi xử lý nặng
-    const rows = await readSheet(file);
+    const readResult = await readSheet(file,{mode:'b2-internal'});
+    const rows = readResult.rows;
     if(!rows || rows.length<2){ toast('File rỗng hoặc không đúng định dạng Sổ quỹ KiotViet'); return; }
     const header = rows[0];
     const cIdx = {
@@ -2888,7 +2936,7 @@ async function handleSQFile(file){
     const data = rows.slice(1);
     const existIds = new Set(B2.map(r=>r.maPhieu));
     const newRows=[];
-    let added=0, skipped=0;
+    let added=0, skipped=0, customerSkipped=readResult.customerSkipped||0;
     // Xử lý theo từng lô (chunk) + nhường lại luồng chính định kỳ, để trình duyệt không bị "đơ"
     // (Trang không phản hồi) khi file có hàng chục nghìn dòng trở lên.
     const CHUNK = 3000;
@@ -2897,6 +2945,10 @@ async function handleSQFile(file){
         if(!row || row.every(c=>c===null)) return;
         const maPhieu = row[cIdx.maPhieu]; if(!maPhieu) return;
         if(existIds.has(maPhieu)) return; // không nhập lại phiếu đã có
+        const loaiThuChi = cIdx.loaiThuChi>-1 ? row[cIdx.loaiThuChi] : '';
+        // Hai loại này chiếm gần như toàn bộ file Sổ quỹ lớn nhưng không dùng cho báo cáo
+        // thu chi nội bộ, nên bỏ ngay trước khi tạo dữ liệu và gửi lên SQL.
+        if(shouldSkipB2CustomerReceipt(loaiThuChi)){customerSkipped++;return;}
         const amount = parseVNMoney(row[cIdx.amount]);
         if(isNaN(amount)){ skipped++; return; }
         const time = cIdx.time>-1 ? row[cIdx.time] : null;
@@ -2905,7 +2957,7 @@ async function handleSQFile(file){
           maPhieu,
           time: time ? (excelDateToISO(time)||String(time)) : '',
           branch: cIdx.branch>-1 ? row[cIdx.branch] : '',
-          loaiThuChi: cIdx.loaiThuChi>-1 ? row[cIdx.loaiThuChi] : '',
+          loaiThuChi,
           person: cIdx.person>-1 ? row[cIdx.person] : '',
           soTK: cIdx.soTK>-1 ? String(row[cIdx.soTK]||'') : '',
           noiDungCK: cIdx.noiDungCK>-1 ? row[cIdx.noiDungCK] : '',
@@ -2918,7 +2970,7 @@ async function handleSQFile(file){
         added++;
       });
       if(data.length>CHUNK){
-        toast(`⏳ Đang xử lý... ${Math.min(i+CHUNK,data.length)}/${data.length} dòng (${added} phiếu mới)`, 2500);
+        toast(`⏳ Đang xử lý... ${Math.min(i+CHUNK,data.length)}/${data.length} dòng · giữ ${added} phiếu nội bộ · bỏ ${customerSkipped} phiếu khách trả`, 2500);
         await new Promise(r=>setTimeout(r,0)); // nhường luồng chính cho trình duyệt vẽ lại giao diện
       }
     }
@@ -2928,7 +2980,7 @@ async function handleSQFile(file){
     if(!ok){toast(`⚠ Chưa lưu được ${added} phiếu B2. ${window._lastSaveError||'Hãy thử nhập lại file.'}`,6500);renderSQCount();renderSQTable();return;}
     B2=nextB2;
     window._b2LastImportIds = new Set(newRows.map(r=>r.maPhieu));
-    toast(`✓ Đã import ${added} phiếu mới từ KiotViet${skipped?', bỏ qua '+skipped+' dòng':''} — bấm "↩ Xóa lần import cuối" nếu muốn hoàn tác`);
+    toast(`✓ Đã import ${added} phiếu nội bộ${customerSkipped?' · bỏ '+customerSkipped+' phiếu khách trả':''}${skipped?' · '+skipped+' dòng lỗi':''} — bấm "↩ Xóa lần import cuối" nếu muốn hoàn tác`,5000);
     renderSQCount(); renderSQTable();
   }catch(err){ toast('Lỗi đọc file: '+err.message); console.error(err); }
 }
@@ -3812,16 +3864,14 @@ function _renderDoiChieuTongInner(from, to){
       if(tpMis||vtMis) dayMismatch=true;
       if(onlyMismatch && !(tpMis||vtMis)) return;
 
-      // Trừ chi nhánh RIGEL ra: nếu có chênh lệch, dò trong sheet "Chênh lệch" xem có
-      // dòng nào khớp Ngày + Chi nhánh + Ngân hàng không — nếu có, hiển thị ghi chú lý do đã nhập.
-      const isRigel = it.b === 'RIGEL';
+      // Dùng chung đúng nguồn lý do với Tổng hợp thu chi: Ngày + Chi nhánh + Ngân hàng.
       let tpNote = '', vtNote = '';
-      if(tpMis && !isRigel){
-        const m = CHENHLECH.find(r=>r.d===d && r.b===it.b && r.bank==='TP Bank');
+      if(tpMis){
+        const m = findReconciliationReason(d,it.b,'TP Bank');
         if(m) tpNote = `<div class="cl-note">📝 ${fmt(m.amt)} — ${m.note?m.note:'(chưa nhập lý do)'}</div>`;
       }
-      if(vtMis && !isRigel){
-        const m = CHENHLECH.find(r=>r.d===d && r.b===it.b && r.bank==='Viettinbank');
+      if(vtMis){
+        const m = findReconciliationReason(d,it.b,'Viettinbank');
         if(m) vtNote = `<div class="cl-note">📝 ${fmt(m.amt)} — ${m.note?m.note:'(chưa nhập lý do)'}</div>`;
       }
 
@@ -4459,6 +4509,16 @@ function thtcDayDistance(a,b){
 function thtcEsc(s){
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+// Nguồn lý do dùng chung cho Báo cáo chốt ca và Tổng hợp thu chi.
+// Giữ đúng quy tắc hiện có: khớp Ngày + Chi nhánh + Ngân hàng; riêng RIGEL không lấy lý do tay.
+function findReconciliationReason(date,branch,bank){
+  if(thtcNorm(branch)==='rigel')return null;
+  return CHENHLECH.find(r=>r.d===date&&thtcBranchMatch(r.b,branch)&&r.bank===bank)||null;
+}
+function thtcManualReasonItem(date,reason){
+  const note=String(reason&&reason.note||'').trim()||'(chưa nhập lý do)';
+  return `<b>Lý do đã nhập ngày ${thtcDateLabel(date)}:</b> ${fmt(reason.amt)} — ${thtcEsc(note)}`;
+}
 function thtcReconKey(branch,date){ return branch+'|'+date; }
 function thtcDailyAdd(obj,branch,date,amount){
   if(!branch||!date) return;
@@ -4500,6 +4560,15 @@ function thtcReconInfo(kind,branch,from,to,recon,allBranches){
   const used=new Set(), items=[];
   let matchedCount=0, matchedAmount=0;
   mainDates.forEach(d=>{ const cc=ccAt(d), bank=bankAt(d); if(cc===bank&&cc){matchedCount++;matchedAmount+=cc;} });
+
+  // Nếu người dùng đã nhập lý do ở mục Chênh lệch, đây là lý do chính thức và được
+  // ưu tiên thay cho phần hệ thống tự suy đoán ở đúng ngày đó.
+  const manualBank=kind==='tck'?'Viettinbank':'TP Bank';
+  mainDates.forEach(d=>{
+    if(ccAt(d)===bankAt(d))return;
+    const reason=findReconciliationReason(d,branch,manualBank);
+    if(reason){items.push(thtcManualReasonItem(d,reason));used.add(d);}
+  });
 
   // Ghép các khoản bằng nhau nhưng bị ghi sang ngày khác (tối đa 3 ngày) trước,
   // để không báo thành hai lỗi "thiếu ở ngày này / dư ở ngày kia".
