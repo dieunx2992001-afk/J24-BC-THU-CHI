@@ -1054,7 +1054,7 @@ async function apiRequest(path,options={},withAuth=true){
   try{response=await fetch(API_BASE+path,{...fetchOptions,headers});}
   catch(e){
     const timedOut=!!(controller&&controller.signal.aborted);
-    const err=new Error(timedOut?'Máy chủ phản hồi quá lâu. Hệ thống sẽ thử lại.':'Không kết nối được máy chủ. Hãy kiểm tra Internet.');
+    const err=new Error(timedOut?'Máy chủ phản hồi quá lâu. Hệ thống sẽ thử lại.':'Không nhận được phản hồi từ máy chủ. Mạng có thể chập chờn hoặc Worker đang quá tải.');
     err.status=0;err.timedOut=timedOut;throw err;
   }finally{if(timer)clearTimeout(timer);}
   let data={};try{data=await response.json();}catch(e){}
@@ -1201,6 +1201,7 @@ const _sqlV2Cache={};
 // Mỗi yêu cầu chỉ gửi tối đa 100 bản ghi. Turso/Cloudflare ổn định hơn nhiều so với
 // một pipeline 400-1.000 lệnh; lô đã lưu có thể được gửi lại an toàn vì SQL dùng UPSERT.
 const SQL_SYNC_BATCH_SIZE=100;
+const SQL_SYNC_MIN_BATCH_SIZE=20;
 function storageHash(text){
   const s=String(text||'');let h1=2166136261,h2=(2166136261^s.length)>>>0;
   for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);h1=Math.imul(h1^c,16777619);h2=Math.imul(h2^(c+i),2246822519);}
@@ -1249,17 +1250,17 @@ async function sqlV2WriteDataset(dataset,value,updatedAt=new Date().toISOString(
     :(changedEntries.length
       ?Array.from({length:Math.ceil(changedEntries.length/SQL_SYNC_BATCH_SIZE)},(_,i)=>changedEntries.slice(i*SQL_SYNC_BATCH_SIZE,(i+1)*SQL_SYNC_BATCH_SIZE))
       :[[]]);
-  let result,lastError,legacyFallback=false;
-  for(let batchIndex=0;batchIndex<batches.length;batchIndex++){
+  let result,lastError,legacyFallback=false,batchIndex=0,savedCount=0;
+  while(batchIndex<batches.length){
     const batch=batches[batchIndex],isLast=batchIndex===batches.length-1;
-    const sentBefore=deleteAll?0:Math.min(batchIndex*SQL_SYNC_BATCH_SIZE,changedEntries.length);
-    const sentAfter=deleteAll?0:Math.min(sentBefore+(batch?batch.length:0),changedEntries.length);
+    const sentAfter=deleteAll?0:Math.min(savedCount+(batch?batch.length:0),changedEntries.length);
     const sub=document.getElementById('sql-progress-sub');
     if(sub&&!deleteAll){
       sub.textContent=changedEntries.length
         ?`Đang gửi lô ${batchIndex+1}/${batches.length}: ${sentAfter.toLocaleString('vi-VN')}/${changedEntries.length.toLocaleString('vi-VN')} dòng mới hoặc thay đổi. Không tắt trang.`
         :'Đang xác nhận dữ liệu với SQL. Không tắt trang.';
     }
+    let splitCurrent=false,batchSaved=false;
     for(let attempt=1;attempt<=3;attempt++){
       try{
         const body=deleteAll
@@ -1275,10 +1276,21 @@ async function sqlV2WriteDataset(dataset,value,updatedAt=new Date().toISOString(
             legacyFallback=true;
           }else throw error;
         }
+        batchSaved=true;
         break;
       }catch(error){
         lastError=error;
         const retryable=error.status===0||error.status===429||error.status>=500;
+        // Nếu Cloudflare/Turso ngắt một lô lớn, tự chẻ đôi ngay. UPSERT bảo đảm
+        // trường hợp yêu cầu cũ thực ra đã tới SQL cũng không tạo dòng trùng.
+        if(retryable&&!deleteAll&&batch.length>SQL_SYNC_MIN_BATCH_SIZE&&navigator.onLine!==false){
+          const middle=Math.ceil(batch.length/2);
+          batches.splice(batchIndex,1,batch.slice(0,middle),batch.slice(middle));
+          splitCurrent=true;
+          if(sub)sub.textContent=`Lô ${batch.length} dòng bị gián đoạn — đang tự chia thành ${middle} và ${batch.length-middle} dòng để tiếp tục. Các lô đã lưu được giữ nguyên.`;
+          await new Promise(resolve=>setTimeout(resolve,500));
+          break;
+        }
         if(!retryable||attempt===3)throw error;
         if(sub){
           const cause=error.status?`máy chủ báo lỗi ${error.status}`:(error.timedOut?'máy chủ phản hồi quá lâu':'mất kết nối');
@@ -1287,7 +1299,11 @@ async function sqlV2WriteDataset(dataset,value,updatedAt=new Date().toISOString(
         await new Promise(resolve=>setTimeout(resolve,attempt*1200));
       }
     }
+    if(splitCurrent)continue;
     if(legacyFallback)break;
+    if(!batchSaved)throw lastError||new Error('Không lưu được lô dữ liệu lên SQL.');
+    savedCount+=batch?batch.length:0;
+    batchIndex++;
   }
   if(!result)throw lastError||new Error('Không lưu được dữ liệu lên SQL.');
   _sqlV2Cache[dataset]=current;
