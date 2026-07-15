@@ -237,6 +237,14 @@ tr:hover td{background:var(--surface2);}
 .thtc-tip-branch{margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.16);font-weight:800;color:#ffd69f;}
 .thtc-float-scroll{display:none;position:fixed;bottom:6px;z-index:600;height:22px;overflow-x:auto;overflow-y:hidden;background:#fffdfa;border:1px solid #cdbfae;border-radius:6px;box-shadow:0 4px 14px rgba(55,42,28,.22);scrollbar-gutter:stable;}
 .thtc-float-scroll-inner{height:1px;pointer-events:none;}
+.thtc-manual{background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;overflow:hidden;}
+.thtc-manual summary{cursor:pointer;padding:12px 16px;font-size:12.5px;font-weight:800;color:var(--title);background:var(--surface2);user-select:none;}
+.thtc-manual-body{padding:14px 16px;}
+.thtc-manual-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:10px;margin-top:12px;}
+.thtc-manual-grid input,.thtc-manual-grid select{width:100%;min-width:0;}
+.thtc-manual-status{margin-top:10px;padding:9px 11px;border-radius:6px;background:var(--title-soft);font-size:11.5px;color:var(--title);line-height:1.5;}
+.thtc-auto-note{display:inline-block;margin-left:5px;padding:1px 5px;border-radius:10px;background:var(--good-soft);color:var(--good);font-size:8.5px;font-weight:800;vertical-align:1px;}
+.thtc-manual-note{display:inline-block;margin-left:5px;padding:1px 5px;border-radius:10px;background:#fff3cd;color:#8a6200;font-size:8.5px;font-weight:800;vertical-align:1px;}
 .auth-screen{position:fixed;inset:0;z-index:20000;background:linear-gradient(145deg,#f6f2ea,#e9dfd0);display:flex;align-items:center;justify-content:center;padding:18px;}
 .auth-screen.hidden{display:none;}
 .auth-card{width:min(420px,100%);background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;box-shadow:0 18px 55px rgba(70,50,30,.18);}
@@ -730,7 +738,40 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
           <div><button class="ghost" id="thtc-export">⬇ Xuất Excel</button></div>
         </div>
       </div>
-      <div class="thtc-design-note" style="margin-bottom:10px">Đã nối dữ liệu nhóm A: VND, Thu chuyển khoản và Thu cà thẻ từ Chốt ca Hiền; Thực thu chuyển khoản từ VietinBank; Thực thu cà thẻ từ TPBank. Rê chuột vào ô chênh lệch để xem ngày, số tiền, chi nhánh và lý do lệch.</div>
+      <div class="thtc-design-note" style="margin-bottom:10px">Các nhóm A–D và F được tổng hợp tự động từ Chốt ca, B2, VietinBank, TPBank và TPBank Kho tổng. Các khoản cuối tháng ở nhóm E được nhập bổ sung bên dưới và lưu SQL. Rê chuột vào ô chênh lệch để xem ngày, số tiền, chi nhánh và lý do lệch.</div>
+      <details class="thtc-manual" id="thtc-manual-box">
+        <summary>✍ Dữ liệu bổ sung cuối tháng (chỉ nhập các khoản không có trong file import)</summary>
+        <div class="thtc-manual-body">
+          <p class="note" style="margin-top:0">Chọn đúng ngày và chi nhánh. Các khoản chi nhập số dương, hệ thống sẽ tự trừ khi đưa vào bảng. Nếu đã nhập ngày/chi nhánh này, bấm Lưu sẽ cập nhật lại.</p>
+          <div class="row">
+            <div><label>Ngày hạch toán</label><input type="date" id="thtc-manual-date"></div>
+            <div><label>Chi nhánh</label><select id="thtc-manual-branch"></select></div>
+          </div>
+          <div class="thtc-manual-grid">
+            <div><label>Chuyển hàng đi</label><input type="text" inputmode="numeric" class="vn-money-input" id="thtc-m-transfer-out" placeholder="0"></div>
+            <div><label>Nhận hàng về</label><input type="text" inputmode="numeric" class="vn-money-input" id="thtc-m-transfer-in" placeholder="0"></div>
+            <div><label>Chi công nợ NCC</label><input type="text" inputmode="numeric" class="vn-money-input" id="thtc-m-debt" placeholder="0"></div>
+            <div><label>Chi tiền lương cuối tháng</label><input type="text" inputmode="numeric" class="vn-money-input" id="thtc-m-salary" placeholder="0"></div>
+            <div><label>Chi cuối tháng chưa hạch toán khác</label><input type="text" inputmode="numeric" class="vn-money-input" id="thtc-m-other" placeholder="0"></div>
+            <div><label>Tiền rút quyết toán</label><input type="text" inputmode="numeric" class="vn-money-input" id="thtc-m-withdraw" placeholder="0"></div>
+          </div>
+          <div style="margin-top:10px"><label>Ghi chú</label><input type="text" id="thtc-m-note" style="width:100%" placeholder="Ví dụ: quyết toán cuối tháng 6"></div>
+          <div class="flexend"><button class="danger" id="thtc-manual-delete">Xóa dữ liệu ngày/chi nhánh này</button><button class="save" id="thtc-manual-save">💾 Lưu dữ liệu bổ sung</button></div>
+          <div id="thtc-manual-status" class="thtc-manual-status">Chưa chọn ngày và chi nhánh.</div>
+        </div>
+      </details>
+      <details class="thtc-manual" id="thtc-category-box">
+        <summary>🗂 Danh mục phiếu: phân loại Hàng / Khác / Điều chuyển</summary>
+        <div class="thtc-manual-body">
+          <p class="note" style="margin-top:0">Danh mục Hàng/Khác/0 trong sheet B0 đã được cài sẵn. Khi import B2 có loại phiếu mới, phiếu vẫn được nhận và đưa lên bảng; chỉ cần chọn phân loại một lần. Lựa chọn được lưu SQL và dùng cho mọi máy.</p>
+          <div class="row">
+            <div style="flex:1;min-width:300px"><label>Tên loại phiếu B2</label><select id="thtc-category-type" style="width:100%"></select></div>
+            <div><label>Phân loại khoản mục</label><select id="thtc-category-value"><option value="Hàng">Hàng</option><option value="Khác">Khác</option><option value="0">Điều chuyển / không quyết toán (0)</option></select></div>
+            <div><button class="save" id="thtc-category-save">Lưu phân loại</button></div>
+          </div>
+          <div id="thtc-category-status" class="thtc-manual-status">Danh mục sẽ hiển thị sau khi dữ liệu B2 được tải.</div>
+        </div>
+      </details>
       <div class="card">
         <div id="thtc-caption" class="small" style="margin-bottom:10px"></div>
         <div id="thtc-scroll" class="scroll" style="max-height:690px;overflow:auto;border:1px solid var(--border)"><table id="thtc-table" class="thtc-table"></table></div>
@@ -1067,11 +1108,12 @@ function applyRolePermissions(){
     'kt-undo','kt-clear','kt-undo-range','kt-clear-range',
     'sq-undo','sq-clear','sq-undo-range','sq-clear-range',
     'cak-undo','cak-clear','cak-undo-range','cak-clear-range',
+    'thtc-manual-delete',
     'btn-recover-legacy','btn-migrate-turso','restore-drop','restore-confirm'
   ];
   const writeControls=[
     'cc-import-drop','cc-save','cl-add','tp-drop','tp-stage-save','vt-drop','vt-stage-save',
-    'kt-drop','kt-stage-save','sq-drop','cak-drop'
+    'kt-drop','kt-stage-save','sq-drop','cak-drop','thtc-manual-save','thtc-category-save'
   ];
   adminOnly.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=role==='admin'?'':'none';});
   writeControls.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=role==='viewer'?'none':'';});
@@ -1406,7 +1448,7 @@ function refreshPageData(pageId){
     case 'p11': run('Nhật ký',renderLog);break;
     case 'p12': run('Báo cáo chốt ca',()=>{renderTH();return renderDoiChieuTong();});break;
     case 'p15': run('Ngân hàng Kiot',()=>{renderCAKCount();renderCAKTable();});break;
-    case 'p16': run('Tổng hợp thu chi',()=>{renderTongHopThuChiLayout();if(window._updateTHTCFloatScroll)setTimeout(window._updateTHTCFloatScroll,80);});break;
+    case 'p16': run('Tổng hợp thu chi',()=>{refreshTHTCCategoryUI();loadTHTCManualForm();renderTongHopThuChiLayout();if(window._updateTHTCFloatScroll)setTimeout(window._updateTHTCFloatScroll,80);});break;
   }
 }
 document.querySelectorAll('.nav-item').forEach(b=>{
@@ -2487,8 +2529,10 @@ async function handleVTFile(file){
     // Lấy danh sách thời gian (phút) của từng dòng hợp lệ theo thứ tự file
     const validRows = [];
     data.forEach(row=>{
-      const content = row[cIdx.content], amount = parseVNMoney(row[cIdx.amount]);
-      if(content==null || isNaN(amount)) return;
+      // Vietin ghi tiền lãi bằng một dòng Có nhưng để trống Nội dung. Vì vậy
+      // không được loại dòng chỉ vì ô Nội dung rỗng.
+      const content = row[cIdx.content]==null ? '' : row[cIdx.content], amount = parseVNMoney(row[cIdx.amount]);
+      if(isNaN(amount)) return;
       const dRaw = String(row[cIdx.date]||'');
       const fullM = dRaw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2})/);
       // Một số giao dịch (thường là chuyển khoản qua QR) có ghi rõ "thoi gian GD:dd/mm/yyyy hh:mm:ss"
@@ -2496,7 +2540,7 @@ async function handleVTFile(file){
       // ghi sổ/xử lý, có thể trễ hơn và thậm chí sang NGÀY HÔM SAU — nên phải ưu tiên lấy ngày này khi có,
       // thay vì chỉ dựa vào cột "Ngày" + đoán ranh giới nửa đêm như trước.
       const embedM = String(content||'').match(/thoi gian GD\s*:\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2})/i);
-      validRows.push({row, dRaw, fullM, embedM, timeMin: fullM? parseInt(fullM[4])*60+parseInt(fullM[5]) : null});
+      validRows.push({row, content, dRaw, fullM, embedM, timeMin: fullM? parseInt(fullM[4])*60+parseInt(fullM[5]) : null});
     });
 
     // Pass 1: tìm ranh giới nửa đêm — khi thời gian nhảy từ NHỎ sang LỚN (vd 00:xx → 23:xx)
@@ -2522,8 +2566,8 @@ async function handleVTFile(file){
 
     // Pass 2: gán ngày đúng cho từng dòng
     validRows.forEach((vr, idx)=>{
-      const {row, dRaw, fullM, embedM} = vr;
-      const content = row[cIdx.content], amount = parseVNMoney(row[cIdx.amount]);
+      const {row, content, dRaw, fullM, embedM} = vr;
+      const amount = parseVNMoney(row[cIdx.amount]);
       const balance = parseVNMoney(row[cIdx.balance]);
       const ref = extractStableRef(content);
       // Khoá MỚI: dùng mã giao dịch ổn định (nếu có) — không phụ thuộc câu chữ nội dung có đổi hay không.
@@ -2550,7 +2594,7 @@ async function handleVTFile(file){
       } else if(row[cIdx.date] instanceof Date){
         day = roundToUTCDate(row[cIdx.date]).getUTCDate(); month = roundToUTCDate(row[cIdx.date]).getUTCMonth()+1;
       }
-      VT_STAGE.push({k, content, amount, balance, account: accStr, branch, day, month, dateRaw: dRawFinal});
+      VT_STAGE.push({k, content:String(content||''), amount, balance, account: accStr, branch, day, month, dateRaw: dRawFinal});
       candidate++;
     });
     const banner = document.getElementById('vt-stage-banner');
@@ -2927,7 +2971,11 @@ async function handleSQFile(file){
       amount: findCol(header,['giá trị','gia tri']),
       noiDungCK: findCol(header,['nội dung chuyển khoản','noi dung chuyen khoan']),
       ghiChu: findCol(header,['ghi chú','ghi chu']),
-      loaiSoQuy: findCol(header,['loại sổ quỹ','loai so quy'])
+      loaiSoQuy: findCol(header,['loại sổ quỹ','loai so quy']),
+      phanLoaiThuChi: findCol(header,['phân loại thu chi','phan loai thu chi']),
+      phanLoaiKhoanMuc: findCol(header,['phân loại khoản mục','phan loai khoan muc']),
+      mart1: findCol(header,['10003597861']),
+      mart2: findCol(header,['10003597792'])
     };
     if(cIdx.maPhieu<0 || cIdx.amount<0){
       toast('Không nhận diện được cột "Mã phiếu" hoặc "Giá trị" trong file. Kiểm tra lại tiêu đề cột (dòng 1).');
@@ -2953,6 +3001,7 @@ async function handleSQFile(file){
         if(isNaN(amount)){ skipped++; return; }
         const time = cIdx.time>-1 ? row[cIdx.time] : null;
         const loaiSoQuy = cIdx.loaiSoQuy>-1 ? row[cIdx.loaiSoQuy] : (cIdx.phuongThuc>-1 ? row[cIdx.phuongThuc] : '');
+        const boolCell=v=>v===true||v===1||['true','x','có','co','1'].includes(String(v||'').trim().toLowerCase());
         newRows.push({
           maPhieu,
           time: time ? (excelDateToISO(time)||String(time)) : '',
@@ -2964,6 +3013,10 @@ async function handleSQFile(file){
           note: cIdx.ghiChu>-1 ? row[cIdx.ghiChu] : '',
           amount,
           loaiSoQuy: loaiSoQuy||'',
+          flow: cIdx.phanLoaiThuChi>-1 ? String(row[cIdx.phanLoaiThuChi]||'') : (amount>=0?'Thu':'Chi'),
+          category: cIdx.phanLoaiKhoanMuc>-1 ? String(row[cIdx.phanLoaiKhoanMuc]||'') : '',
+          mart1: cIdx.mart1>-1 ? boolCell(row[cIdx.mart1]) : false,
+          mart2: cIdx.mart2>-1 ? boolCell(row[cIdx.mart2]) : false,
           bankMatch:'', bankAccount:''
         });
         existIds.add(maPhieu);
@@ -2982,6 +3035,7 @@ async function handleSQFile(file){
     window._b2LastImportIds = new Set(newRows.map(r=>r.maPhieu));
     toast(`✓ Đã import ${added} phiếu nội bộ${customerSkipped?' · bỏ '+customerSkipped+' phiếu khách trả':''}${skipped?' · '+skipped+' dòng lỗi':''} — bấm "↩ Xóa lần import cuối" nếu muốn hoàn tác`,5000);
     renderSQCount(); renderSQTable();
+    if(typeof refreshTHTCCategoryUI==='function')refreshTHTCCategoryUI();
   }catch(err){ toast('Lỗi đọc file: '+err.message); console.error(err); }
 }
 function normContent(s){ return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
@@ -3030,13 +3084,13 @@ document.getElementById('sq-undo').addEventListener('click', async ()=>{
   const ok=await sset('b2:list',next);if(!ok){toast('⚠ Chưa xóa được lần import B2',6000);return;}
   B2=next;window._b2LastImportIds = new Set();
   toast('✓ Đã xóa lần import cuối');
-  renderSQCount(); renderSQTable();
+  renderSQCount(); renderSQTable();if(typeof refreshTHTCCategoryUI==='function')refreshTHTCCategoryUI();
 });
 document.getElementById('sq-clear').addEventListener('click', async ()=>{
   if(!confirm(`Xóa toàn bộ ${B2.length} phiếu B2 trên SQL? Chỉ tiếp tục khi bạn muốn xóa sạch dữ liệu này.`)) return;
   const ok=await sset('b2:list',[],{deleteAll:true});
   if(!ok){toast('⚠ Chưa xóa được B2 — dữ liệu cũ vẫn được giữ nguyên',6500);return;}
-  B2=[];window._b2LastImportIds=new Set();renderSQCount();renderSQTable();toast('✓ SQL đã xác nhận xóa toàn bộ B2');
+  B2=[];window._b2LastImportIds=new Set();renderSQCount();renderSQTable();if(typeof refreshTHTCCategoryUI==='function')refreshTHTCCategoryUI();toast('✓ SQL đã xác nhận xóa toàn bộ B2');
 });
 document.getElementById('sq-clear-range').addEventListener('click', async ()=>{
   const from = document.getElementById('sq-from').value, to = document.getElementById('sq-to').value;
@@ -4051,6 +4105,8 @@ function renderLog(){
     ['quyktet:list', []],
     ['cathe_kv:list', []],
     ['bk_overrides:map', {}],
+    ['thtc:manual', {}],
+    ['thtc:categories', {}],
   ];
 
   function applyData(vals){
@@ -4063,6 +4119,8 @@ function renderLog(){
     QK = vals[6] ?? [];
     CATHE_KV = vals[7] ?? [];
     BK_OVERRIDES = vals[8] ?? {};
+    THTC_MANUAL = vals[9] ?? {};
+    THTC_CATEGORIES = vals[10] ?? {};
   }
 
   function initAllUI(){
@@ -4335,6 +4393,8 @@ function renderCAKTable(){
    PAGE 16 — TỔNG HỢP THU CHI
 =================================================================== */
 let THTC_LAST = null;
+let THTC_MANUAL = {};      // key ngày|chi nhánh -> các khoản bổ sung cuối tháng
+let THTC_CATEGORIES = {};  // key tên phiếu đã chuẩn hóa -> Hàng | Khác | 0
 function initTongHopThuChi(){
   const month = document.getElementById('thtc-month');
   month.value = window._latestB2Month || todayISO().slice(0,7);
@@ -4448,44 +4508,45 @@ function exportTongHopThuChi(){
   XLSX.writeFile(wb,'Tong-hop-thu-chi-'+todayISO()+'.xlsx');
 }
 
-/* Bản khung chi tiết bám theo từng dòng của file B3.TH THU CHI.
-   Chưa gắn nguồn số liệu: mỗi ô có data-row/data-branch để nối dữ liệu ở bước sau. */
+/* Bảng chi tiết bám theo từng dòng của file B3.TH THU CHI.
+   Nguồn tự động: Chốt ca, B2, Vietin, TPBank, Kho tổng; nhóm cuối tháng nhập bổ sung và lưu SQL. */
 const THTC_LAYOUT_BRANCHES = [
   'CN1. Anh 05VL','CN2. J24 18THD','CN3. J24 92HB','CN4. J24 39VCN','CN5. J24 80CCXH','CN6. J24 81TND','CN7. J24 VEGA','CN8. J24 AB','CN9. J24 47CT4','KHO TỔNG','Rigel','Art','Grand'
 ];
 const THTC_LAYOUT_ROWS = [
   {code:'A',name:'THU TIỀN BÁN HÀNG',type:'group',source:'sales_total'},
-  {name:'VND',type:'main',source:'cc_vnd'},{name:'USD',type:'main'},{name:'TỆ',type:'main'},{name:'Thu chuyển khoản',type:'main',source:'cc_tck'},
+  {name:'VND',type:'main',source:'cc_vnd'},{name:'USD',type:'main',source:'cc_usd'},{name:'TỆ',type:'main',source:'cc_te'},{name:'Thu chuyển khoản',type:'main',source:'cc_tck'},
   {name:'Thực thu chuyển khoản',type:'compare',source:'vt_tck'},{name:'CL chuyển khoản',type:'compare',source:'diff_tck'},
-  {name:'MOMO',type:'main'},{name:'Thu cà thẻ',type:'main',source:'cc_cathe'},{name:'Thực thu cà thẻ',type:'compare',source:'tp_cathe'},{name:'CL cà thẻ',type:'compare',source:'diff_cathe'},
+  {name:'MOMO',type:'main',source:'cc_momo'},{name:'Thu cà thẻ',type:'main',source:'cc_cathe'},{name:'Thực thu cà thẻ',type:'compare',source:'tp_cathe'},{name:'CL cà thẻ',type:'compare',source:'diff_cathe'},
   {code:'B',name:'Thu chi tại két Phú',type:'group'},
-  {name:'Thu khác tiền mặt',type:'main'},{name:'Chi nhập hàng trong sổ quỹ tiền mặt',type:'main'},
-  {name:'Chi khác trong sổ quỹ tiền mặt',type:'main'},{name:'Chi nộp tiền vào TK',type:'main'},
-  {name:'Thu rút tài khoản nhập quỹ',type:'main'},{name:'Tồn quỹ két tiền mặt',type:'total'},
+  {name:'Thu khác tiền mặt',type:'main',source:'cash_other_income'},{name:'Chi nhập hàng trong sổ quỹ tiền mặt',type:'main',source:'cash_goods_expense'},
+  {name:'Chi khác trong sổ quỹ tiền mặt',type:'main',source:'cash_other_expense'},{name:'Chi nộp tiền vào TK',type:'main',source:'cash_deposit'},
+  {name:'Thu rút tài khoản nhập quỹ',type:'main',source:'cash_withdraw'},{name:'Tồn quỹ két tiền mặt',type:'total',source:'cash_balance'},
   {code:'C',name:'Thu chi qua TK ngân hàng TP bank',type:'group'},
   {code:'J24 MART 1',name:'',type:'subhead'},
-  {name:'Thu từ nộp tiền mặt vào tài khoản',type:'main'},{name:'Chuyển tiền sang tài khoản J24 Mart 1',type:'main'},
-  {name:'Thu khác qua tài khoản ngân hàng',type:'main'},{name:'Chi thanh toán tiền hàng qua tài khoản ngân hàng',type:'main'},
-  {name:'Chi khác qua tài khoản ngân hàng',type:'main'},{name:'Chi rút tiền tài khoản nhập quỹ',type:'main'},{name:'Còn lại',type:'total'},
+  {name:'Thu từ nộp tiền mặt vào tài khoản',type:'main',source:'m1_deposit'},{name:'Chuyển tiền sang tài khoản J24 Mart 1',type:'main',source:'m1_transfer'},
+  {name:'Thu khác qua tài khoản ngân hàng',type:'main',source:'m1_other_income'},{name:'Chi thanh toán tiền hàng qua tài khoản ngân hàng',type:'main',source:'m1_goods_expense'},
+  {name:'Chi khác qua tài khoản ngân hàng',type:'main',source:'m1_other_expense'},{name:'Chi rút tiền tài khoản nhập quỹ',type:'main',source:'m1_withdraw'},{name:'Còn lại',type:'total',source:'m1_remaining'},
   {code:'J24 MART 2',name:'',type:'subhead'},
-  {name:'Thu từ nộp tiền mặt vào tài khoản',type:'main'},{name:'Chuyển tiền sang tài khoản J24 Mart 2',type:'main'},
-  {name:'Thu khác qua tài khoản ngân hàng',type:'main'},{name:'Chi thanh toán tiền hàng qua tài khoản ngân hàng',type:'main'},
-  {name:'Chi khác qua tài khoản ngân hàng',type:'main'},{name:'Còn lại',type:'total'},
-  {name:'Tổng tồn quỹ tài khoản thu chi',type:'total'},
-  {name:'Phí ngân hàng',type:'subhead'},{name:'Phí chuyển khoản',type:'main'},{name:'Phí cà thẻ',type:'main'},
-  {code:'D',name:'CÒN LẠI QUYẾT TOÁN QUỸ',type:'group'},
-  {name:'Két tiền mặt'},{name:'TP bank J24 Mart 2 - TK thu chi'},{name:'TP bank J24 Mart 2 - TK thu chi'},
-  {name:'TP bank - TK cà thẻ'},{name:'Viettin bank chuyển khoản'},{name:'Tiền rút quyết toán'},{name:'Chênh lệch',type:'total'},
+  {name:'Thu từ nộp tiền mặt vào tài khoản',type:'main',source:'m2_deposit'},{name:'Chuyển tiền sang tài khoản J24 Mart 2',type:'main',source:'m2_transfer'},
+  {name:'Thu khác qua tài khoản ngân hàng',type:'main',source:'m2_other_income'},{name:'Chi thanh toán tiền hàng qua tài khoản ngân hàng',type:'main',source:'m2_goods_expense'},
+  {name:'Chi khác qua tài khoản ngân hàng',type:'main',source:'m2_other_expense'},{name:'Còn lại',type:'total',source:'m2_remaining'},
+  {name:'Tổng tồn quỹ tài khoản thu chi',type:'total',source:'bank_accounts_total'},
+  {name:'Phí ngân hàng',type:'subhead'},{name:'Tiền lãi ngân hàng',type:'main',source:'bank_interest'},{name:'Phí chuyển khoản',type:'main',source:'transfer_fee'},{name:'Phí cà thẻ',type:'main',source:'card_fee'},
+  {code:'D',name:'CÒN LẠI QUYẾT TOÁN QUỸ',type:'group',source:'qt_total'},
+  {name:'Két tiền mặt',source:'cash_closing',totalOnly:true},{name:'TP bank J24 Mart 1 - TK thu chi',source:'m1_closing',totalOnly:true},{name:'TP bank J24 Mart 2 - TK thu chi',source:'m2_closing',totalOnly:true},
+  {name:'TP bank - TK cà thẻ',source:'card_closing',totalOnly:true},{name:'Viettin bank chuyển khoản',source:'viettin_closing',totalOnly:true},{name:'Tiền rút quyết toán',source:'settlement_withdraw',totalOnly:true},{name:'Chênh lệch',type:'total',source:'closing_diff',totalOnly:true},
   {code:'E',name:'CÁC KHOẢN QUYẾT TOÁN CUỐI THÁNG',type:'group'},
-  {code:'*',name:'Giá trị chuyển hàng'},{name:'Chuyển hàng đi',type:'compare'},{name:'Nhận hàng về',type:'compare'},
-  {code:'*',name:'Chi công nợ NCC'},{code:'*',name:'Chi tiền lương cuối tháng'},
-  {code:'*',name:'Các khoản chi cuối tháng chưa hoạch toán khác'},
-  {code:'F',name:'CÒN LẠI',type:'group final'},
-  {code:'*',name:'DOANH THU MÁY',type:'main'},{code:'*',name:'Chênh lệch chốt ca',type:'main'}
+  {code:'*',name:'Giá trị chuyển hàng',source:'transfer_net'},{name:'Chuyển hàng đi',type:'compare',source:'transfer_out'},{name:'Nhận hàng về',type:'compare',source:'transfer_in'},
+  {code:'*',name:'Chi công nợ NCC',source:'month_debt'},{code:'*',name:'Chi tiền lương cuối tháng',source:'month_salary'},
+  {code:'*',name:'Các khoản chi cuối tháng chưa hoạch toán khác',source:'month_other'},
+  {code:'F',name:'CÒN LẠI',type:'group final',source:'final_balance'},
+  {code:'*',name:'DOANH THU MÁY',type:'main',source:'revenue_machine'},{code:'*',name:'Chênh lệch chốt ca',type:'main',source:'closing_shift_diff'}
 ];
 const THTC_DETAIL_NAMES = [
   'Phiếu chi ART SPA - CK07 CHI MẶT BẰNG','Phiếu chi ART SPA - CK08 CHI ĐIỆN','Phiếu chi ART SPA - CK09 CHI NƯỚC SINH HOẠT CỬA HÀNG','Phiếu chi ART SPA - CK12 CHI THUẾ','Phiếu chi ART SPA - CK30 - CHI KHÁC',
   'Phiếu chi CHI ĐẠT TARGET','Phiếu chi CHI PHÍ SỬA CÔNG CỤ DỤNG CỤ CỬA HÀNG','Phiếu chi CK01 CHI LƯƠNG ỨNG NHÂN VIÊN/ ỨNG LƯƠNG SỚM','Phiếu chi CK04 CHI NGUYÊN VẬT LIỆU VẬN HÀNH NVLVH','Phiếu chi CK05 CHI BẢO HIỂM NHÂN VIÊN BHNV','Phiếu chi CK06 CHI GIẤY TỜ','Phiếu chi CK07 CHI MẶT BẰNG','Phiếu chi CK08 CHI ĐIỆN','Phiếu chi CK09 CHI NƯỚC SINH HOẠT CỬA HÀNG','Phiếu chi CK12 CHI THUẾ','Phiếu chi CK14 CHI DIỆT CHUỘT','Phiếu chi CK15 CHI NƯỚC UỐNG NHÂN VIÊN','Phiếu chi CK16 CHI PHÍ GỬI XE NHÂN VIÊN','Phiếu chi CK18 CHI PHÍ TÒA NHÀ','Phiếu chi CK19 CHI CỌC','Phiếu chi CK25 CHI SHIP','Phiếu chi CK27 CHI XĂNG XE TẢI, SỬA XE TẢI','Phiếu chi CK29 - CHI PHÍ MEDIA','Phiếu chi CK32 - ÁO ĐỒNG PHỤC NHÂN VIÊN','Phiếu chi CK33 - CHI PHÍ PHẦN MỀM MISA','Phiếu chi CK34 - CHI CHẠY CHƯƠNG TRÌNH KHUYẾN MÃI','Phiếu chi CK-CH01 CHI HÀNG CHI LIỀN CTL CK (CHUYỂN KHOẢN) CCK','Phiếu chi GRAND SPA - CK01 CHI LƯƠNG ỨNG NHÂN VIÊN/ ỨNG LƯƠNG SỚM','Phiếu chi GRAND SPA - CK04 CHI NGUYÊN VẬT LIỆU VẬN HÀNH','Phiếu chi GRAND SPA - CK07 CHI MẶT BẰNG','Phiếu chi GRAND SPA - CK08 CHI ĐIỆN','Phiếu chi GRAND SPA - CK09 CHI NƯỚC SINH HOẠT CỬA HÀNG','Phiếu chi GRAND SPA - CK12 CHI THUẾ'
+  ,'Phiếu chi GRAND SPA - CK20 CHI DẪN KHÁCH, MỜI TOUR SPA','Phiếu chi Nộp thuế GTGT','Phiếu chi Nộp thuế TNCN','Phiếu chi SU4 - CHI TỦ MÁT (TỦ+CÔNG)','Phiếu chi TM-CH01 CHI HÀNG CHI LIỀN (TIỀN MẶT) CTL TM CTM','Phiếu chi TM-CN30 CHI HÀNG CÔNG NỢ THÁNG (TIỀN MẶT) - CNTH TM','Phiếu chi TM-CN7 CHI HÀNG CÔNG NỢ TUẦN (TIỀN MẶT) - CNT TM','Phiếu thu ART SPA - THU LẠI VOUCHER KHÁCH SẠN','Phiếu thu HT - THU ĐỔI NẮP BIA, THƯỞNG BIA','Phiếu thu KQT - THU TIỀN RÚT NGÂN HÀNG (KHÔNG QUYẾT TOÁN)','Phiếu thu NỘP TIỀN MẶT VÀO TÀI KHOẢN','Phiếu thu THU HOÀN TẠM ỨNG','Phiếu thu THU TRƯNG BÀY','Phiếu thu TK01 THU TRẢ THƯỞNG CHƯƠNG TRÌNH','Phiếu thu TK04 THU TRẢ HÀNG NHẬP THN','Phiếu thu TK07 THU CÔNG NỢ HOÀN','Phiếu thu TK08 THU KHÁC','Phiếu thu TK11 -  THU LÃI TÀI KHOẢN','Phiếu thu TK12 - NPP CHIẾT KHẤU, MỪNG TẾT','Phiếu chi CK36 - CHI ĐÀO TẠO NHÂN SỰ','Phiếu chi CK30 - CHI KHÁC','Phiếu chi GRAND SPA CK33 - CHI HOA HỒNG DẪN KHÁCH, MỜI TOUR','Phiếu chi Chi sửa điện Cửa hàng','Phiếu thu THU HOÀN CK NHẦM','Phiếu chi CHI DỌN DẸP VỆ SINH','Phiếu thu TK03 THU LẠI ĐIỆN/ NƯỚC CHỦ NHÀ','Phiếu chi CK10 CHI RÁC','Phiếu chi CK11 CHI WIFI','Phiếu thu THU CHUYỂN KHOẢN LỖI(HOÀN TRẢ)','Thu Thưởng VCB','Phiếu thu THU HOÀN TIỀN KÝ GỬI','Phiếu chi CK37 - PHÍ NHỜ Thu cà thẻ HỘ','Phiếu thu TK14 - THU LẠI TIỀN NHỜ Thu cà thẻ HỘ','Phiếu thu TK13 THU LẠI VOUCHER KHÁCH SẠN','Phiếu thu TK11 THU ĐƠN NHỜ FO THU HỘ SPA','Phiếu thu TK06 THU LƯƠNG HOÀN','Phiếu chi CK28 - CHI IN ẤN','Phiếu chi CK37 - CHI BỒI DƯỠNG','Phiếu chi ĐỀN BÙ XE'
 ];
 function thtcLayoutKey(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_|_$/g,'').toLowerCase(); }
 function thtcISODate(raw){
@@ -4654,12 +4715,15 @@ function initTHTCHoverTips(){
   });
 }
 function getTHTCSourceData(branches,from,to){
-  const sources=['cc_vnd','cc_tck','vt_tck','diff_tck','cc_cathe','tp_cathe','diff_cathe','sales_total'];
+  const sources=[...new Set(THTC_LAYOUT_ROWS.map(r=>r.source).filter(Boolean))];
   const values=Object.fromEntries(sources.map(s=>[s,Object.fromEntries(branches.map(b=>[b,0]))]));
   const allBranches=THTC_LAYOUT_BRANCHES;
   const hitAnyBranch=actual=>allBranches.find(b=>thtcBranchMatch(actual,b));
   const selected=branch=>branches.includes(branch);
+  const allSelected=branches.length===allBranches.length;
   const add=(source,branch,amount)=>{ if(branch&&values[source]) values[source][branch]+=(Number(amount)||0); };
+  const sumSource=source=>branches.reduce((sum,b)=>sum+(Number(values[source]&&values[source][b])||0),0);
+  const ascii=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/\s+/g,' ').trim();
   const extFrom=thtcDateAdd(from,-3), extTo=thtcDateAdd(to,3);
   const recon={
     values,
@@ -4673,29 +4737,154 @@ function getTHTCSourceData(branches,from,to){
     if(!branch) return;
     if(d>=extFrom&&d<=extTo){thtcDailyAdd(recon.tck.cc,branch,d,r.tck);thtcDailyAdd(recon.cathe.cc,branch,d,r.cathe);}
     if(!selected(branch)||d<from||d>to) return;
-    add('cc_vnd',branch,r.vnd);add('cc_tck',branch,r.tck);add('cc_cathe',branch,r.cathe);
+    add('cc_vnd',branch,r.vnd);add('cc_usd',branch,r.usd);add('cc_te',branch,r.te);
+    add('cc_tck',branch,r.tck);add('cc_momo',branch,r.momo);add('cc_cathe',branch,r.cathe);
+    add('revenue_machine',branch,r.dtmay);
   });
+  let unassignedInterest=0;
   VIETTIN.forEach(r=>{
-    const branch=hitAnyBranch(r.branch); if(!branch||Number(r.amount)<=0) return;
+    const branch=hitAnyBranch(r.branch); if(!branch) return;
     let d=thtcISODate(r.dateRaw);
     // Dùng ngày đối chiếu đã được xử lý qua ranh giới nửa đêm khi có.
     const y=(d.match(/^\d{4}/)||[])[0];
     if(y&&r.day&&r.month) d=`${y}-${String(r.month).padStart(2,'0')}-${String(r.day).padStart(2,'0')}`;
-    if(d>=extFrom&&d<=extTo){thtcDailyAdd(recon.tck.bank,branch,d,r.amount);thtcRawAdd(recon.tck.raw,branch,d,{amount:r.amount,content:r.content});}
-    if(selected(branch)&&d>=from&&d<=to) add('vt_tck',branch,r.amount);
+    const isInterest=Number(r.amount)>0&&!String(r.content||'').trim();
+    if(isInterest){
+      if(selected(branch)&&d>=from&&d<=to)add('bank_interest',branch,r.amount);
+      return; // tiền lãi không phải Thực thu chuyển khoản
+    }
+    if(Number(r.amount)>0&&d>=extFrom&&d<=extTo){thtcDailyAdd(recon.tck.bank,branch,d,r.amount);thtcRawAdd(recon.tck.raw,branch,d,{amount:r.amount,content:r.content});}
+    if(Number(r.amount)>0&&selected(branch)&&d>=from&&d<=to) add('vt_tck',branch,r.amount);
   });
   TPBANK.forEach(r=>{
-    const branch=hitAnyBranch(r.branch); if(!branch||r.excludeRecon||Number(r.credit)<=0) return;
-    if(TP_RECON_EXCLUDE.some(kw=>String(r.content||'').toUpperCase().includes(kw))) return;
+    const branch=hitAnyBranch(r.branch);
     const d=thtcISODate(r.kdate||r.valueDate);
-    if(d>=extFrom&&d<=extTo){thtcDailyAdd(recon.cathe.bank,branch,d,r.credit);thtcRawAdd(recon.cathe.raw,branch,d,{amount:r.credit,content:r.content});}
-    if(selected(branch)&&d>=from&&d<=to) add('tp_cathe',branch,r.credit);
+    const isInterest=Number(r.credit)>0&&ascii(r.content).includes('tra lai tien gui');
+    if(isInterest&&d>=from&&d<=to){
+      // Dòng lãi TPBank không có TID. Không dùng chi nhánh fill-down vì sẽ gán nhầm;
+      // chỉ phân bổ khi dòng thật sự có TID, còn lại đưa vào cột CỘNG.
+      const directBranch=r.tid&&TID_MAP[String(r.tid)]?hitAnyBranch(TID_MAP[String(r.tid)]):null;
+      if(directBranch&&selected(directBranch))add('bank_interest',directBranch,r.credit);
+      else if(allSelected)unassignedInterest+=Number(r.credit)||0;
+      return;
+    }
+    if(!branch)return;
+    const excluded=r.excludeRecon||TP_RECON_EXCLUDE.some(kw=>String(r.content||'').toUpperCase().includes(kw));
+    if(!excluded&&Number(r.credit)>0&&d>=extFrom&&d<=extTo){thtcDailyAdd(recon.cathe.bank,branch,d,r.credit);thtcRawAdd(recon.cathe.raw,branch,d,{amount:r.credit,content:r.content});}
+    if(selected(branch)&&d>=from&&d<=to){
+      if(!excluded&&Number(r.credit)>0)add('tp_cathe',branch,r.credit);
+      if(Number(r.debit)>0)add('card_fee',branch,-Math.abs(Number(r.debit)||0));
+    }
   });
+  KHOTONG.forEach(r=>{
+    const branch=hitAnyBranch(r.branch),d=thtcISODate(r.date);
+    if(!branch||!selected(branch)||d<from||d>to)return;
+    if(Number(r.credit)>0&&ascii(r.content).includes('tra lai tien gui'))add('bank_interest',branch,r.credit);
+  });
+
+  // B2 là nguồn cho toàn bộ thu/chi tiền mặt, hai tài khoản Mart và 74+ dòng chi tiết.
+  // Loại phiếu mới vẫn được đưa vào chi tiết; chỉ chưa cộng vào Hàng/Khác cho đến khi được phân loại.
+  const detailMap=new Map();
+  let b2Count=0,unknownRows=0,unassignedBankRows=0;
+  B2.forEach(r=>{
+    const d=thtcISODate(r.time),branch=hitAnyBranch(r.branch);
+    if(!branch||!selected(branch)||d<from||d>to)return;
+    const amount=Number(r.amount)||0,name=String(r.loaiThuChi||'Chưa phân loại').trim()||'Chưa phân loại';
+    if(!amount)return;
+    b2Count++;
+    const detailKey=thtcLayoutKey(name);
+    if(!detailMap.has(detailKey))detailMap.set(detailKey,{name,vals:Object.fromEntries(branches.map(b=>[b,0])),count:0,category:''});
+    const detail=detailMap.get(detailKey);detail.vals[branch]+=amount;detail.count++;
+
+    const category=thtcCategoryFor(r);detail.category=category;
+    const nameAscii=ascii(name),isBankInterestVoucher=nameAscii.includes('thu lai tai khoan')||nameAscii.includes('thu lai tien gui');
+    if(!category)unknownRows++;
+    const book=ascii(r.loaiSoQuy),isCash=book.includes('tien mat');
+    const acc=String(r.bankAccount||r.soTK||'').replace(/\D/g,'');
+    const bankLabel=ascii(r.bankMatch||KHO_ACC_MAP[acc]||'');
+    const isBank=book.includes('ngan hang')||(!isCash&&(r.mart1||r.mart2||acc||bankLabel));
+    if(isCash){
+      if(amount>0)add('cash_other_income',branch,amount);
+      if(amount<0&&category==='Hàng')add('cash_goods_expense',branch,amount);
+      if(amount<0&&category==='Khác')add('cash_other_expense',branch,amount);
+      if(amount<0&&category==='0')add('cash_deposit',branch,amount);
+      if(amount>0&&category==='0')add('cash_withdraw',branch,amount);
+      return;
+    }
+    if(!isBank)return;
+    let mart='';
+    if(r.mart1===true||KHO_ACC_MAP[acc]==='KHO TỔNG MART 1'||bankLabel.includes('mart 1'))mart='m1';
+    else if(r.mart2===true||KHO_ACC_MAP[acc]==='KHO TỔNG MART 2'||bankLabel.includes('mart 2'))mart='m2';
+    if(!mart){unassignedBankRows++;return;}
+    if(amount>0&&category==='0')add(mart+'_deposit',branch,amount);
+    // Phiếu B2 thu lãi vẫn hiển thị ở bảng chi tiết, nhưng không cộng lại vào Thu khác:
+    // dòng Tiền lãi ngân hàng đã lấy số thực tế từ sao kê để tránh tính hai lần.
+    if(amount>0&&category==='Khác'&&!isBankInterestVoucher)add(mart+'_other_income',branch,amount);
+    if(amount<0&&category==='Hàng')add(mart+'_goods_expense',branch,amount);
+    if(amount<0&&category==='Khác')add(mart+'_other_expense',branch,amount);
+    if(amount<0&&category==='0'&&mart==='m1')add('m1_withdraw',branch,amount);
+  });
+
+  // Các khoản chỉ phát sinh lúc quyết toán cuối tháng được nhập tay và lưu SQL.
+  Object.entries(THTC_MANUAL||{}).forEach(([key,r])=>{
+    const cut=key.indexOf('|'),d=cut>-1?key.slice(0,cut):'',branch=hitAnyBranch(cut>-1?key.slice(cut+1):'');
+    if(!branch||!selected(branch)||d<from||d>to)return;
+    add('transfer_out',branch,Math.abs(Number(r.transferOut)||0));
+    add('transfer_in',branch,Math.abs(Number(r.transferIn)||0));
+    add('month_debt',branch,-Math.abs(Number(r.debt)||0));
+    add('month_salary',branch,-Math.abs(Number(r.salary)||0));
+    add('month_other',branch,-Math.abs(Number(r.other)||0));
+    add('settlement_withdraw',branch,-Math.abs(Number(r.withdraw)||0));
+  });
+
   branches.forEach(b=>{
     values.diff_tck[b]=values.vt_tck[b]-values.cc_tck[b];
     values.diff_cathe[b]=values.tp_cathe[b]-values.cc_cathe[b];
     values.sales_total[b]=values.cc_vnd[b]+values.cc_tck[b]+values.cc_cathe[b];
+    values.cash_balance[b]=values.cc_vnd[b]+values.cash_other_income[b]+values.cash_goods_expense[b]+values.cash_other_expense[b]+values.cash_deposit[b]+values.cash_withdraw[b];
+    values.m1_remaining[b]=values.m1_deposit[b]+values.m1_transfer[b]+values.m1_other_income[b]+values.m1_goods_expense[b]+values.m1_other_expense[b];
+    values.m2_remaining[b]=values.m2_deposit[b]+values.m2_transfer[b]+values.m2_other_income[b]+values.m2_goods_expense[b]+values.m2_other_expense[b];
+    values.bank_accounts_total[b]=values.m1_remaining[b]+values.m2_remaining[b];
+    values.qt_total[b]=values.cc_vnd[b]+values.cc_usd[b]+values.cc_te[b]+values.cc_tck[b]+values.cc_cathe[b]
+      +values.cash_other_income[b]+values.cash_goods_expense[b]+values.cash_other_expense[b]
+      +values.m1_other_income[b]+values.m1_goods_expense[b]+values.m1_other_expense[b]
+      +values.m2_other_income[b]+values.m2_goods_expense[b]+values.m2_other_expense[b]
+      +values.bank_interest[b]+values.transfer_fee[b]+values.card_fee[b];
+    values.transfer_net[b]=values.transfer_out[b]-values.transfer_in[b];
+    values.final_balance[b]=values.qt_total[b]+values.transfer_net[b]+values.month_debt[b]+values.month_salary[b]+values.month_other[b];
+    values.closing_shift_diff[b]=values.sales_total[b]-values.revenue_machine[b];
   });
+  values.bank_interest.__total=sumSource('bank_interest')+unassignedInterest;
+  values.qt_total.__total=sumSource('qt_total')+unassignedInterest;
+  values.final_balance.__total=sumSource('final_balance')+unassignedInterest;
+
+  // Lấy số dư cuối cùng đến ngày kết thúc theo từng số tài khoản, sau đó cộng lại.
+  const lastBalanceTotal=(rows,dateFn,accountFn,balanceFn,accept=()=>true)=>{
+    const last=new Map();
+    rows.forEach((r,index)=>{
+      if(!accept(r))return;
+      const raw=dateFn(r),d=thtcISODate(raw);if(!d||d>to)return;
+      const text=String(raw||'')+' '+String(r.content||''),tm=text.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      const rank=d+'T'+(tm?String(tm[1]).padStart(2,'0')+':'+tm[2]+':'+String(tm[3]||0).padStart(2,'0'):'00:00:00');
+      const account=String(accountFn(r)||'khong-ro').replace(/\s+/g,'');
+      const balance=Number(balanceFn(r));if(!Number.isFinite(balance))return;
+      const old=last.get(account);
+      if(!old||rank>old.rank)last.set(account,{rank,balance,index});
+    });
+    return [...last.values()].reduce((s,x)=>s+x.balance,0);
+  };
+  const selectedBankBranch=r=>{const b=hitAnyBranch(r.branch);return !!(b&&selected(b));};
+  values.cash_closing.__total=sumSource('cash_balance');
+  values.card_closing.__total=lastBalanceTotal(TPBANK,r=>r.valueDate||r.kdate,r=>r.account||'tp-card',r=>r.balance,selectedBankBranch);
+  values.viettin_closing.__total=lastBalanceTotal(VIETTIN,r=>r.dateRaw,r=>r.account||r.branch,r=>r.balance,selectedBankBranch);
+  values.m1_closing.__total=lastBalanceTotal(KHOTONG,r=>r.date,r=>r.account||r.branch,r=>r.balance,r=>KHO_ACC_MAP[String(r.account||'').replace(/\D/g,'')]==='KHO TỔNG MART 1'||ascii(r.branch).includes('mart 1'));
+  values.m2_closing.__total=lastBalanceTotal(KHOTONG,r=>r.date,r=>r.account||r.branch,r=>r.balance,r=>KHO_ACC_MAP[String(r.account||'').replace(/\D/g,'')]==='KHO TỔNG MART 2'||ascii(r.branch).includes('mart 2'));
+  values.settlement_withdraw.__total=sumSource('settlement_withdraw');
+  values.closing_diff.__total=values.cash_closing.__total+values.m1_closing.__total+values.m2_closing.__total+values.card_closing.__total+values.viettin_closing.__total+values.settlement_withdraw.__total-values.qt_total.__total;
+  values.__details=Object.fromEntries(detailMap);
+  values.__detailNames=[...detailMap.values()].map(x=>x.name);
+  values.__b2Count=b2Count;values.__unknownRows=unknownRows;values.__unassignedBankRows=unassignedBankRows;
+
   THTC_RECON_TIPS={};
   const perSource={diff_tck:[],diff_cathe:[]};
   branches.forEach(b=>{
@@ -4747,6 +4936,111 @@ function initTHTCFloatingScrollbar(){
   window._updateTHTCFloatScroll=update;
   setTimeout(update,80);
 }
+
+/* Danh mục phân loại B2 bám theo sheet B0.Danh mục của file mẫu.
+   Phiếu mới không tự đoán là Hàng/Khác: để trống và cảnh báo người dùng phân loại một lần. */
+const THTC_DEFAULT_HANG = new Set([
+  'Phiếu chi CK19 CHI CỌC','Phiếu chi CK-CH01 CHI HÀNG CHI LIỀN CTL CK (CHUYỂN KHOẢN) CCK',
+  'Phiếu chi TM-CH01 CHI HÀNG CHI LIỀN (TIỀN MẶT) CTL TM CTM','Phiếu chi TM-CN30 CHI HÀNG CÔNG NỢ THÁNG (TIỀN MẶT) - CNTH TM',
+  'Phiếu chi TM-CN7 CHI HÀNG CÔNG NỢ TUẦN (TIỀN MẶT) - CNT TM'
+].map(thtcLayoutKey));
+const THTC_DEFAULT_ZERO = new Set([
+  'Phiếu chi NỘP TIỀN NGÂN HÀNG (KO QUYÊT TOÁN)','Phiếu chi RÚT TIỀN NGÂN HÀNG (KHÔNG QUYẾT TOÁN)',
+  'Phiếu thu KQT - THU TIỀN RÚT NGÂN HÀNG (KHÔNG QUYẾT TOÁN)','Phiếu thu NỘP TIỀN MẶT VÀO TÀI KHOẢN'
+].map(thtcLayoutKey));
+const THTC_DEFAULT_KHAC = new Set(THTC_DETAIL_NAMES.map(thtcLayoutKey).filter(k=>!THTC_DEFAULT_HANG.has(k)&&!THTC_DEFAULT_ZERO.has(k)));
+function thtcNormalizeCategory(value){
+  const n=String(value==null?'':value).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
+  if(!n)return '';
+  if(n==='0'||n==='0.0'||n.includes('dieu chuyen')||n.includes('khong quyet toan'))return '0';
+  if(n.includes('hang'))return 'Hàng';
+  if(n.includes('khac'))return 'Khác';
+  return '';
+}
+function thtcCategoryFor(row){
+  const key=thtcLayoutKey(row&&row.loaiThuChi);
+  const override=thtcNormalizeCategory(THTC_CATEGORIES[key]);if(override)return override;
+  const fromFile=thtcNormalizeCategory(row&&row.category);if(fromFile)return fromFile;
+  if(THTC_DEFAULT_HANG.has(key))return 'Hàng';
+  if(THTC_DEFAULT_ZERO.has(key))return '0';
+  if(THTC_DEFAULT_KHAC.has(key))return 'Khác';
+  return '';
+}
+function refreshTHTCCategoryUI(){
+  const sel=document.getElementById('thtc-category-type'),status=document.getElementById('thtc-category-status');
+  if(!sel||!status)return;
+  const current=sel.value;
+  const typeRows=new Map();
+  B2.forEach(r=>{const name=String(r.loaiThuChi||'').trim();if(name&&!typeRows.has(thtcLayoutKey(name)))typeRows.set(thtcLayoutKey(name),{name,row:r,count:0});if(name)typeRows.get(thtcLayoutKey(name)).count++;});
+  const items=[...typeRows.entries()].map(([key,x])=>({key,...x,category:thtcCategoryFor(x.row)})).sort((a,b)=>{
+    if(!a.category&&b.category)return -1;if(a.category&&!b.category)return 1;return a.name.localeCompare(b.name,'vi');
+  });
+  sel.innerHTML=items.length?items.map(x=>`<option value="${thtcEsc(x.key)}">${x.category?'['+x.category+']':'[CHƯA PHÂN LOẠI]'} ${thtcEsc(x.name)} (${x.count})</option>`).join(''):'<option value="">Chưa có dữ liệu B2</option>';
+  if(current&&items.some(x=>x.key===current))sel.value=current;
+  const chosen=items.find(x=>x.key===sel.value)||items[0];
+  if(chosen)document.getElementById('thtc-category-value').value=chosen.category||'Khác';
+  const unknown=items.filter(x=>!x.category),unknownRows=unknown.reduce((s,x)=>s+x.count,0);
+  status.innerHTML=unknown.length
+    ?`⚠ Có <b>${unknown.length}</b> loại phiếu mới (${unknownRows.toLocaleString('vi-VN')} dòng) chưa phân loại. Các phiếu này vẫn hiện ở bảng chi tiết nhưng chưa được cộng vào Hàng/Khác.`
+    :`✓ Đã phân loại đủ ${items.length} loại phiếu đang có trong B2.`;
+}
+function loadTHTCCategoryChoice(){
+  const sel=document.getElementById('thtc-category-type');if(!sel||!sel.value)return;
+  const row=B2.find(r=>thtcLayoutKey(r.loaiThuChi)===sel.value);
+  document.getElementById('thtc-category-value').value=thtcCategoryFor(row)||'Khác';
+}
+async function saveTHTCCategory(){
+  const key=document.getElementById('thtc-category-type').value;if(!key){toast('Chưa có loại phiếu để phân loại');return;}
+  THTC_CATEGORIES[key]=document.getElementById('thtc-category-value').value;
+  const ok=await sset('thtc:categories',THTC_CATEGORIES);
+  if(!ok)return;
+  refreshTHTCCategoryUI();renderTongHopThuChiLayout();toast('✓ Đã lưu phân loại phiếu — áp dụng cho mọi máy');
+}
+
+function thtcManualKey(date,branch){return String(date||'')+'|'+String(branch||'');}
+function loadTHTCManualForm(){
+  const date=document.getElementById('thtc-manual-date').value,branch=document.getElementById('thtc-manual-branch').value;
+  const rec=THTC_MANUAL[thtcManualKey(date,branch)]||{};
+  const fields={
+    'thtc-m-transfer-out':'transferOut','thtc-m-transfer-in':'transferIn','thtc-m-debt':'debt',
+    'thtc-m-salary':'salary','thtc-m-other':'other','thtc-m-withdraw':'withdraw'
+  };
+  Object.entries(fields).forEach(([id,key])=>{const el=document.getElementById(id);if(el)el.value=rec[key]?fmt(rec[key]):'';});
+  document.getElementById('thtc-m-note').value=rec.note||'';
+  document.getElementById('thtc-manual-status').innerHTML=rec.savedAt
+    ?`✓ Đã có dữ liệu cho <b>${date}</b> — <b>${thtcEsc(branch)}</b>. Lưu lúc ${new Date(rec.savedAt).toLocaleString('vi-VN')}.`
+    :`Chưa có dữ liệu bổ sung cho <b>${date||'chưa chọn ngày'}</b> — <b>${thtcEsc(branch||'chưa chọn chi nhánh')}</b>.`;
+}
+async function saveTHTCManual(){
+  const date=document.getElementById('thtc-manual-date').value,branch=document.getElementById('thtc-manual-branch').value;
+  if(!date||!branch){toast('Hãy chọn đủ ngày và chi nhánh');return;}
+  const abs=id=>Math.abs(vnMoneyValue(id)||0);
+  THTC_MANUAL[thtcManualKey(date,branch)]={
+    transferOut:abs('thtc-m-transfer-out'),transferIn:abs('thtc-m-transfer-in'),debt:abs('thtc-m-debt'),
+    salary:abs('thtc-m-salary'),other:abs('thtc-m-other'),withdraw:abs('thtc-m-withdraw'),
+    note:String(document.getElementById('thtc-m-note').value||'').trim(),savedAt:new Date().toISOString()
+  };
+  const ok=await sset('thtc:manual',THTC_MANUAL);if(!ok)return;
+  loadTHTCManualForm();renderTongHopThuChiLayout();toast('✓ Đã lưu dữ liệu bổ sung lên SQL');
+}
+async function deleteTHTCManual(){
+  const date=document.getElementById('thtc-manual-date').value,branch=document.getElementById('thtc-manual-branch').value,key=thtcManualKey(date,branch);
+  if(!THTC_MANUAL[key]){toast('Ngày/chi nhánh này chưa có dữ liệu bổ sung');return;}
+  if(!confirm(`Xóa dữ liệu bổ sung ngày ${date} — ${branch}?`))return;
+  delete THTC_MANUAL[key];const ok=await sset('thtc:manual',THTC_MANUAL);if(!ok)return;
+  loadTHTCManualForm();renderTongHopThuChiLayout();toast('✓ Đã xóa dữ liệu bổ sung');
+}
+function initTHTCExtraInputs(){
+  const date=document.getElementById('thtc-manual-date'),branch=document.getElementById('thtc-manual-branch');
+  date.value=todayISO();fillSelect(branch,THTC_LAYOUT_BRANCHES,false);
+  document.querySelectorAll('#thtc-manual-box .vn-money-input').forEach(el=>bindVnMoneyInput(el));
+  date.addEventListener('change',loadTHTCManualForm);branch.addEventListener('change',loadTHTCManualForm);
+  document.getElementById('thtc-manual-save').addEventListener('click',saveTHTCManual);
+  document.getElementById('thtc-manual-delete').addEventListener('click',deleteTHTCManual);
+  document.getElementById('thtc-category-type').addEventListener('change',loadTHTCCategoryChoice);
+  document.getElementById('thtc-category-save').addEventListener('click',saveTHTCCategory);
+  loadTHTCManualForm();refreshTHTCCategoryUI();
+}
 function initTongHopThuChiLayout(){
   document.getElementById('thtc-month').value=todayISO().slice(0,7);
   document.getElementById('thtc-day').value=todayISO();
@@ -4756,6 +5050,7 @@ function initTongHopThuChiLayout(){
   document.getElementById('thtc-period').addEventListener('change',syncTHTCPeriod);
   document.getElementById('thtc-run').addEventListener('click',renderTongHopThuChiLayout);
   document.getElementById('thtc-export').addEventListener('click',exportTongHopThuChiLayout);
+  initTHTCExtraInputs();
   initTHTCHoverTips();
   initTHTCFloatingScrollbar();
   syncTHTCPeriod(); renderTongHopThuChiLayout();
@@ -4767,7 +5062,7 @@ function renderTongHopThuChiLayout(){
   if(!range.from||!range.to||range.from>range.to){toast('Hãy chọn kỳ báo cáo hợp lệ');return;}
   const sourceData=getTHTCSourceData(branches,range.from,range.to);
   const blankCells=(key)=>branches.map((b,i)=>`<td class="thtc-placeholder" data-row="${key}" data-branch="${thtcLayoutKey(b)}"></td>`).join('')+`<td class="thtc-placeholder" data-row="${key}" data-branch="cong"></td>`;
-  const valueCells=(key,source)=>{
+  const valueCells=(key,source,rowDef={})=>{
     const vals=sourceData[source]||{};
     const isDiff=source==='diff_tck'||source==='diff_cathe';
     const makeCell=(branch,v,total=false)=>{
@@ -4778,21 +5073,34 @@ function renderTongHopThuChiLayout(){
       const shown=v?fmt(v):(hasTip?'0 ⚠':'–');
       return `<td class="${cls}" data-row="${key}" data-branch="${branchKey}"${hasTip?` data-thtc-tip="${tipKey}"`:''}>${shown}</td>`;
     };
-    const cells=branches.map(b=>makeCell(b,vals[b]||0)).join('');
-    const total=branches.reduce((s,b)=>s+(vals[b]||0),0);
+    const cells=rowDef.totalOnly
+      ?branches.map(b=>`<td class="thtc-placeholder" data-row="${key}" data-branch="${thtcLayoutKey(b)}"></td>`).join('')
+      :branches.map(b=>makeCell(b,vals[b]||0)).join('');
+    const total=Object.prototype.hasOwnProperty.call(vals,'__total')?Number(vals.__total)||0:branches.reduce((s,b)=>s+(vals[b]||0),0);
     return cells+makeCell('cong',total,true);
   };
   let html=`<thead><tr><th>MÃ</th><th>CỬA HÀNG</th>${branches.map(b=>`<th>${b}</th>`).join('')}<th>CỘNG</th></tr></thead><tbody>`;
   THTC_LAYOUT_ROWS.forEach((r,i)=>{
     const key='r'+(i+1)+'_'+thtcLayoutKey(r.name||r.code), cls=r.type?String(r.type).split(' ').map(x=>'thtc-'+x).join(' '):'';
-    html+=`<tr class="${cls}" data-layout-row="${key}"><td>${r.code||''}</td><td title="${r.name||''}">${r.name||''}</td>${r.source?valueCells(key,r.source):blankCells(key)}</tr>`;
+    html+=`<tr class="${cls}" data-layout-row="${key}"><td>${r.code||''}</td><td title="${r.name||''}">${r.name||''}</td>${r.source?valueCells(key,r.source,r):blankCells(key)}</tr>`;
   });
   html+=`<tr class="thtc-detail-title"><td></td><td>CHI TIẾT THU CHI THEO MỤC THU CHI</td>${branches.map(()=>'<td></td>').join('')}<td></td></tr>`;
   html+=`<tr class="thtc-subhead"><td>MÃ</td><td>Phân loại mục thu / chi</td>${branches.map(b=>`<td style="text-align:center">${b}</td>`).join('')}<td style="text-align:center">CỘNG</td></tr>`;
-  THTC_DETAIL_NAMES.forEach((name,i)=>{ const key='detail_'+(i+1)+'_'+thtcLayoutKey(name); html+=`<tr class="thtc-detail-row" data-layout-row="${key}"><td></td><td title="${name}">${name}</td>${blankCells(key)}</tr>`; });
+  const seen=new Set(),detailNames=[];
+  [...THTC_DETAIL_NAMES,...(sourceData.__detailNames||[])].forEach(name=>{const k=thtcLayoutKey(name);if(k&&!seen.has(k)){seen.add(k);detailNames.push(name);}});
+  detailNames.forEach((name,i)=>{
+    const detail=sourceData.__details&&sourceData.__details[thtcLayoutKey(name)],vals=detail&&detail.vals||{};
+    const key='detail_'+(i+1)+'_'+thtcLayoutKey(name),unknown=detail&&!detail.category;
+    const cells=branches.map(b=>{const v=Number(vals[b])||0;return `<td class="${v<0?'thtc-value cell-bad':'thtc-value'}" data-row="${key}" data-branch="${thtcLayoutKey(b)}">${v?fmt(v):'–'}</td>`;}).join('');
+    const total=branches.reduce((s,b)=>s+(Number(vals[b])||0),0);
+    html+=`<tr class="thtc-detail-row" data-layout-row="${key}"><td></td><td title="${thtcEsc(name)}">${thtcEsc(name)}${unknown?' <span class="thtc-count" style="color:var(--bad)">Chưa phân loại</span>':''}</td>${cells}<td class="${total<0?'thtc-value cell-bad':'thtc-value'}" data-row="${key}" data-branch="cong">${total?fmt(total):'–'}</td></tr>`;
+  });
   html+='</tbody>';
   document.getElementById('thtc-table').innerHTML=html;
-  document.getElementById('thtc-caption').textContent=`Kỳ báo cáo: ${range.label} · ${branches.length} cột chi nhánh · rê chuột vào ô CL để xem lý do chênh lệch`;
+  const warnings=[];
+  if(sourceData.__unknownRows)warnings.push(`${sourceData.__unknownRows.toLocaleString('vi-VN')} dòng B2 chưa phân loại`);
+  if(sourceData.__unassignedBankRows)warnings.push(`${sourceData.__unassignedBankRows.toLocaleString('vi-VN')} dòng ngân hàng chưa xác định Mart`);
+  document.getElementById('thtc-caption').textContent=`Kỳ báo cáo: ${range.label} · ${branches.length} cột chi nhánh · ${(sourceData.__b2Count||0).toLocaleString('vi-VN')} phiếu B2${warnings.length?' · ⚠ '+warnings.join(' · '):''} · rê chuột vào ô CL để xem lý do`;
   makeResizable(document.getElementById('thtc-table'));
   if(window._updateTHTCFloatScroll)setTimeout(window._updateTHTCFloatScroll,30);
 }
@@ -4804,18 +5112,26 @@ function exportTongHopThuChiLayout(){
   const sourceData=getTHTCSourceData(branches,range.from,range.to);
   const rows=[['MÃ','CỬA HÀNG',...branches,'CỘNG']];
   THTC_LAYOUT_ROWS.forEach(r=>{
-    const vals=r.source?branches.map(b=>sourceData[r.source][b]||0):branches.map(()=>'');
-    rows.push([r.code||'',r.name||'',...vals,r.source?vals.reduce((s,v)=>s+(Number(v)||0),0):'']);
+    const source=r.source?(sourceData[r.source]||{}):null;
+    const vals=source?(r.totalOnly?branches.map(()=>''):branches.map(b=>source[b]||0)):branches.map(()=>'');
+    const total=source?(Object.prototype.hasOwnProperty.call(source,'__total')?source.__total:vals.reduce((s,v)=>s+(Number(v)||0),0)):'';
+    rows.push([r.code||'',r.name||'',...vals,total]);
   });
   rows.push(['','CHI TIẾT THU CHI THEO MỤC THU CHI',...branches.map(()=>''),'']);
   rows.push(['MÃ','Phân loại mục thu / chi',...branches,'CỘNG']);
-  THTC_DETAIL_NAMES.forEach(n=>rows.push(['',n,...branches.map(()=>''),'']));
+  const seen=new Set(),detailNames=[];
+  [...THTC_DETAIL_NAMES,...(sourceData.__detailNames||[])].forEach(name=>{const k=thtcLayoutKey(name);if(k&&!seen.has(k)){seen.add(k);detailNames.push(name);}});
+  detailNames.forEach(name=>{
+    const detail=sourceData.__details&&sourceData.__details[thtcLayoutKey(name)],vals=detail&&detail.vals||{};
+    const branchVals=branches.map(b=>Number(vals[b])||0);
+    rows.push(['',name+(detail&&!detail.category?' [CHƯA PHÂN LOẠI]':''),...branchVals,branchVals.reduce((s,v)=>s+v,0)]);
+  });
   const ws=XLSX.utils.aoa_to_sheet(rows); ws['!cols']=[{wch:10},{wch:58},...branches.map(()=>({wch:17})),{wch:18}];
-  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Tổng hợp thu chi'); XLSX.writeFile(wb,'Khung-tong-hop-thu-chi.xlsx');
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Tổng hợp thu chi'); XLSX.writeFile(wb,'Tong-hop-thu-chi-B3-'+todayISO()+'.xlsx');
 }
 
 /* ============ BACKUP & RESTORE ============ */
-const BACKUP_KEYS = ['chotca:data','chenhlech:list','tpbank:list','viettin:list','khotong:list','b2:list'];
+const BACKUP_KEYS = ['chotca:data','chenhlech:list','tpbank:list','viettin:list','khotong:list','b2:list','thtc:manual','thtc:categories'];
 
 function calcStorageUsage(){
   let total = 0;
@@ -4868,7 +5184,7 @@ function exportKhoTong(){
   return {name:'Kho tổng', rows};
 }
 function exportB2(){
-  const rows = B2.map(r=>({'Mã phiếu':r.maPhieu,'Ngày':r.time,'Chi nhánh':r.branch||'','Loại':r.loaiThuChi||'','Người nộp/nhận':r.person||'','Giá trị':r.amount||0,'Nội dung CK':r.noiDungCK||'','Ghi chú':r.note||'','Loại sổ quỹ':r.loaiSoQuy||'','NH phát sinh':r.bankMatch||''}));
+  const rows = B2.map(r=>({'Mã phiếu':r.maPhieu,'Ngày':r.time,'Chi nhánh':r.branch||'','Loại':r.loaiThuChi||'','Người nộp/nhận':r.person||'','Giá trị':r.amount||0,'Thu/Chi':r.flow||(Number(r.amount)>=0?'Thu':'Chi'),'Phân loại Hàng/Khác/0':thtcCategoryFor(r)||'CHƯA PHÂN LOẠI','Nội dung CK':r.noiDungCK||'','Ghi chú':r.note||'','Loại sổ quỹ':r.loaiSoQuy||'','Số tài khoản':r.soTK||r.bankAccount||'','NH phát sinh':r.bankMatch||'','Mart 1':!!r.mart1,'Mart 2':!!r.mart2}));
   return {name:'CT Thu Chi B2', rows};
 }
 function exportCaTheKV(){
