@@ -118,6 +118,27 @@ tr:hover td{background:var(--surface2);}
 .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;}
 .tag.bad{color:var(--bad);background:var(--bad-soft);}
 .tag.good{color:var(--good);background:var(--good-soft);}
+.sq-filter-th{cursor:pointer;user-select:none;}
+.sq-filter-th:hover{color:var(--accent2);background:#f7e8dd;}
+.sq-filter-label{vertical-align:middle;}
+.sq-filter-trigger{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;margin-left:5px;border:1px solid rgba(193,101,47,.55);border-radius:4px;background:var(--surface);color:var(--accent);font-size:11px;line-height:1;vertical-align:middle;box-shadow:0 1px 2px rgba(0,0,0,.08);}
+.sq-filter-th.active .sq-filter-trigger{background:var(--accent);border-color:var(--accent);color:#fff;}
+.sq-filter-btn{position:absolute;right:5px;top:50%;transform:translateY(-50%);z-index:6;display:flex;align-items:center;justify-content:center;width:19px;height:19px;min-width:19px;padding:0;border:1px solid rgba(193,101,47,.45);border-radius:4px;background:var(--surface);color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.08);}
+.sq-filter-btn:hover{background:#f7e8dd;border-color:var(--accent);color:var(--accent2);}
+.sq-filter-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.sq-filter-btn svg{display:block;width:12px;height:12px;fill:currentColor;pointer-events:none;}
+.sq-filter-pop{position:fixed;z-index:9600;width:min(320px,calc(100vw - 20px));background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 35px rgba(0,0,0,.22);padding:12px;color:var(--text);text-align:left;text-transform:none;letter-spacing:normal;font-size:12px;}
+.sq-filter-pop h4{margin:0 0 8px;font-size:13px;color:var(--title);}
+.sq-filter-tools{display:flex;gap:6px;margin:7px 0;flex-wrap:wrap;}
+.sq-filter-tools button,.sq-filter-foot button{padding:5px 9px;font-size:11px;}
+.sq-filter-options{max-height:245px;overflow:auto;border:1px solid var(--border);border-radius:7px;background:var(--surface2);}
+.sq-filter-option{display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border);cursor:pointer;font-family:var(--sans);font-weight:400;color:var(--text);}
+.sq-filter-option:last-child{border-bottom:none;}
+.sq-filter-option:hover{background:var(--surface);}
+.sq-filter-option input{width:auto;margin:0;}
+.sq-filter-foot{display:flex;justify-content:space-between;gap:7px;margin-top:10px;}
+.sq-manual-actions{display:inline-flex;gap:4px;align-items:center;margin-left:5px;vertical-align:middle;}
+.sq-manual-actions button{font-size:10px;padding:3px 6px;}
 .cell-bad{background:var(--bad-soft);color:var(--bad);font-weight:700;border-radius:4px;}
 .cell-good{color:var(--good);font-weight:600;}
 .note{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.7;}
@@ -1355,7 +1376,7 @@ async function sset(key,val,options={}){
   if(CURRENT_USER&&CURRENT_USER.role==='viewer'){toast('⛔ Tài khoản này chỉ được xem dữ liệu');return false;}
   if(STORAGE_MODE==='turso'){
     const count=Array.isArray(val)?val.length:(val&&typeof val==='object'?Object.keys(val).length:0);
-    const progressId=(SQL_PROGRESS_DATASETS.has(key)||count>=100)?startSqlProgress(key,val,options):0;
+    const progressId=(!options.silentProgress&&(SQL_PROGRESS_DATASETS.has(key)||count>=100))?startSqlProgress(key,val,options):0;
     try{const saved=await sqlV2WriteDataset(key,val,nowTs,options);await cacheSet(key,val,saved.updatedAt);finishSqlProgress(progressId,true,options);return true;}
     catch(e){console.error('API save error',e);window._lastSaveError=e.message||'Không lưu được dữ liệu';finishSqlProgress(progressId,false,options);toast('⚠ '+window._lastSaveError,6000);return false;}
   }
@@ -3194,6 +3215,87 @@ document.getElementById('sq-undo-range').addEventListener('click',async()=>{
   if(!confirm(`Khôi phục ${saved.value.length} phiếu B2 trước lần xóa gần nhất?`)) return;
   const ok=await sset('b2:list',saved.value);if(!ok){toast('⚠ Chưa hoàn tác được B2',6000);return;}B2=saved.value;await clearRangeUndo('b2:list');renderSQCount();renderSQTable();toast('✓ Đã hoàn tác xóa B2');
 });
+const SQ_HEADER_COLUMNS=[
+  {key:'maPhieu',label:'Mã phiếu',left:true},
+  {key:'time',label:'Ngày',left:true},
+  {key:'branch',label:'Chi nhánh',left:true},
+  {key:'loaiThuChi',label:'Loại',left:true},
+  {key:'person',label:'Người nộp/nhận',left:true},
+  {key:'amount',label:'Giá trị'},
+  {key:'noiDungCK',label:'Nội dung CK',left:true},
+  {key:'note',label:'Ghi chú',left:true},
+  {key:'loaiSoQuy',label:'Loại sổ quỹ',left:true},
+  {key:'bankMatch',label:'NH phát sinh',left:true}
+];
+const SQ_HEADER_FILTERS={};
+let SQ_HEADER_FILTER_SOURCE=[];
+function sqHeaderValue(row,key){
+  if(key==='amount')return String(Number(row.amount)||0);
+  if(key==='bankMatch')return String(row.bankMatch||'').trim()||'__UNMATCHED__';
+  return String(row[key]??'').trim()||'__EMPTY__';
+}
+function sqHeaderDisplay(value,key){
+  if(value==='__UNMATCHED__')return 'Chưa khớp';
+  if(value==='__EMPTY__')return '(Trống)';
+  return key==='amount'?fmt(Number(value)||0):value;
+}
+function sqApplyHeaderFilters(rows,filters=SQ_HEADER_FILTERS){
+  const active=Object.entries(filters).filter(([,set])=>set instanceof Set);
+  if(!active.length)return rows;
+  return rows.filter(row=>active.every(([key,set])=>set.has(sqHeaderValue(row,key))));
+}
+function sqFilterColumnLabel(key){return (SQ_HEADER_COLUMNS.find(c=>c.key===key)||{}).label||key;}
+function closeSQHeaderFilter(){const pop=document.getElementById('sq-head-filter-pop');if(pop)pop.remove();}
+function openSQHeaderFilter(event,key){
+  event.preventDefault();event.stopPropagation();closeSQHeaderFilter();
+  const button=event.currentTarget;
+  let values=[...new Set(SQ_HEADER_FILTER_SOURCE.map(r=>sqHeaderValue(r,key)))];
+  values.sort((a,b)=>key==='amount'?(Number(a)-Number(b)):sqHeaderDisplay(a,key).localeCompare(sqHeaderDisplay(b,key),'vi',{numeric:true,sensitivity:'base'}));
+  window._sqFilterField=key;window._sqFilterValues=values;
+  window._sqFilterDraft=SQ_HEADER_FILTERS[key]
+    ?new Set([...SQ_HEADER_FILTERS[key]].filter(v=>values.includes(v)))
+    :new Set(values);
+  const pop=document.createElement('div');pop.id='sq-head-filter-pop';pop.className='sq-filter-pop';
+  pop.innerHTML=`<h4>🔽 Lọc cột ${thtcEsc(sqFilterColumnLabel(key))}</h4>
+    <input id="sq-head-filter-search" type="text" placeholder="Tìm trong cột này..." style="width:100%" oninput="renderSQHeaderFilterOptions(this.value)">
+    <div class="sq-filter-tools"><button class="ghost" onclick="selectAllSQHeaderFilter(true)">Chọn tất cả</button><button class="ghost" onclick="selectAllSQHeaderFilter(false)">Bỏ chọn</button></div>
+    <div id="sq-head-filter-options" class="sq-filter-options"></div>
+    <div id="sq-head-filter-count" class="small" style="margin-top:5px"></div>
+    <div class="sq-filter-foot"><button class="ghost" style="color:var(--bad)" onclick="clearSQHeaderFilter()">Xóa lọc cột</button><span><button class="ghost" onclick="closeSQHeaderFilter()">Hủy</button> <button class="save" onclick="applySQHeaderFilter()">Áp dụng</button></span></div>`;
+  document.body.appendChild(pop);renderSQHeaderFilterOptions('');
+  const rect=button.getBoundingClientRect(),box=pop.getBoundingClientRect();
+  let left=Math.min(rect.left,window.innerWidth-box.width-10),top=rect.bottom+5;
+  if(top+box.height>window.innerHeight-10)top=Math.max(10,rect.top-box.height-5);
+  pop.style.left=Math.max(10,left)+'px';pop.style.top=top+'px';
+  document.getElementById('sq-head-filter-search').focus();
+}
+function renderSQHeaderFilterOptions(query=''){
+  const key=window._sqFilterField,values=window._sqFilterValues||[],draft=window._sqFilterDraft||new Set();
+  const q=String(query||'').trim().toLocaleLowerCase('vi');
+  const found=values.map((value,index)=>({value,index,label:sqHeaderDisplay(value,key)})).filter(x=>!q||x.label.toLocaleLowerCase('vi').includes(q));
+  const shown=found.slice(0,300),box=document.getElementById('sq-head-filter-options');if(!box)return;
+  box.innerHTML=shown.length?shown.map(x=>`<label class="sq-filter-option"><input type="checkbox" ${draft.has(x.value)?'checked':''} onchange="toggleSQHeaderFilterValue(${x.index},this.checked)"><span>${thtcEsc(x.label)}</span></label>`).join(''):'<div class="small" style="padding:10px">Không tìm thấy giá trị</div>';
+  document.getElementById('sq-head-filter-count').textContent=`Đang chọn ${draft.size}/${values.length} giá trị${found.length>300?' · hiển thị 300 kết quả đầu':''}`;
+}
+function toggleSQHeaderFilterValue(index,checked){
+  const value=(window._sqFilterValues||[])[index];if(value===undefined)return;
+  if(checked)window._sqFilterDraft.add(value);else window._sqFilterDraft.delete(value);
+  const count=document.getElementById('sq-head-filter-count');if(count)count.textContent=`Đang chọn ${window._sqFilterDraft.size}/${window._sqFilterValues.length} giá trị`;
+}
+function selectAllSQHeaderFilter(checked){window._sqFilterDraft=checked?new Set(window._sqFilterValues||[]):new Set();renderSQHeaderFilterOptions(document.getElementById('sq-head-filter-search').value);}
+function applySQHeaderFilter(){
+  const key=window._sqFilterField,values=window._sqFilterValues||[],draft=window._sqFilterDraft||new Set();
+  if(draft.size===values.length)delete SQ_HEADER_FILTERS[key];else SQ_HEADER_FILTERS[key]=new Set(draft);
+  closeSQHeaderFilter();renderSQTable();
+}
+function clearSQHeaderFilter(){delete SQ_HEADER_FILTERS[window._sqFilterField];closeSQHeaderFilter();renderSQTable();}
+window.openSQHeaderFilter=openSQHeaderFilter;window.closeSQHeaderFilter=closeSQHeaderFilter;
+window.renderSQHeaderFilterOptions=renderSQHeaderFilterOptions;window.toggleSQHeaderFilterValue=toggleSQHeaderFilterValue;
+window.selectAllSQHeaderFilter=selectAllSQHeaderFilter;window.applySQHeaderFilter=applySQHeaderFilter;window.clearSQHeaderFilter=clearSQHeaderFilter;
+if(!window._sqHeaderOutsideReady){
+  window._sqHeaderOutsideReady=true;
+  document.addEventListener('click',e=>{const pop=document.getElementById('sq-head-filter-pop');if(pop&&!pop.contains(e.target)&&!e.target.closest('.sq-filter-btn'))closeSQHeaderFilter();});
+}
 function renderSQTable(){
   refreshBranchFilter('sq-filter-branch',B2,BRANCHES);
   const m = document.getElementById('sq-month').value;
@@ -3214,6 +3316,8 @@ function renderSQTable(){
   });
   const sqKw = (document.getElementById('sq-kw').value||'').trim();
   if(sqKw) rows = rows.filter(r=>matchesKeyword(r, sqKw));
+  SQ_HEADER_FILTER_SOURCE=rows.slice();
+  rows=sqApplyHeaderFilters(rows);
   rows.sort((a,c)=>(a.time||'').localeCompare(c.time||''));
 
   const totalThu = rows.filter(r=>r.amount>0).reduce((s,r)=>s+r.amount,0);
@@ -3229,10 +3333,13 @@ function renderSQTable(){
     <div class="box"><div class="v">${fmt(totalThu+totalChi)}</div><div class="l">Thuần (Thu − Chi)</div></div>
     <div class="box"><div class="v">${matched}/${rows.length}</div><div class="l">Đã khớp ngân hàng</div></div>`;
 
-  let html='<thead><tr><th class="l">Mã phiếu</th><th class="l">Ngày</th><th class="l">Chi nhánh</th><th class="l">Loại</th><th class="l">Người nộp/nhận</th><th>Giá trị</th><th class="l">Nội dung CK</th><th class="l">Ghi chú</th><th class="l">Loại sổ quỹ</th><th class="l">NH phát sinh</th></tr></thead><tbody>';
+  let html='<thead><tr>'+SQ_HEADER_COLUMNS.map(c=>`<th class="${c.left?'l ':''}sq-filter-th${SQ_HEADER_FILTERS[c.key]?' active':''}" title="Bấm để lọc cột ${c.label}" onclick="openSQHeaderFilter(event,'${c.key}')"><span class="sq-filter-label">${c.label}</span><span class="sq-filter-trigger" aria-hidden="true">▼</span></th>`).join('')+'</tr></thead><tbody>';
   html+=`<tr class="tot"><td class="l">TỔNG (${rows.length} phiếu)</td><td></td><td></td><td></td><td></td><td>${fmt(totalThu+totalChi)}</td><td></td><td></td><td></td><td>${matched} khớp</td></tr>`;
   rows.slice(0,400).forEach(r=>{
-    html+=`<tr><td class="l" style="font-size:11px">${r.maPhieu}</td><td class="l">${r.time}</td><td class="l">${r.branch||''}</td><td class="l">${r.loaiThuChi||''}</td><td class="l" style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.person||''}</td><td class="${r.amount>0?'cell-good':'cell-bad'}">${fmt(r.amount)}</td><td class="l" style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px">${r.noiDungCK||''}</td><td class="l" style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px">${r.note||''}</td><td class="l">${r.loaiSoQuy||''}</td><td class="l">${r.bankMatch?'<span class="tag good">'+r.bankMatch+'</span>':'<span class="tag bad">chưa khớp</span>'}</td></tr>`;
+    const editLabel=r.bankMatch?'Sửa':'Chọn';
+    const bankTag=r.bankMatch?`<span class="tag good">${r.manualBankMatch?'✎ ':''}${thtcEsc(r.bankMatch)}</span>`:'<span class="tag bad">chưa khớp</span>';
+    const bankCell=`${bankTag}<span class="sq-manual-actions"><button class="ghost" data-ma="${thtcEsc(r.maPhieu)}" data-note="${thtcEsc(r.note||'')}" onclick="openBKEdit(this.dataset.ma,this.dataset.note)">✎ ${editLabel}</button></span>`;
+    html+=`<tr><td class="l" style="font-size:11px">${thtcEsc(r.maPhieu)}</td><td class="l">${thtcEsc(r.time)}</td><td class="l">${thtcEsc(r.branch||'')}</td><td class="l">${thtcEsc(r.loaiThuChi||'')}</td><td class="l" style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${thtcEsc(r.person||'')}</td><td class="${r.amount>0?'cell-good':'cell-bad'}">${fmt(r.amount)}</td><td class="l" style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px">${thtcEsc(r.noiDungCK||'')}</td><td class="l" style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px">${thtcEsc(r.note||'')}</td><td class="l">${thtcEsc(r.loaiSoQuy||'')}</td><td class="l">${bankCell}</td></tr>`;
   });
   if(rows.length===0) html+=`<tr><td class="l small" colspan="10">${B2.length>0?'Không có dữ liệu trong khoảng thời gian đã chọn (có '+B2.length+' phiếu ở tháng khác — thử đổi bộ lọc)':'Chưa có dữ liệu'}</td></tr>`;
   html+='</tbody>';
@@ -3475,8 +3582,9 @@ function renderBK(){
     const ov = BK_OVERRIDES[r.maPhieu];
     if(ov){
       if(ov.status==='ignored') return {...r, _status:'ignored', _ktMatch:null, _ovNote:ov.note||''};
-      if(ov.status==='matched') return {...r, _status:'matched', _ktMatch:{content:ov.ktContent, credit:ov.ktAmt, debit:0}, _manual:true};
+      if(ov.status==='matched') return {...r, bankMatch:ov.ktBranch||r.bankMatch, bankAccount:ov.ktAccount||r.bankAccount, _status:'matched', _ktMatch:{content:ov.ktContent, credit:r.amount>=0?ov.ktAmt:0, debit:r.amount<0?ov.ktAmt:0, branch:ov.ktBranch||'', account:ov.ktAccount||'', date:ov.ktDate||''}, _manual:true};
     }
+    if(r.manualBankMatch&&r.bankMatch) return {...r, _status:'matched', _ktMatch:{content:r.manualKtContent||'',credit:r.amount>=0?(r.manualKtAmount||Math.abs(r.amount)):0,debit:r.amount<0?(r.manualKtAmount||Math.abs(r.amount)):0,branch:r.bankMatch,account:r.bankAccount||'',date:r.manualKtDate||''},_manual:true};
 
     // So sánh: Nội dung chuyển khoản B2 (noiDungCK) với Diễn giải ngân hàng (content)
     // Ghi chú (note) dùng làm phụ nếu noiDungCK trống
@@ -4067,58 +4175,90 @@ function dcGoPage(p){ window._dcPage = p; _renderDoiChieuTongInner(document.getE
 /* ===== SỬA TAY BC KHO TỔNG ===== */
 function openBKEdit(maPhieu, currentNote){
   if(CURRENT_USER&&CURRENT_USER.role==='viewer'){toast('⛔ Tài khoản này chỉ được xem dữ liệu');return;}
-  const period = document.getElementById('bk-period').value;
-  const m = document.getElementById('bk-month').value;
-  const day = document.getElementById('bk-day').value;
-  // Lấy các dòng KHOTONG trong kỳ đang xem làm gợi ý
-  const ktRows = KHOTONG.filter(r=>{ const d=r.date?r.date.split('/').reverse().join('-'):''; return period==='day' ? d===day : d.slice(0,7)===m; });
-  const opts = ktRows.slice(0,50).map((kt,i)=>`<option value="${i}">${fmt(Math.max(kt.credit||0,kt.debit||0))} | ${(kt.content||'').slice(0,60)}</option>`).join('');
+  const b2Row=B2.find(r=>String(r.maPhieu)===String(maPhieu));
+  if(!b2Row){toast('Không tìm thấy phiếu B2 '+maPhieu);return;}
+  const targetDate=storageISODate(b2Row.time),targetMonth=targetDate.slice(0,7),targetAmt=Math.abs(Number(b2Row.amount)||0);
+  let ktRows=KHOTONG.filter(r=>storageISODate(r.date).slice(0,7)===targetMonth);
+  if(!ktRows.length)ktRows=KHOTONG.slice();
+  const score=kt=>{
+    const amt=Math.max(Number(kt.credit)||0,Number(kt.debit)||0),sameDirection=b2Row.amount>=0?Number(kt.credit)>0:Number(kt.debit)>0;
+    const ktDate=storageISODate(kt.date),dayGap=targetDate&&ktDate?thtcDayDistance(targetDate,ktDate):999;
+    return (sameDirection?0:1e15)+Math.abs(amt-targetAmt)*1000+dayGap;
+  };
+  ktRows.sort((a,b)=>score(a)-score(b));
+  ktRows=ktRows.slice(0,300);
+  const opts=ktRows.map((kt,i)=>{
+    const amt=Math.max(Number(kt.credit)||0,Number(kt.debit)||0),d=storageISODate(kt.date)||kt.date||'',branch=kt.branch||KHO_ACC_MAP[String(kt.account||'').replace(/\D/g,'')]||'';
+    return `<option value="${i}">${thtcEsc(d)} | ${thtcEsc(branch)} | ${fmt(amt)} | ${thtcEsc((kt.content||'').slice(0,80))}</option>`;
+  }).join('');
+  const old=BK_OVERRIDES[maPhieu]||{},noteValue=old.note||currentNote||'';
   const modal = document.createElement('div');
   modal.id = 'bk-edit-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;display:flex;align-items:center;justify-content:center';
-  modal.innerHTML=`<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:560px;width:95%;box-shadow:0 8px 32px rgba(0,0,0,.2)">
-    <h3 style="margin-bottom:12px;color:var(--title)">✎ Sửa tay đối chiếu — ${maPhieu}</h3>
+  modal.innerHTML=`<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:700px;width:95%;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+    <h3 style="margin-bottom:7px;color:var(--title)">✎ Chọn giao dịch ngân hàng — ${thtcEsc(maPhieu)}</h3>
+    <div style="padding:8px 10px;margin-bottom:10px;background:var(--surface2);border-radius:7px;font-size:12px"><b>${thtcEsc(targetDate)}</b> · ${thtcEsc(b2Row.branch||'')} · <b>${fmt(b2Row.amount)}</b><br><span class="small">${thtcEsc(b2Row.noiDungCK||b2Row.person||b2Row.note||'')}</span></div>
     <div style="margin-bottom:10px">
-      <label style="font-size:12px;color:var(--muted)">Tìm giao dịch ngân hàng</label>
-      <input type="text" id="bk-edit-search" placeholder="Gõ số tiền hoặc nội dung để lọc..." style="width:100%;margin-top:4px;margin-bottom:6px" oninput="filterBKEditOptions()">
-      <select id="bk-edit-kt" size="6" style="width:100%;font-size:12px;font-family:var(--mono)">
-        <option value="">— Không chọn (bỏ qua dòng này) —</option>${opts}
-      </select>
+      <label style="font-size:12px;color:var(--muted)">Giao dịch Kho tổng cùng tháng — ưu tiên đúng chiều, gần số tiền và gần ngày</label>
+      <input type="text" id="bk-edit-search" placeholder="Gõ ngày, Mart, số tiền hoặc nội dung..." style="width:100%;margin-top:4px;margin-bottom:6px" oninput="filterBKEditOptions()">
+      <select id="bk-edit-kt" size="8" style="width:100%;font-size:12px;font-family:var(--mono)">${opts||'<option value="">— Không có giao dịch ngân hàng trong kỳ —</option>'}</select>
     </div>
     <div style="margin-bottom:14px">
       <label style="font-size:12px;color:var(--muted)">Ghi chú lý do</label>
-      <input type="text" id="bk-edit-note" value="${currentNote}" style="width:100%;margin-top:4px" placeholder="Nhập lý do nếu bỏ qua...">
+      <input type="text" id="bk-edit-note" value="${thtcEsc(noteValue)}" style="width:100%;margin-top:4px" placeholder="Ví dụ: Đã kiểm tra đúng giao dịch ngân hàng">
     </div>
-    <div style="display:flex;justify-content:flex-end;gap:8px">
-      <button class="ghost" onclick="document.getElementById('bk-edit-modal').remove()">Hủy</button>
-      <button class="ghost" style="color:var(--bad);border-color:var(--bad)" onclick="saveBKEdit('${maPhieu}','ignored')">Bỏ qua dòng này</button>
-      <button class="save" onclick="saveBKEdit('${maPhieu}','matched')">✓ Lưu khớp thủ công</button>
+    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <button class="ghost" style="color:var(--bad);border-color:var(--bad)" data-ma="${thtcEsc(maPhieu)}" onclick="saveBKEdit(this.dataset.ma,'clear')">Xóa gán hiện tại</button>
+      <span style="display:flex;gap:8px"><button class="ghost" onclick="document.getElementById('bk-edit-modal').remove()">Hủy</button>
+      <button class="ghost" data-ma="${thtcEsc(maPhieu)}" onclick="saveBKEdit(this.dataset.ma,'ignored')">Bỏ qua đối chiếu</button>
+      <button class="save" data-ma="${thtcEsc(maPhieu)}" onclick="saveBKEdit(this.dataset.ma,'matched')">✓ Chọn và lưu</button></span>
     </div>
   </div>`;
   document.body.appendChild(modal);
-  // Lưu ktRows để dùng khi save
   window._bkEditKtRows = ktRows;
+  const selected=ktRows.findIndex(kt=>old.ktContent&&old.ktContent===kt.content&&Number(old.ktAmt)===Math.max(Number(kt.credit)||0,Number(kt.debit)||0));
+  if(selected>=0)document.getElementById('bk-edit-kt').value=String(selected);
 }
 
+function applyB2ManualMatch(maPhieu,kt,status,note=''){
+  const row=B2.find(r=>String(r.maPhieu)===String(maPhieu));
+  if(!row)throw new Error('Không tìm thấy phiếu B2');
+  if(status==='clear'){
+    delete BK_OVERRIDES[maPhieu];
+    row.bankMatch='';row.bankAccount='';row.manualBankMatch=false;
+    delete row.manualKtContent;delete row.manualKtAmount;delete row.manualKtDate;
+    return row;
+  }
+  if(status==='ignored'){
+    row.bankMatch='';row.bankAccount='';row.manualBankMatch=false;
+    BK_OVERRIDES[maPhieu]={status:'ignored',note,savedAt:new Date().toISOString()};
+    return row;
+  }
+  if(!kt)throw new Error('Hãy chọn một giao dịch ngân hàng');
+  const account=String(kt.account||'').replace(/\D/g,''),branch=kt.branch||KHO_ACC_MAP[account]||'';
+  const amount=Math.max(Number(kt.credit)||0,Number(kt.debit)||0);
+  row.bankMatch=branch;row.bankAccount=account;row.manualBankMatch=true;
+  row.manualKtContent=kt.content||'';row.manualKtAmount=amount;row.manualKtDate=storageISODate(kt.date);
+  row.mart1=branch==='KHO TỔNG MART 1';row.mart2=branch==='KHO TỔNG MART 2';
+  BK_OVERRIDES[maPhieu]={status:'matched',ktContent:kt.content||'',ktAmt:amount,ktBranch:branch,ktAccount:account,ktDate:storageISODate(kt.date),note,savedAt:new Date().toISOString()};
+  return row;
+}
 async function saveBKEdit(maPhieu, status){
   const idx = document.getElementById('bk-edit-kt').value;
   const note = document.getElementById('bk-edit-note').value.trim();
   const kt = (status==='matched' && idx!=='') ? window._bkEditKtRows[parseInt(idx)] : null;
-  BK_OVERRIDES[maPhieu] = {
-    status,
-    ktContent: kt ? (kt.content||'') : '',
-    ktAmt: kt ? Math.max(kt.credit||0,kt.debit||0) : 0,
-    note,
-    savedAt: new Date().toISOString()
-  };
-  await sset('bk_overrides:map', BK_OVERRIDES);
+  if(status==='matched'&&!kt){toast('Hãy chọn một giao dịch ngân hàng trong danh sách');return;}
+  try{applyB2ManualMatch(maPhieu,kt,status,note);}catch(e){toast(e.message);return;}
+  const results=await Promise.all([sset('b2:list',B2,{silentProgress:true}),sset('bk_overrides:map',BK_OVERRIDES,{silentProgress:true})]);
+  if(results.some(ok=>!ok)){toast('⚠ Chưa lưu đủ dữ liệu lên SQL. Hãy bấm Lưu lại.',6000);return;}
   document.getElementById('bk-edit-modal').remove();
-  toast('✓ Đã lưu đối chiếu thủ công');
-  renderBK();
+  toast(status==='clear'?'✓ Đã xóa gán thủ công':status==='ignored'?'✓ Đã đánh dấu bỏ qua':'✓ Đã lưu giao dịch khớp vào SQL');
+  renderSQTable();renderBK();
 }
 
 window.openBKEdit = openBKEdit;
 window.saveBKEdit = saveBKEdit;
+window.applyB2ManualMatch=applyB2ManualMatch;
 window.filterBKEditOptions = function(){
   const q = document.getElementById('bk-edit-search').value.toLowerCase().replace(/\./g,'');
   const sel = document.getElementById('bk-edit-kt');
