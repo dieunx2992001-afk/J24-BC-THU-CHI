@@ -694,13 +694,13 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
     <!-- PAGE 15: NGAN HANG KIOT -->
     <section class="page" id="p15">
       <h2>💳 Ngân hàng Kiot</h2>
-      <p class="sub">Import sao kê Cà thẻ từ KiotViet — lọc theo tháng / khoảng ngày</p>
+      <p class="sub">Import Sổ quỹ KiotViet — chỉ lấy Loại thu chi “Phiếu thu tiền khách trả”</p>
       <div class="card">
         <div class="drop" id="cak-drop">Kéo thả hoặc bấm để chọn file Ngân hàng KiotViet (.xlsx)<input type="file" id="cak-file" accept=".xlsx,.xls" style="display:none"></div>
         <div class="flexend" style="margin-top:10px">
           <span class="small" id="cak-count"></span>
           <button class="ghost" id="cak-undo">↩ Xóa lần import cuối</button>
-          <button class="danger" id="cak-clear">Xoá toàn bộ dữ liệu Cà thẻ</button>
+          <button class="danger" id="cak-clear">Xoá toàn bộ dữ liệu Ngân hàng Kiot</button>
         </div>
       </div>
       <div class="card">
@@ -2037,6 +2037,9 @@ function getXlsxWorker(){
     function skipB2CustomerType(v){
       const n=normalizeB2Type(v);return n.includes('phieu thu tien khach tra')||n.includes('phieu chi tien tra khach');
     }
+    function keepKiotCustomerReceipt(v){
+      return normalizeB2Type(v).includes('phieu thu tien khach tra');
+    }
     onmessage = function(e){
       try{
         const wb = XLSX.read(e.data.buffer, {type:'array', cellDates:true});
@@ -2044,20 +2047,25 @@ function getXlsxWorker(){
         fixSheetRange(ws);
         unmergeFillSheet(ws);
         let rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
-        let customerSkipped=0;
-        if(e.data.mode==='b2-internal'&&rows.length){
+        let customerSkipped=0,customerIncluded=0,otherSkipped=0,missingTypeColumn=false;
+        if((e.data.mode==='b2-internal'||e.data.mode==='kiot-customer')&&rows.length){
           const header=rows[0]||[];
           const typeCol=header.findIndex(v=>normalizeB2Type(v).includes('loai thu chi'));
           if(typeCol>=0){
             const kept=[header];
             for(let i=1;i<rows.length;i++){
-              if(skipB2CustomerType(rows[i]&&rows[i][typeCol]))customerSkipped++;
-              else kept.push(rows[i]);
+              const typeValue=rows[i]&&rows[i][typeCol];
+              if(e.data.mode==='b2-internal'){
+                if(skipB2CustomerType(typeValue))customerSkipped++;
+                else kept.push(rows[i]);
+              }else if(keepKiotCustomerReceipt(typeValue)){
+                kept.push(rows[i]);customerIncluded++;
+              }else otherSkipped++;
             }
             rows=kept;
-          }
+          }else if(e.data.mode==='kiot-customer')missingTypeColumn=true;
         }
-        postMessage({ok:true, rows, customerSkipped});
+        postMessage({ok:true, rows, customerSkipped, customerIncluded, otherSkipped, missingTypeColumn});
       }catch(err){
         postMessage({ok:false, error: err.message});
       }
@@ -2079,25 +2087,51 @@ function filterB2RowsForImport(rows){
   }
   return {rows:kept,customerSkipped};
 }
+function normalizeFundType(value){
+  return String(value||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/\s+/g,' ').trim();
+}
+function shouldKeepKiotCustomerReceipt(value){
+  return normalizeFundType(value).includes('phieu thu tien khach tra');
+}
+function filterKiotRowsForImport(rows){
+  if(!rows||!rows.length)return {rows:rows||[],customerIncluded:0,otherSkipped:0,missingTypeColumn:true};
+  const header=rows[0]||[],typeCol=findCol(header,['loại thu chi','loai thu chi']);
+  if(typeCol<0)return {rows:[header],customerIncluded:0,otherSkipped:Math.max(0,rows.length-1),missingTypeColumn:true};
+  const kept=[header];let customerIncluded=0,otherSkipped=0;
+  for(let i=1;i<rows.length;i++){
+    if(shouldKeepKiotCustomerReceipt(rows[i]&&rows[i][typeCol])){kept.push(rows[i]);customerIncluded++;}
+    else otherSkipped++;
+  }
+  return {rows:kept,customerIncluded,otherSkipped,missingTypeColumn:false};
+}
+function sheetReadFallback(rows,mode){
+  if(mode==='b2-internal')return filterB2RowsForImport(rows);
+  if(mode==='kiot-customer')return filterKiotRowsForImport(rows);
+  return rows;
+}
 function readSheet(file,options={}){
   return new Promise((resolve,reject)=>{
     const worker = getXlsxWorker();
     if(!worker){
       // Trình duyệt không hỗ trợ Worker — quay lại cách đọc cũ (đồng bộ) để vẫn hoạt động được
-      readSheetSync(file).then(rows=>resolve(options.mode==='b2-internal'?filterB2RowsForImport(rows):rows)).catch(reject);
+      readSheetSync(file).then(rows=>resolve(sheetReadFallback(rows,options.mode))).catch(reject);
       return;
     }
     const onMsg = (e)=>{
       worker.removeEventListener('message', onMsg);
       worker.removeEventListener('error', onErr);
-      if(e.data.ok) resolve(options.mode==='b2-internal'?{rows:e.data.rows,customerSkipped:e.data.customerSkipped||0}:e.data.rows);
+      if(e.data.ok){
+        if(options.mode==='b2-internal')resolve({rows:e.data.rows,customerSkipped:e.data.customerSkipped||0});
+        else if(options.mode==='kiot-customer')resolve({rows:e.data.rows,customerIncluded:e.data.customerIncluded||0,otherSkipped:e.data.otherSkipped||0,missingTypeColumn:!!e.data.missingTypeColumn});
+        else resolve(e.data.rows);
+      }
       else reject(new Error(e.data.error||'Lỗi đọc file trong worker'));
     };
     const onErr = (err)=>{
       worker.removeEventListener('message', onMsg);
       worker.removeEventListener('error', onErr);
       // Worker lỗi (vd. mạng chặn CDN trong worker) — thử lại bằng cách đọc đồng bộ ở luồng chính
-      readSheetSync(file).then(rows=>resolve(options.mode==='b2-internal'?filterB2RowsForImport(rows):rows)).catch(reject);
+      readSheetSync(file).then(rows=>resolve(sheetReadFallback(rows,options.mode))).catch(reject);
     };
     worker.addEventListener('message', onMsg);
     worker.addEventListener('error', onErr);
@@ -2991,7 +3025,7 @@ function renderKTRaw(){
 =================================================================== */
 let B2 = []; // {maPhieu, time, branch, type, person, amount, note, loaiSoQuy, bankMatch, bankAccount}
 function shouldSkipB2CustomerReceipt(value){
-  const normalized=String(value||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/\s+/g,' ').trim();
+  const normalized=normalizeFundType(value);
   return normalized.includes('phieu thu tien khach tra')||normalized.includes('phieu chi tien tra khach');
 }
 function initB2UI(){
@@ -4329,9 +4363,12 @@ async function handleCAKFile(file){
   try{
     toast('⏳ Đang đọc file... (file lớn có thể mất khoảng vài chục giây)', 4000);
     await new Promise(r=>setTimeout(r,30));
-    const rows = await readSheet(file);
+    const readResult = await readSheet(file,{mode:'kiot-customer'});
+    const rows = readResult.rows;
     const header = rows[0];
     if(!header) return toast('Không đọc được header file');
+    if(readResult.missingTypeColumn)return toast('Không tìm thấy cột “Loại thu chi” trong file KiotViet',6000);
+    if(rows.length<2)return toast(`Không có dòng “Phiếu thu tiền khách trả” trong file${readResult.otherSkipped?' · đã bỏ '+readResult.otherSkipped+' loại phiếu khác':''}`,6000);
     // cIdx
     const fc = (keys)=>{ for(let i=0;i<header.length;i++){ const c=String(header[i]||'').toLowerCase(); for(const k of keys) if(c.includes(k)) return i; } return -1; };
     const cIdx = {
@@ -4347,13 +4384,14 @@ async function handleCAKFile(file){
       note: fc(['ghi chú','ghi chu'])
     };
     const existIds = new Set(CATHE_KV.map(r=>r.maPhieu));
-    let added=0, dup=0;
+    let added=0, dup=0,otherSkipped=readResult.otherSkipped||0;
     const newRows = [];
     const dataRows = rows.slice(1);
     const CHUNK = 5000;
     for(let i=0;i<dataRows.length;i+=CHUNK){
       dataRows.slice(i, i+CHUNK).forEach(row=>{
         if(!row||!row[cIdx.maPhieu]) return;
+        if(!shouldKeepKiotCustomerReceipt(row[cIdx.loai])){otherSkipped++;return;}
         const maPhieu = String(row[cIdx.maPhieu]||'').trim();
         if(!maPhieu) return;
         if(existIds.has(maPhieu)){ dup++; return; }
@@ -4384,7 +4422,7 @@ async function handleCAKFile(file){
     if(!ok){toast(`⚠ Chưa lưu được ${added} phiếu Ngân hàng Kiot. ${window._lastSaveError||'Hãy thử nhập lại file.'}`,6500);renderCAKCount();renderCAKTable();return;}
     CATHE_KV=next;
     window._cakLastIds = new Set(newRows.map(r=>r.maPhieu));
-    toast(`✓ Đã import ${added} phiếu mới${dup?' (bỏ qua '+dup+' trùng)':''}`);
+    toast(`✓ Đã import ${added} phiếu thu tiền khách trả${dup?' · bỏ '+dup+' phiếu trùng':''}${otherSkipped?' · bỏ '+otherSkipped+' loại phiếu khác':''}`,5500);
     // fill phương thức select
     renderCAKCount(); renderCAKTable();
   }catch(err){ toast('Lỗi đọc file: '+err.message); console.error(err); }
