@@ -5172,6 +5172,17 @@ function getTHTCSourceData(branches,from,to){
   const add=(source,branch,amount)=>{ if(branch&&values[source]) values[source][branch]+=(Number(amount)||0); };
   const sumSource=source=>branches.reduce((sum,b)=>sum+(Number(values[source]&&values[source][b])||0),0);
   const ascii=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/\s+/g,' ').trim();
+  const khotongBranchFromContent=content=>{
+    const text=(' '+ascii(content).toUpperCase().replace(/[^A-Z0-9]+/g,' ')+' ');
+    const codes=[
+      ['80CCXH','CN5. J24 80CCXH'],['18THD','CN2. J24 18THD'],['39VCN','CN4. J24 39VCN'],
+      ['81TND','CN6. J24 81TND'],['47CT4','CN9. J24 47CT4'],['05VL','CN1. Anh 05VL'],
+      ['92HB','CN3. J24 92HB'],['VEGA','CN7. J24 VEGA'],['RIGEL','Rigel'],
+      ['GRAND','Grand'],['ART','Art'],['AB','CN8. J24 AB']
+    ];
+    const hit=codes.find(([code])=>text.includes(' '+code+' '));
+    return hit?hit[1]:null;
+  };
   const extFrom=thtcDateAdd(from,-3), extTo=thtcDateAdd(to,3);
   const recon={
     values,
@@ -5225,9 +5236,19 @@ function getTHTCSourceData(branches,from,to){
     }
   });
   KHOTONG.forEach(r=>{
-    const branch=hitAnyBranch(r.branch),d=thtcISODate(r.date);
-    if(!branch||!selected(branch)||d<from||d>to)return;
-    if(Number(r.credit)>0&&ascii(r.content).includes('tra lai tien gui'))add('bank_interest',branch,r.credit);
+    const d=thtcISODate(r.date),content=ascii(r.content);
+    if(d<from||d>to)return;
+    const contentBranch=khotongBranchFromContent(r.content);
+    const branch=contentBranch||hitAnyBranch(r.branch);
+    const acc=String(r.account||'').replace(/\D/g,'');
+    const bankLabel=ascii(KHO_ACC_MAP[acc]||r.branch);
+    const mart=KHO_ACC_MAP[acc]==='KHO TỔNG MART 1'||bankLabel.includes('mart 1')?'m1':
+      (KHO_ACC_MAP[acc]==='KHO TỔNG MART 2'||bankLabel.includes('mart 2')?'m2':'');
+    if(content.includes('chuyen chi hang ngay')&&branch&&selected(branch)&&mart&&Number(r.credit)>0){
+      add(mart+'_transfer',branch,Number(r.credit));
+      return;
+    }
+    if(branch&&selected(branch)&&Number(r.credit)>0&&content.includes('tra lai tien gui'))add('bank_interest',branch,r.credit);
   });
 
   // B2 là nguồn cho toàn bộ thu/chi tiền mặt, hai tài khoản Mart và 74+ dòng chi tiết.
