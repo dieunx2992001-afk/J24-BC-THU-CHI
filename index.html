@@ -793,6 +793,7 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
             <div><button class="ghost" id="thtc-category-export">⬇ Xuất file danh mục</button></div>
           </div>
           <div id="thtc-category-status" class="thtc-manual-status">Danh mục sẽ hiển thị sau khi dữ liệu B2 được tải.</div>
+          <div id="thtc-category-saved" style="margin-top:12px"></div>
         </div>
       </details>
       <div class="card">
@@ -5225,18 +5226,60 @@ function refreshTHTCCategoryUI(){
   status.innerHTML=unknown.length
     ?`⚠ Có <b>${unknown.length}</b> loại phiếu mới (${unknownRows.toLocaleString('vi-VN')} dòng) chưa phân loại. Các phiếu này vẫn hiện ở bảng chi tiết nhưng chưa được cộng vào Hàng/Khác.`
     :`✓ Đã phân loại đủ ${items.length} loại phiếu đang có trong B2.`;
+  renderTHTCSavedCategories(typeRows);
+}
+function renderTHTCSavedCategories(typeRows){
+  const box=document.getElementById('thtc-category-saved');if(!box)return;
+  const saved=Object.entries(THTC_CATEGORIES)
+    .map(([key,value])=>{
+      const category=thtcNormalizeCategory(value);
+      const found=typeRows&&typeRows.get(key);
+      return {key,category,name:found?found.name:key,count:found?found.count:0};
+    })
+    .filter(x=>x.category)
+    .sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+  if(!saved.length){
+    box.innerHTML='<div class="thtc-manual-status">Chưa có phân loại nào được chỉnh và lưu riêng.</div>';
+    return;
+  }
+  box.innerHTML=`<div style="font-size:12px;font-weight:700;color:var(--title);margin-bottom:7px">Phân loại đã lưu — có thể sửa lại</div>
+    <div class="scroll" style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:7px">
+      <table>
+        <thead><tr><th class="l">Tên loại phiếu B2</th><th class="l">Phân loại đang lưu</th><th>Số dòng</th><th>Thao tác</th></tr></thead>
+        <tbody>${saved.map(x=>`<tr>
+          <td class="l">${thtcEsc(x.name)}</td>
+          <td class="l"><b>${thtcEsc(x.category==='0'?'Điều chuyển / không quyết toán (0)':x.category)}</b></td>
+          <td>${Number(x.count||0).toLocaleString('vi-VN')}</td>
+          <td>
+            <button type="button" class="ghost thtc-category-edit" data-key="${thtcEsc(x.key)}" style="padding:5px 9px;font-size:11px">✎ Sửa</button>
+            <button type="button" class="danger thtc-category-remove" data-key="${thtcEsc(x.key)}" style="margin-left:4px">Xóa</button>
+          </td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
 }
 function loadTHTCCategoryChoice(){
   const sel=document.getElementById('thtc-category-type');if(!sel||!sel.value)return;
   const row=B2.find(r=>thtcLayoutKey(r.loaiThuChi)===sel.value);
   document.getElementById('thtc-category-value').value=thtcCategoryFor(row)||'Khác';
+  const saved=thtcNormalizeCategory(THTC_CATEGORIES[sel.value]);
+  document.getElementById('thtc-category-save').textContent=saved?'Cập nhật phân loại':'Lưu phân loại';
 }
 async function saveTHTCCategory(){
   const key=document.getElementById('thtc-category-type').value;if(!key){toast('Chưa có loại phiếu để phân loại');return;}
   THTC_CATEGORIES[key]=document.getElementById('thtc-category-value').value;
   const ok=await sset('thtc:categories',THTC_CATEGORIES);
   if(!ok)return;
-  refreshTHTCCategoryUI();renderTongHopThuChiLayout();toast('✓ Đã lưu phân loại phiếu — áp dụng cho mọi máy');
+  refreshTHTCCategoryUI();loadTHTCCategoryChoice();renderTongHopThuChiLayout();toast('✓ Đã cập nhật phân loại phiếu — áp dụng cho mọi máy');
+}
+async function removeTHTCCategory(key){
+  if(!key||!thtcNormalizeCategory(THTC_CATEGORIES[key]))return;
+  const row=B2.find(r=>thtcLayoutKey(r.loaiThuChi)===key);
+  const name=row?row.loaiThuChi:key;
+  if(!confirm(`Xóa phân loại đã lưu của "${name}"? Sau đó hệ thống sẽ dùng lại phân loại mặc định trong file.`))return;
+  delete THTC_CATEGORIES[key];
+  const ok=await sset('thtc:categories',THTC_CATEGORIES);if(!ok)return;
+  refreshTHTCCategoryUI();loadTHTCCategoryChoice();renderTongHopThuChiLayout();toast('✓ Đã xóa phân loại lưu riêng');
 }
 function exportTHTCCategoryFile(){
   if(typeof XLSX==='undefined'){toast('Không tải được thư viện xuất Excel');return;}
@@ -5302,6 +5345,18 @@ function initTHTCExtraInputs(){
   document.getElementById('thtc-category-type').addEventListener('change',loadTHTCCategoryChoice);
   document.getElementById('thtc-category-save').addEventListener('click',saveTHTCCategory);
   document.getElementById('thtc-category-export').addEventListener('click',exportTHTCCategoryFile);
+  document.getElementById('thtc-category-saved').addEventListener('click',e=>{
+    const edit=e.target.closest('.thtc-category-edit'),remove=e.target.closest('.thtc-category-remove');
+    if(edit){
+      const key=edit.dataset.key,sel=document.getElementById('thtc-category-type');
+      if([...sel.options].some(o=>o.value===key)){
+        sel.value=key;loadTHTCCategoryChoice();
+        document.getElementById('thtc-category-value').focus();
+        toast('Đã chọn phân loại cũ — hãy đổi loại rồi bấm Cập nhật phân loại');
+      }else toast('Loại phiếu này hiện không có trong dữ liệu B2 đang tải');
+    }
+    if(remove)removeTHTCCategory(remove.dataset.key);
+  });
   document.getElementById('thtc-category-open').addEventListener('click',()=>{
     const box=document.getElementById('thtc-category-box');box.open=true;
     box.scrollIntoView({behavior:'smooth',block:'center'});
