@@ -5653,7 +5653,9 @@ function syncTHTCStickyHeaders(){
     headRow.style.transform=`translateX(${-wrap.scrollLeft/Math.max(.01,THTC_TABLE_ZOOM)}px)`;
     if(storeHead)storeHead.style.transform=`translateX(${wrap.scrollLeft/Math.max(.01,THTC_TABLE_ZOOM)}px)`;
   }
-  if(thead)thead.style.transform=`translateY(${wrap.scrollTop/Math.max(.01,THTC_TABLE_ZOOM)}px)`;
+  /* Hàng tiêu đề nổi ở trên đã đảm nhiệm việc ghim.
+     Không kéo thead gốc theo nữa, tránh xuất hiện thêm một hàng "CỬA HÀNG" giữa dữ liệu. */
+  if(thead)thead.style.transform='none';
 }
 let THTC_TABLE_ZOOM=1,THTC_TABLE_AUTO_FIT=true;
 function setTHTCTableZoom(value,autoFit=false){
