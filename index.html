@@ -755,6 +755,12 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
           <div id="thtc-from-wrap" style="display:none"><label>Từ ngày</label><input type="date" id="thtc-from"></div>
           <div id="thtc-to-wrap" style="display:none"><label>Đến ngày</label><input type="date" id="thtc-to"></div>
           <div><label>Chi nhánh</label><select id="thtc-branch"><option value="ALL">Tất cả chi nhánh</option></select></div>
+          <div style="align-self:center;padding-top:19px">
+            <label style="display:flex;align-items:center;gap:7px;margin:0;cursor:pointer;color:var(--title)">
+              <input type="checkbox" id="thtc-hide-empty" checked style="width:auto">
+              Ẩn cột không có dữ liệu
+            </label>
+          </div>
           <div><button class="save" id="thtc-run">Xem báo cáo</button></div>
           <div><button class="ghost" id="thtc-export">⬇ Xuất Excel</button></div>
           <div><button class="ghost" id="thtc-category-open">🗂 Danh mục phiếu B2</button></div>
@@ -5402,6 +5408,7 @@ function initTongHopThuChiLayout(){
   document.getElementById('thtc-to').value=todayISO();
   fillSelect(document.getElementById('thtc-branch'),THTC_LAYOUT_BRANCHES,true);
   document.getElementById('thtc-period').addEventListener('change',syncTHTCPeriod);
+  document.getElementById('thtc-hide-empty').addEventListener('change',renderTongHopThuChiLayout);
   document.getElementById('thtc-run').addEventListener('click',renderTongHopThuChiLayout);
   document.getElementById('thtc-export').addEventListener('click',exportTongHopThuChiLayout);
   initTHTCExtraInputs();
@@ -5409,12 +5416,24 @@ function initTongHopThuChiLayout(){
   initTHTCFloatingScrollbar();
   syncTHTCPeriod(); renderTongHopThuChiLayout();
 }
+function thtcVisibleBranches(sourceData,requestedBranches){
+  const hide=document.getElementById('thtc-hide-empty')?.checked;
+  if(!hide||requestedBranches.length<=1)return requestedBranches;
+  const visible=requestedBranches.filter(branch=>{
+    const layoutHasValue=THTC_LAYOUT_ROWS.some(r=>r.source&&Number((sourceData[r.source]||{})[branch]||0)!==0);
+    const detailHasValue=Object.values(sourceData.__details||{}).some(d=>Number((d&&d.vals||{})[branch]||0)!==0);
+    return layoutHasValue||detailHasValue;
+  });
+  // Nếu cả kỳ hoàn toàn chưa có dữ liệu thì vẫn giữ các cột để người dùng biết báo cáo đang trống.
+  return visible.length?visible:requestedBranches;
+}
 function renderTongHopThuChiLayout(){
   const chosen=document.getElementById('thtc-branch').value;
-  const branches=chosen==='ALL'?THTC_LAYOUT_BRANCHES:[chosen];
+  const requestedBranches=chosen==='ALL'?THTC_LAYOUT_BRANCHES:[chosen];
   const range=getTHTCRange();
   if(!range.from||!range.to||range.from>range.to){toast('Hãy chọn kỳ báo cáo hợp lệ');return;}
-  const sourceData=getTHTCSourceData(branches,range.from,range.to);
+  const sourceData=getTHTCSourceData(requestedBranches,range.from,range.to);
+  const branches=thtcVisibleBranches(sourceData,requestedBranches);
   const blankCells=(key)=>branches.map((b,i)=>`<td class="thtc-placeholder" data-row="${key}" data-branch="${thtcLayoutKey(b)}"></td>`).join('')+`<td class="thtc-placeholder" data-row="${key}" data-branch="cong"></td>`;
   const valueCells=(key,source,rowDef={})=>{
     const vals=sourceData[source]||{};
@@ -5459,16 +5478,18 @@ function renderTongHopThuChiLayout(){
   const warnings=[];
   if(sourceData.__unknownRows)warnings.push(`${sourceData.__unknownRows.toLocaleString('vi-VN')} dòng B2 chưa phân loại`);
   if(sourceData.__unassignedBankRows)warnings.push(`${sourceData.__unassignedBankRows.toLocaleString('vi-VN')} dòng ngân hàng chưa xác định Mart`);
-  document.getElementById('thtc-caption').textContent=`Kỳ báo cáo: ${range.label} · ${branches.length} cột chi nhánh · ${(sourceData.__b2Count||0).toLocaleString('vi-VN')} phiếu B2${warnings.length?' · ⚠ '+warnings.join(' · '):''} · rê chuột vào ô CL để xem lý do`;
+  const hiddenCount=requestedBranches.length-branches.length;
+  document.getElementById('thtc-caption').textContent=`Kỳ báo cáo: ${range.label} · ${branches.length} cột chi nhánh${hiddenCount?` · đã ẩn ${hiddenCount} cột trống`:''} · ${(sourceData.__b2Count||0).toLocaleString('vi-VN')} phiếu B2${warnings.length?' · ⚠ '+warnings.join(' · '):''} · rê chuột vào ô CL để xem lý do`;
   makeResizable(document.getElementById('thtc-table'));
   if(window._updateTHTCFloatScroll)setTimeout(window._updateTHTCFloatScroll,30);
 }
 function exportTongHopThuChiLayout(){
   if(typeof XLSX==='undefined'){toast('Không tải được thư viện xuất Excel');return;}
-  const chosen=document.getElementById('thtc-branch').value, branches=chosen==='ALL'?THTC_LAYOUT_BRANCHES:[chosen];
+  const chosen=document.getElementById('thtc-branch').value, requestedBranches=chosen==='ALL'?THTC_LAYOUT_BRANCHES:[chosen];
   const range=getTHTCRange();
   if(!range.from||!range.to||range.from>range.to){toast('Hãy chọn kỳ báo cáo hợp lệ');return;}
-  const sourceData=getTHTCSourceData(branches,range.from,range.to);
+  const sourceData=getTHTCSourceData(requestedBranches,range.from,range.to);
+  const branches=thtcVisibleBranches(sourceData,requestedBranches);
   const rows=[['MÃ','CỬA HÀNG',...branches,'CỘNG']];
   THTC_LAYOUT_ROWS.forEach(r=>{
     const source=r.source?(sourceData[r.source]||{}):null;
