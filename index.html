@@ -237,16 +237,23 @@ tr:hover td{background:var(--surface2);}
 .thtc-table thead th{position:relative;z-index:301;background:#eee8dc;box-shadow:0 1px 0 #c8bba9;}
 .thtc-table-tools{position:relative;z-index:60;height:42px;padding:5px 8px;display:flex;align-items:center;gap:8px;background:var(--surface);border-bottom:1px solid var(--border);white-space:nowrap;will-change:transform;}
 .thtc-table-tools #thtc-caption{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.thtc-first-head-overlay{
+.thtc-head-overlay{
   position:absolute;
   left:0;
   top:100%;
   z-index:1000;
+  overflow:hidden;
+  height:27px;
+  background:#eee8dc;
+  pointer-events:none;
+}
+.thtc-head-overlay-row{display:flex;height:100%;will-change:transform;}
+.thtc-head-overlay-cell{
+  flex:0 0 88px;
+  width:88px;
   display:flex;
   align-items:center;
   justify-content:center;
-  width:185px;
-  height:27px;
   padding:3px 5px;
   background:#eee8dc;
   color:#756d62;
@@ -257,8 +264,19 @@ tr:hover td{background:var(--surface2);}
   line-height:1.1;
   letter-spacing:.35px;
   text-transform:uppercase;
-  pointer-events:none;
-  transform:translateX(0);
+  text-align:center;
+}
+.thtc-head-overlay-cell.store{
+  position:relative;
+  z-index:2;
+  flex-basis:185px;
+  width:185px;
+}
+.thtc-head-overlay-cell.total{
+  flex-basis:100px;
+  width:100px;
+  color:#4d463d;
+  background:#e8dfd1;
 }
 .thtc-table th:nth-child(1),.thtc-table td:nth-child(1){position:sticky;left:0;z-index:2;width:185px;min-width:185px;text-align:left;background:#fffdfa;font-family:var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .thtc-table thead th:nth-child(1){z-index:400!important;background:#eee8dc;text-align:center;}
@@ -921,7 +939,7 @@ td{
       <div class="card">
         <div id="thtc-scroll" class="scroll" style="max-height:690px;overflow:auto;border:1px solid var(--border)">
           <div class="thtc-table-tools">
-            <div id="thtc-first-head-overlay" class="thtc-first-head-overlay">Cửa hàng</div>
+            <div id="thtc-head-overlay" class="thtc-head-overlay"><div id="thtc-head-overlay-row" class="thtc-head-overlay-row"></div></div>
             <div id="thtc-caption" class="small" style="flex:1;min-width:0"></div>
             <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
               <button type="button" class="ghost" id="thtc-zoom-out" style="padding:5px 10px" title="Chỉ thu nhỏ bảng">−</button>
@@ -5621,13 +5639,18 @@ function initTongHopThuChiLayout(){
 function syncTHTCStickyHeaders(){
   const wrap=document.getElementById('thtc-scroll'),tools=wrap&&wrap.querySelector('.thtc-table-tools');
   const thead=document.querySelector('#thtc-table thead');
-  const firstHead=document.getElementById('thtc-first-head-overlay');
+  const headOverlay=document.getElementById('thtc-head-overlay');
+  const headRow=document.getElementById('thtc-head-overlay-row');
+  const storeHead=headRow&&headRow.querySelector('.store');
   if(!wrap||!tools)return;
   tools.style.transform=`translateY(${wrap.scrollTop}px)`;
-  if(firstHead){
-    firstHead.style.width=(185*THTC_TABLE_ZOOM)+'px';
-    firstHead.style.height=(27*THTC_TABLE_ZOOM)+'px';
-    firstHead.style.transform=`translateX(${wrap.scrollLeft}px)`;
+  if(headOverlay&&headRow){
+    headOverlay.style.width=wrap.clientWidth+'px';
+    headOverlay.style.height=(27*THTC_TABLE_ZOOM)+'px';
+    headOverlay.style.transform=`translateX(${wrap.scrollLeft}px)`;
+    headRow.style.zoom=String(THTC_TABLE_ZOOM);
+    headRow.style.transform=`translateX(${-wrap.scrollLeft/Math.max(.01,THTC_TABLE_ZOOM)}px)`;
+    if(storeHead)storeHead.style.transform=`translateX(${wrap.scrollLeft/Math.max(.01,THTC_TABLE_ZOOM)}px)`;
   }
   if(thead)thead.style.transform=`translateY(${wrap.scrollTop/Math.max(.01,THTC_TABLE_ZOOM)}px)`;
 }
@@ -5711,6 +5734,10 @@ function renderTongHopThuChiLayout(){
   html+='</tbody>';
   const table=document.getElementById('thtc-table');
   table.innerHTML=html;
+  document.getElementById('thtc-head-overlay-row').innerHTML=
+    `<div class="thtc-head-overlay-cell store">Cửa hàng</div>`+
+    branches.map(b=>`<div class="thtc-head-overlay-cell">${thtcBranchHeader(b)}</div>`).join('')+
+    `<div class="thtc-head-overlay-cell total">Cộng</div>`;
   // Khóa chiều rộng đúng bằng tổng độ rộng các cột, tránh trình duyệt tự kéo giãn tạo khoảng trắng.
   table.style.width=(185+branches.length*88+100)+'px';
   const warnings=[];
