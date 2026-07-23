@@ -5434,6 +5434,12 @@ function initTongHopThuChiLayout(){
   document.getElementById('thtc-zoom-in').addEventListener('click',()=>setTHTCTableZoom(THTC_TABLE_ZOOM+.1,false));
   document.getElementById('thtc-zoom-fit').addEventListener('click',fitTHTCTable);
   window.addEventListener('resize',()=>{if(THTC_TABLE_AUTO_FIT)fitTHTCTable();},{passive:true});
+  window.addEventListener('wheel',e=>{
+    if(e.ctrlKey&&THTC_TABLE_AUTO_FIT)setTimeout(fitTHTCTable,180);
+  },{passive:true});
+  if(window.visualViewport)window.visualViewport.addEventListener('resize',()=>{
+    if(THTC_TABLE_AUTO_FIT)setTimeout(fitTHTCTable,80);
+  },{passive:true});
   initTHTCExtraInputs();
   initTHTCHoverTips();
   initTHTCFloatingScrollbar();
