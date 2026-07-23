@@ -757,12 +757,6 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
           <div id="thtc-from-wrap" style="display:none"><label>Từ ngày</label><input type="date" id="thtc-from"></div>
           <div id="thtc-to-wrap" style="display:none"><label>Đến ngày</label><input type="date" id="thtc-to"></div>
           <div><label>Chi nhánh</label><select id="thtc-branch"><option value="ALL">Tất cả chi nhánh</option></select></div>
-          <div style="align-self:center;padding-top:19px">
-            <label style="display:flex;align-items:center;gap:7px;margin:0;cursor:pointer;color:var(--title)">
-              <input type="checkbox" id="thtc-hide-empty" checked style="width:auto">
-              Ẩn cột không có dữ liệu
-            </label>
-          </div>
           <div><button class="save" id="thtc-run">Xem báo cáo</button></div>
           <div><button class="ghost" id="thtc-export">⬇ Xuất Excel</button></div>
           <div><button class="ghost" id="thtc-category-open">🗂 Danh mục phiếu B2</button></div>
@@ -5427,7 +5421,6 @@ function initTongHopThuChiLayout(){
   document.getElementById('thtc-to').value=todayISO();
   fillSelect(document.getElementById('thtc-branch'),THTC_LAYOUT_BRANCHES,true);
   document.getElementById('thtc-period').addEventListener('change',syncTHTCPeriod);
-  document.getElementById('thtc-hide-empty').addEventListener('change',renderTongHopThuChiLayout);
   document.getElementById('thtc-run').addEventListener('click',renderTongHopThuChiLayout);
   document.getElementById('thtc-export').addEventListener('click',exportTongHopThuChiLayout);
   document.getElementById('thtc-zoom-out').addEventListener('click',()=>setTHTCTableZoom(THTC_TABLE_ZOOM-.1,false));
@@ -5457,7 +5450,7 @@ function setTHTCTableZoom(value,autoFit=false){
 function fitTHTCTable(){
   const table=document.getElementById('thtc-table'),wrap=document.getElementById('thtc-scroll');if(!table||!wrap)return;
   table.style.zoom='1';
-  const scale=Math.min(1,(wrap.clientWidth-6)/Math.max(1,table.offsetWidth));
+  const scale=Math.min(1.4,(wrap.clientWidth-6)/Math.max(1,table.offsetWidth));
   THTC_TABLE_AUTO_FIT=true;
   THTC_TABLE_ZOOM=Math.max(.5,Math.floor(scale*100)/100);
   table.style.zoom=String(THTC_TABLE_ZOOM);
@@ -5465,15 +5458,12 @@ function fitTHTCTable(){
   if(window._updateTHTCFloatScroll)setTimeout(window._updateTHTCFloatScroll,30);
 }
 function thtcVisibleBranches(sourceData,requestedBranches){
-  const hide=document.getElementById('thtc-hide-empty')?.checked;
-  if(!hide||requestedBranches.length<=1)return requestedBranches;
-  const visible=requestedBranches.filter(branch=>{
+  if(requestedBranches.length<=1)return requestedBranches;
+  return requestedBranches.filter(branch=>{
     const layoutHasValue=THTC_LAYOUT_ROWS.some(r=>r.source&&Number((sourceData[r.source]||{})[branch]||0)!==0);
     const detailHasValue=Object.values(sourceData.__details||{}).some(d=>Number((d&&d.vals||{})[branch]||0)!==0);
     return layoutHasValue||detailHasValue;
   });
-  // Nếu cả kỳ hoàn toàn chưa có dữ liệu thì vẫn giữ các cột để người dùng biết báo cáo đang trống.
-  return visible.length?visible:requestedBranches;
 }
 function renderTongHopThuChiLayout(){
   const chosen=document.getElementById('thtc-branch').value;
