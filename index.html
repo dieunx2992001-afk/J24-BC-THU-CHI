@@ -233,10 +233,12 @@ tr:hover td{background:var(--surface2);}
 .thtc-table th{font-size:9px;text-transform:uppercase;letter-spacing:.35px;text-align:center;background:#eee8dc;color:#756d62;white-space:normal;height:27px;font-weight:700;}
 .thtc-table td{font-size:10.5px;text-align:right;background:#fffdfa;color:#302b25;font-family:var(--mono);}
 .thtc-table thead{position:sticky;top:0;z-index:30;}
-.thtc-table thead th{position:sticky;top:0;z-index:31;background:#eee8dc;box-shadow:0 1px 0 #c8bba9;}
+.thtc-table thead th{position:sticky;top:var(--thtc-sticky-top,42px);z-index:31;background:#eee8dc;box-shadow:0 1px 0 #c8bba9;}
+.thtc-table-tools{position:sticky;top:0;z-index:60;height:42px;padding:5px 8px;display:flex;align-items:center;gap:8px;background:var(--surface);border-bottom:1px solid var(--border);white-space:nowrap;}
+.thtc-table-tools #thtc-caption{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .thtc-table th:nth-child(1),.thtc-table td:nth-child(1){position:sticky;left:0;z-index:4;width:210px;min-width:210px;text-align:left;background:#fffdfa;font-family:var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .thtc-table thead th:nth-child(1){z-index:40;background:#eee8dc;text-align:center;}
-.thtc-table th:nth-child(n+2),.thtc-table td:nth-child(n+2){width:76px;min-width:76px;}
+.thtc-table th:nth-child(n+2),.thtc-table td:nth-child(n+2){width:100px;min-width:100px;}
 .thtc-table .thtc-group td{background:#e7eef1!important;color:#153f4b;font-weight:800;border-top:1px solid #c7d4d8;height:32px;}
 .thtc-table .thtc-subhead td{background:#f2eee6!important;color:#5e574e;font-weight:800;}
 .thtc-table .thtc-main td:nth-child(1){font-weight:700;}
@@ -763,16 +765,18 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
         </div>
       </div>
       <div class="card">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-          <div id="thtc-caption" class="small" style="flex:1;min-width:260px"></div>
-          <div style="display:flex;align-items:center;gap:4px">
-            <button type="button" class="ghost" id="thtc-zoom-out" style="padding:5px 10px" title="Chỉ thu nhỏ bảng">−</button>
-            <span id="thtc-zoom-label" class="badge" style="min-width:48px;text-align:center">100%</span>
-            <button type="button" class="ghost" id="thtc-zoom-in" style="padding:5px 10px" title="Chỉ phóng to bảng">＋</button>
-            <button type="button" class="ghost" id="thtc-zoom-fit" style="padding:5px 10px">↔ Vừa khung</button>
+        <div id="thtc-scroll" class="scroll" style="max-height:690px;overflow:auto;border:1px solid var(--border)">
+          <div class="thtc-table-tools">
+            <div id="thtc-caption" class="small" style="flex:1;min-width:0"></div>
+            <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+              <button type="button" class="ghost" id="thtc-zoom-out" style="padding:5px 10px" title="Chỉ thu nhỏ bảng">−</button>
+              <span id="thtc-zoom-label" class="badge" style="min-width:48px;text-align:center">100%</span>
+              <button type="button" class="ghost" id="thtc-zoom-in" style="padding:5px 10px" title="Chỉ phóng to bảng">＋</button>
+              <button type="button" class="ghost" id="thtc-zoom-fit" style="padding:5px 10px">↔ Vừa khung</button>
+            </div>
           </div>
+          <table id="thtc-table" class="thtc-table"></table>
         </div>
-        <div id="thtc-scroll" class="scroll" style="max-height:690px;overflow:auto;border:1px solid var(--border)"><table id="thtc-table" class="thtc-table"></table></div>
         <div id="thtc-float-scroll" class="thtc-float-scroll" aria-label="Thanh kéo ngang bảng Tổng hợp thu chi"><div id="thtc-float-scroll-inner" class="thtc-float-scroll-inner"></div></div>
         <p class="note">Cột <b>Cửa hàng</b> được ghim bên trái. Thanh kéo ngang sẽ tự nổi ở đáy màn hình khi cuối bảng chưa hiện ra.</p>
       </div>
@@ -915,7 +919,7 @@ function makeResizable(tableEl){
   // Riêng bảng Tổng hợp thu chi: nhớ độ rộng cột sau khi dựng lại bảng hoặc tải lại trang.
   let savedWidths = [];
   if(tableEl.id==='thtc-table'){
-    try{ savedWidths = JSON.parse(localStorage.getItem('j24-thtc-column-widths-v4')||'[]'); }catch(e){ savedWidths=[]; }
+    try{ savedWidths = JSON.parse(localStorage.getItem('j24-thtc-column-widths-v5')||'[]'); }catch(e){ savedWidths=[]; }
   }
   ths.forEach((th, colIndex)=>{
     if(savedWidths[colIndex]){
@@ -942,7 +946,7 @@ function makeResizable(tableEl){
         if(tableEl.id==='thtc-table'){
           try{
             const widths = Array.from(tableEl.querySelectorAll('thead th')).map(x=>Math.round(x.offsetWidth));
-            localStorage.setItem('j24-thtc-column-widths-v4', JSON.stringify(widths));
+            localStorage.setItem('j24-thtc-column-widths-v5', JSON.stringify(widths));
           }catch(err){}
         }
       };
@@ -4763,7 +4767,7 @@ function renderTongHopThuChi(){
   const table=document.getElementById('thtc-table');
   table.innerHTML=html;
   // Khóa chiều rộng đúng bằng tổng độ rộng các cột, tránh trình duyệt tự kéo giãn tạo khoảng trắng.
-  table.style.width=(210+(branches.length+1)*76)+'px';
+  table.style.width=(210+(branches.length+1)*100)+'px';
   document.getElementById('thtc-caption').textContent=`Kỳ báo cáo: ${label} · ${branches.length} chi nhánh · ${b2rows.length} phiếu B2 trong kỳ`;
   document.getElementById('thtc-kpi').innerHTML=`
     <div class="box"><div class="v" style="color:var(--good)">${fmt(allTotal(totalThu))}</div><div class="l">Tổng thu</div></div>
@@ -5443,7 +5447,7 @@ function setTHTCTableZoom(value,autoFit=false){
   THTC_TABLE_ZOOM=Math.max(.5,Math.min(1.4,Math.round(value*10)/10));
   THTC_TABLE_AUTO_FIT=autoFit;
   const table=document.getElementById('thtc-table'),label=document.getElementById('thtc-zoom-label');
-  if(table)table.style.zoom=String(THTC_TABLE_ZOOM);
+  if(table){table.style.zoom=String(THTC_TABLE_ZOOM);table.style.setProperty('--thtc-sticky-top',(42/THTC_TABLE_ZOOM)+'px');}
   if(label)label.textContent=Math.round(THTC_TABLE_ZOOM*100)+'%';
   if(window._updateTHTCFloatScroll)setTimeout(window._updateTHTCFloatScroll,30);
 }
@@ -5454,6 +5458,7 @@ function fitTHTCTable(){
   THTC_TABLE_AUTO_FIT=true;
   THTC_TABLE_ZOOM=Math.max(.5,Math.floor(scale*100)/100);
   table.style.zoom=String(THTC_TABLE_ZOOM);
+  table.style.setProperty('--thtc-sticky-top',(42/THTC_TABLE_ZOOM)+'px');
   document.getElementById('thtc-zoom-label').textContent=Math.round(THTC_TABLE_ZOOM*100)+'%';
   if(window._updateTHTCFloatScroll)setTimeout(window._updateTHTCFloatScroll,30);
 }
@@ -5516,7 +5521,7 @@ function renderTongHopThuChiLayout(){
   const table=document.getElementById('thtc-table');
   table.innerHTML=html;
   // Khóa chiều rộng đúng bằng tổng độ rộng các cột, tránh trình duyệt tự kéo giãn tạo khoảng trắng.
-  table.style.width=(210+(branches.length+1)*76)+'px';
+  table.style.width=(210+(branches.length+1)*100)+'px';
   const warnings=[];
   if(sourceData.__unknownRows)warnings.push(`${sourceData.__unknownRows.toLocaleString('vi-VN')} dòng B2 chưa phân loại`);
   if(sourceData.__unassignedBankRows)warnings.push(`${sourceData.__unassignedBankRows.toLocaleString('vi-VN')} dòng ngân hàng chưa xác định Mart`);
