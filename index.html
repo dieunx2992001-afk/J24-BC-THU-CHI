@@ -39,7 +39,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:0
 .side-toggle:hover{background:var(--surface2)!important;color:var(--accent2)!important;}
 .app.side-collapsed .side{width:0;padding-left:0;padding-right:0;border-right-color:transparent;overflow:hidden;}
 .app.side-collapsed .side-toggle{left:0;border-radius:0 7px 7px 0!important;}
-.app.side-collapsed main{max-width:none;}
+.app.side-collapsed main{max-width:none;width:100%;}
 .side-group-label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--title);padding:16px 18px 6px;opacity:.7;}
 .side-group-label:first-child{padding-top:4px;}
 .nav-item{display:block;width:100%;text-align:left;padding:9px 18px;font-size:13px;font-weight:500;cursor:pointer;border-left:3px solid transparent;color:var(--muted);white-space:nowrap;transition:all .12s;background:none;border-top:none;border-right:none;border-bottom:none;font-family:inherit;border-radius:0;}
@@ -47,7 +47,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:0
 .nav-item.active{color:var(--accent2);border-left-color:var(--title);background:var(--title-soft);font-weight:600;}
 .nav-item:hover, .nav-item.active{}
 .nav-num{display:none;}
-main{padding:16px 24px;max-width:1280px;margin:0;flex:1;min-width:0;}
+main{padding:16px 24px;max-width:none;width:calc(100% - 230px);margin:0;flex:1;min-width:0;}
 .page{display:none;}
 .page.active{display:block;animation:fade .15s ease;}
 @keyframes fade{from{opacity:0}to{opacity:1}}
