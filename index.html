@@ -295,6 +295,116 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
 .sql-progress-bar{height:100%;width:38%;border-radius:20px;background:linear-gradient(90deg,var(--accent),#e6a164);animation:sqlProgressMove 1.15s ease-in-out infinite;}
 .sql-progress-time{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:9px;}
 @keyframes sqlProgressMove{0%{transform:translateX(-110%)}100%{transform:translateX(285%)}}
+
+/* Bố cục gọn kiểu phần mềm kế toán: giữ nguyên màu và kiểu chữ hiện tại */
+header{
+  height:44px;
+  padding:0 12px;
+}
+.logo{gap:8px;font-size:15px;}
+.logo-mark{width:27px;height:27px;border-radius:5px;font-size:10px;}
+.header-actions{gap:6px;}
+.badge,.storage-badge{font-size:9.5px;padding:2px 7px;}
+.auth-user{font-size:9.5px;padding:3px 7px;}
+.auth-logout{padding:4px 8px!important;font-size:10px!important;}
+
+.app{min-height:calc(100vh - 44px);}
+.side{
+  width:172px;
+  top:44px;
+  height:calc(100vh - 44px);
+  padding:7px 0;
+}
+.side-toggle{
+  top:51px;
+  left:159px;
+  width:24px;
+  height:30px;
+}
+.side-group-label{
+  font-size:8.5px;
+  padding:10px 10px 3px;
+}
+.side-group-label:first-child{padding-top:2px;}
+.nav-item{
+  min-height:29px;
+  padding:6px 9px;
+  border-left-width:2px;
+  font-size:10.5px;
+  line-height:1.25;
+}
+main{
+  width:calc(100% - 172px);
+  padding:9px 12px 16px;
+}
+h2{font-size:15px;margin-bottom:1px;}
+.sub{font-size:10.5px;margin-bottom:9px;}
+.card{
+  padding:10px 12px;
+  margin-bottom:8px;
+  border-radius:7px;
+}
+.row{gap:8px 10px;}
+label{font-size:10px;margin-bottom:3px;}
+select,input[type=text],input[type=date],input[type=number],input[type=month]{
+  min-width:126px;
+  min-height:31px;
+  padding:6px 9px;
+  border-radius:5px;
+  font-size:11px;
+}
+button{
+  min-height:31px;
+  padding:6px 12px;
+  border-radius:5px;
+  font-size:11px;
+}
+.note,.small{font-size:10px!important;line-height:1.4;}
+.drop{padding:12px!important;font-size:11px!important;}
+.kpi{gap:8px!important;margin-bottom:8px!important;}
+.kpi>div,.kpi-card{padding:9px 11px!important;}
+.scroll{border-radius:5px;}
+table{font-size:10.5px;}
+th{
+  padding:5px 7px;
+  font-size:9px;
+  letter-spacing:.25px;
+}
+td{
+  padding:5px 7px;
+  font-size:10.5px;
+  line-height:1.25;
+}
+.date-group td{padding:7px 8px;font-size:10.5px;}
+.pagination{margin-top:10px;}
+.flexend{gap:7px!important;}
+
+.thtc-table-tools{
+  height:36px;
+  padding:3px 6px;
+  gap:5px;
+}
+.thtc-table-tools button{min-height:27px;padding:4px 9px;font-size:9.5px;}
+.thtc-table-tools #thtc-caption{font-size:10px!important;}
+.thtc-manual{margin-bottom:8px;}
+.thtc-manual summary{padding:8px 11px;font-size:10.5px;}
+.thtc-manual-body{padding:10px 12px;}
+
+@media(max-width:1100px){
+  .side{width:158px;}
+  .side-toggle{left:145px;}
+  main{width:calc(100% - 158px);padding-left:9px;padding-right:9px;}
+  .nav-item{font-size:10px;padding-left:7px;padding-right:7px;}
+  .header-actions{max-width:70%;overflow:hidden;}
+}
+@media(max-width:760px){
+  header{padding:0 8px;}
+  .logo span{display:none;}
+  .badge{display:none;}
+  .side{width:150px;}
+  .side-toggle{left:137px;}
+  main{width:calc(100% - 150px);padding:7px;}
+}
 </style>
 </head>
 <body>
