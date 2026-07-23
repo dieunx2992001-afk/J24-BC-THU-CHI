@@ -232,54 +232,13 @@ tr:hover td{background:var(--surface2);}
 .thtc-table th,.thtc-table td{height:28px;padding:5px 5px;border-right:1px solid #ded3c3;border-bottom:1px solid #ded3c3;border-top:0;line-height:1.15;}
 .thtc-table th{font-size:9px;text-transform:uppercase;letter-spacing:.35px;text-align:center;background:#eee8dc;color:#756d62;white-space:normal;height:27px;font-weight:700;}
 .thtc-table td{font-size:10.5px;text-align:right;background:#fffdfa;color:#302b25;font-family:var(--mono);}
-.thtc-table thead{position:relative;z-index:300;will-change:transform;}
+.thtc-table thead{position:static;z-index:300;}
 .thtc-table tbody{position:relative;z-index:1;}
-.thtc-table thead th{position:relative;z-index:301;background:#eee8dc;box-shadow:0 1px 0 #c8bba9;}
-.thtc-table-tools{position:relative;z-index:60;height:42px;padding:5px 8px;display:flex;align-items:center;gap:8px;background:var(--surface);border-bottom:1px solid var(--border);white-space:nowrap;will-change:transform;}
+.thtc-table thead th{position:sticky;top:var(--thtc-sticky-top,36px);z-index:301;background:#eee8dc;box-shadow:0 1px 0 #c8bba9;}
+.thtc-table-tools{position:sticky;top:0;z-index:600;height:42px;padding:5px 8px;display:flex;align-items:center;gap:8px;background:var(--surface);border-bottom:1px solid var(--border);white-space:nowrap;}
 .thtc-table-tools #thtc-caption{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.thtc-head-overlay{
-  position:absolute;
-  left:0;
-  top:100%;
-  z-index:5000;
-  overflow:hidden;
-  height:27px;
-  background:#eee8dc;
-  pointer-events:none;
-}
-.thtc-head-overlay-row{display:flex;height:100%;will-change:transform;}
-.thtc-head-overlay-cell{
-  flex:0 0 88px;
-  width:88px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:3px 5px;
-  background:#eee8dc;
-  color:#756d62;
-  border-right:1px solid #ded3c3;
-  border-bottom:1px solid #c8bba9;
-  font-size:9px;
-  font-weight:700;
-  line-height:1.1;
-  letter-spacing:.35px;
-  text-transform:uppercase;
-  text-align:center;
-}
-.thtc-head-overlay-cell.store{
-  position:relative;
-  z-index:6000;
-  flex-basis:185px;
-  width:185px;
-}
-.thtc-head-overlay-cell.total{
-  flex-basis:100px;
-  width:100px;
-  color:#4d463d;
-  background:#e8dfd1;
-}
 .thtc-table th:nth-child(1),.thtc-table td:nth-child(1){position:sticky;left:0;z-index:1;width:185px;min-width:185px;text-align:left;background:#fffdfa;font-family:var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.thtc-table thead th:nth-child(1){z-index:400!important;background:#eee8dc;text-align:center;}
+.thtc-table thead th:nth-child(1){z-index:500!important;background:#eee8dc;text-align:center;}
 .thtc-table th:nth-child(n+2),.thtc-table td:nth-child(n+2){width:88px;min-width:88px;}
 .thtc-table th:last-child,.thtc-table td:last-child{width:100px;min-width:100px;}
 .thtc-table thead th:nth-child(n+2){white-space:normal;line-height:1.12;overflow-wrap:normal;}
@@ -939,7 +898,6 @@ td{
       <div class="card">
         <div id="thtc-scroll" class="scroll" style="max-height:690px;overflow:auto;border:1px solid var(--border)">
           <div class="thtc-table-tools">
-            <div id="thtc-head-overlay" class="thtc-head-overlay"><div id="thtc-head-overlay-row" class="thtc-head-overlay-row"></div></div>
             <div id="thtc-caption" class="small" style="flex:1;min-width:0"></div>
             <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
               <button type="button" class="ghost" id="thtc-zoom-out" style="padding:5px 10px" title="Chỉ thu nhỏ bảng">−</button>
@@ -5639,22 +5597,8 @@ function initTongHopThuChiLayout(){
 function syncTHTCStickyHeaders(){
   const wrap=document.getElementById('thtc-scroll'),tools=wrap&&wrap.querySelector('.thtc-table-tools');
   const thead=document.querySelector('#thtc-table thead');
-  const headOverlay=document.getElementById('thtc-head-overlay');
-  const headRow=document.getElementById('thtc-head-overlay-row');
-  const storeHead=headRow&&headRow.querySelector('.store');
   if(!wrap||!tools)return;
-  tools.style.transform=`translateY(${wrap.scrollTop}px)`;
-  if(headOverlay&&headRow){
-    const measuredHead=thead?thead.getBoundingClientRect().height:27*THTC_TABLE_ZOOM;
-    headOverlay.style.width=wrap.clientWidth+'px';
-    headOverlay.style.height=Math.max(28,Math.ceil(measuredHead)+2)+'px';
-    headOverlay.style.transform=`translateX(${wrap.scrollLeft}px)`;
-    headRow.style.zoom=String(THTC_TABLE_ZOOM);
-    headRow.style.transform=`translateX(${-wrap.scrollLeft/Math.max(.01,THTC_TABLE_ZOOM)}px)`;
-    if(storeHead)storeHead.style.transform=`translateX(${wrap.scrollLeft/Math.max(.01,THTC_TABLE_ZOOM)}px)`;
-  }
-  /* Hàng tiêu đề nổi ở trên đã đảm nhiệm việc ghim.
-     Không kéo thead gốc theo nữa, tránh xuất hiện thêm một hàng "CỬA HÀNG" giữa dữ liệu. */
+  tools.style.transform='none';
   if(thead)thead.style.transform='none';
 }
 let THTC_TABLE_ZOOM=1,THTC_TABLE_AUTO_FIT=true;
@@ -5662,7 +5606,7 @@ function setTHTCTableZoom(value,autoFit=false){
   THTC_TABLE_ZOOM=Math.max(.5,Math.min(1.4,Math.round(value*10)/10));
   THTC_TABLE_AUTO_FIT=autoFit;
   const table=document.getElementById('thtc-table'),label=document.getElementById('thtc-zoom-label');
-  if(table){table.style.zoom=String(THTC_TABLE_ZOOM);table.style.setProperty('--thtc-sticky-top',(42/THTC_TABLE_ZOOM)+'px');}
+  if(table){table.style.zoom=String(THTC_TABLE_ZOOM);table.style.setProperty('--thtc-sticky-top',(36/THTC_TABLE_ZOOM)+'px');}
   if(label)label.textContent=Math.round(THTC_TABLE_ZOOM*100)+'%';
   syncTHTCStickyHeaders();
   if(window._updateTHTCFloatScroll)setTimeout(window._updateTHTCFloatScroll,30);
@@ -5674,7 +5618,7 @@ function fitTHTCTable(){
   THTC_TABLE_AUTO_FIT=true;
   THTC_TABLE_ZOOM=Math.max(.5,Math.floor(scale*100)/100);
   table.style.zoom=String(THTC_TABLE_ZOOM);
-  table.style.setProperty('--thtc-sticky-top',(42/THTC_TABLE_ZOOM)+'px');
+  table.style.setProperty('--thtc-sticky-top',(36/THTC_TABLE_ZOOM)+'px');
   document.getElementById('thtc-zoom-label').textContent=Math.round(THTC_TABLE_ZOOM*100)+'%';
   syncTHTCStickyHeaders();
   if(window._updateTHTCFloatScroll)setTimeout(window._updateTHTCFloatScroll,30);
@@ -5737,10 +5681,6 @@ function renderTongHopThuChiLayout(){
   html+='</tbody>';
   const table=document.getElementById('thtc-table');
   table.innerHTML=html;
-  document.getElementById('thtc-head-overlay-row').innerHTML=
-    `<div class="thtc-head-overlay-cell store">Cửa hàng</div>`+
-    branches.map(b=>`<div class="thtc-head-overlay-cell">${thtcBranchHeader(b)}</div>`).join('')+
-    `<div class="thtc-head-overlay-cell total">Cộng</div>`;
   // Khóa chiều rộng đúng bằng tổng độ rộng các cột, tránh trình duyệt tự kéo giãn tạo khoảng trắng.
   table.style.width=(185+branches.length*88+100)+'px';
   const warnings=[];
