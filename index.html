@@ -2529,7 +2529,7 @@ async function handleTPFile(file){
       // Ưu tiên ngày THẬT của giao dịch dò trong nội dung (vì ngân hàng có khi ghi nhận trễ 1 ngày),
       // chỉ khi nội dung không có ngày rõ ràng mới lấy ngày cột "Ngày giao dịch" của ngân hàng.
       let day='', month='', kdate='';
-      const contentDateM = String(content).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      const contentDateM = String(content).match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/);
       if(contentDateM){
         day = parseInt(contentDateM[1]); month = parseInt(contentDateM[2]); kdate = contentDateM[0];
       } else {
@@ -4983,7 +4983,7 @@ const THTC_DETAIL_NAMES = [
 function thtcLayoutKey(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_|_$/g,'').toLowerCase(); }
 function thtcISODate(raw){
   const s=String(raw||'');
-  let m=s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  let m=s.match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/);
   if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
   m=s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
   return m?`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`:'';
@@ -5236,7 +5236,9 @@ function getTHTCSourceData(branches,from,to){
     }
   });
   KHOTONG.forEach(r=>{
-    const d=thtcISODate(r.date),content=ascii(r.content);
+    // CHUYEN CHI HANG NGAY ghi ngày ngay trong diễn giải (thường dạng 09.06.2026).
+    // Ưu tiên ngày này để khớp cách Excel xếp giao dịch vào ngày báo cáo.
+    const d=thtcISODate(r.content)||thtcISODate(r.date),content=ascii(r.content);
     if(d<from||d>to)return;
     const contentBranch=khotongBranchFromContent(r.content);
     const branch=contentBranch||hitAnyBranch(r.branch);
