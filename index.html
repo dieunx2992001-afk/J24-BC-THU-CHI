@@ -793,7 +793,12 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
             <div><button class="ghost" id="thtc-category-export">⬇ Xuất file danh mục</button></div>
           </div>
           <div id="thtc-category-status" class="thtc-manual-status">Danh mục sẽ hiển thị sau khi dữ liệu B2 được tải.</div>
-          <div id="thtc-category-saved" style="margin-top:12px"></div>
+          <details style="margin-top:10px">
+            <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--title);padding:7px 0">
+              ✎ Xem / sửa phân loại đã lưu <span id="thtc-category-saved-count"></span>
+            </summary>
+            <div id="thtc-category-saved" style="margin-top:7px"></div>
+          </details>
         </div>
       </details>
       <div class="card">
@@ -857,7 +862,7 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
 </div><!-- /app-wrapper -->
 <script>
 /* ============ CONSTANTS ============ */
-const BRANCHES = ["CN1. Anh 05VL","CN2. J24 18THD","CN3. J24 92HB","CN4. J24 39VCN","CN5. J24 80CCXH","CN6. J24 81TND","CN7. J24 VEGA","CN8. J24 AB","CN9. J24 PHƯỚC HẢI","KHO TỔNG MART 1","KHO TỔNG MART 2","RIGEL","ART","GRAND"];
+const BRANCHES = ["CN1. Anh 05VL","CN2. J24 18THD","CN3. J24 92HB","CN4. J24 39VCN","CN5. J24 80CCXH","CN6. J24 81TND","CN7. J24 VEGA","CN8. J24 AB","CN9. J24 47CT4","KHO TỔNG MART 1","KHO TỔNG MART 2","RIGEL","ART","GRAND"];
 const CHOTCA_BRANCHES = BRANCHES.slice(0,9).concat(["RIGEL","ART","GRAND"]);
 const BANKS = ["TP Bank","Viettinbank","TP Bank Kho tổng - Mart1","TP Bank Kho tổng - Mart2"];
 // Các từ khóa trong diễn giải TP Bank cần loại khỏi đối chiếu cà thẻ (nhưng vẫn tính vào số dư)
@@ -867,13 +872,21 @@ const FIELDS = [["vnd","VND"],["usd","USD"],["te","TỆ"],["tck","Thu chuyển k
 const RECON_FIELDS = FIELDS.filter(([k])=>k!=='dtmay');
 const TID_MAP = {
  "77784135":"CN6. J24 81TND","77786110":"RIGEL","77786111":"CN4. J24 39VCN","77786112":"CN1. Anh 05VL",
- "77786113":"CN2. J24 18THD","77786114":"CN8. J24 AB","77784138":"CN3. J24 92HB","77786115":"CN5. J24 80CCXH","77785240":"CN7. J24 VEGA"
+ "77786113":"CN2. J24 18THD","77786114":"CN8. J24 AB","77784138":"CN3. J24 92HB","77786115":"CN5. J24 80CCXH","77785240":"CN7. J24 VEGA",
+ "77787736":"CN9. J24 47CT4"
 };
 const VT_ACC_MAP = {
  "103886618152":"CN6. J24 81TND","105886618162":"CN1. Anh 05VL","105886618175":"CN2. J24 18THD","107886618146":"CN4. J24 39VCN",
- "107886618158":"RIGEL","101886602796":"CN3. J24 92HB","103886602794":"CN7. J24 VEGA","104886602793":"CN8. J24 AB","105886602792":"CN5. J24 80CCXH"
+ "107886618158":"RIGEL","101886602796":"CN3. J24 92HB","103886602794":"CN7. J24 VEGA","104886602793":"CN8. J24 AB","105886602792":"CN5. J24 80CCXH",
+ "108886618169":"CN9. J24 47CT4"
 };
 const KHO_ACC_MAP = {"10003597861":"KHO TỔNG MART 1","10003597792":"KHO TỔNG MART 2"};
+const TP_BRANCH_ACCOUNT_MAP = {"10003597849":"CN9. J24 47CT4"};
+function normalizeBranchName(value){
+  const raw=String(value==null?'':value).trim();
+  const key=raw.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/Đ/g,'D');
+  return (key==='CN9. J24 PHUOC HAI'||key==='CN9. PHUOC HAI')?'CN9. J24 47CT4':raw;
+}
 
 const fmt = n => (Math.round(n||0)).toLocaleString('vi-VN');
 const fmtShort = n => {
@@ -2373,7 +2386,7 @@ async function handleTPFile(file){
         const iso = excelDateToISO(colDate);
         if(iso){ kdate = iso.split('-').reverse().join('/'); day=parseInt(iso.slice(8,10)); month=parseInt(iso.slice(5,7)); }
       }
-      const branch = TID_MAP[tid] || '';
+      const branch = TID_MAP[tid] || TP_BRANCH_ACCOUNT_MAP[accStr] || '';
       if(!branch) noTid++;
       // Ngày giá trị (Value Date) — ngày tiền thực sự ghi vào tài khoản
       const valueDateRaw = cIdx.valueDate>-1 ? row[cIdx.valueDate] : null;
@@ -4344,6 +4357,25 @@ function renderLog(){
     BK_OVERRIDES = vals[8] ?? {};
     THTC_MANUAL = vals[9] ?? {};
     THTC_CATEGORIES = vals[10] ?? {};
+    // Chuẩn hóa tên CN9 cũ trong toàn bộ dữ liệu đã lưu để các trang và báo cáo dùng cùng một tên mới.
+    const normalizedChotCa={};
+    Object.entries(CHOTCA).forEach(([key,value])=>{
+      const p=key.indexOf('|'),date=p>-1?key.slice(0,p):key,branch=p>-1?key.slice(p+1):'';
+      normalizedChotCa[date+'|'+normalizeBranchName(branch)]=value;
+    });
+    CHOTCA=normalizedChotCa;
+    [CHENHLECH,TPBANK,VIETTIN,KHOTONG,B2,QK,CATHE_KV].forEach(rows=>(rows||[]).forEach(r=>{
+      if(r.branch!=null)r.branch=normalizeBranchName(r.branch);
+      if(r.b!=null)r.b=normalizeBranchName(r.b);
+      if(r.bankMatch!=null)r.bankMatch=normalizeBranchName(r.bankMatch);
+    }));
+    Object.values(BK_OVERRIDES||{}).forEach(r=>{if(r&&r.ktBranch!=null)r.ktBranch=normalizeBranchName(r.ktBranch);});
+    const normalizedManual={};
+    Object.entries(THTC_MANUAL||{}).forEach(([key,value])=>{
+      const p=key.indexOf('|'),date=p>-1?key.slice(0,p):key,branch=p>-1?key.slice(p+1):'';
+      normalizedManual[date+'|'+normalizeBranchName(branch)]=value;
+    });
+    THTC_MANUAL=normalizedManual;
   }
 
   function initAllUI(){
@@ -5229,7 +5261,7 @@ function refreshTHTCCategoryUI(){
   renderTHTCSavedCategories(typeRows);
 }
 function renderTHTCSavedCategories(typeRows){
-  const box=document.getElementById('thtc-category-saved');if(!box)return;
+  const box=document.getElementById('thtc-category-saved'),countEl=document.getElementById('thtc-category-saved-count');if(!box)return;
   const saved=Object.entries(THTC_CATEGORIES)
     .map(([key,value])=>{
       const category=thtcNormalizeCategory(value);
@@ -5238,12 +5270,12 @@ function renderTHTCSavedCategories(typeRows){
     })
     .filter(x=>x.category)
     .sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+  if(countEl)countEl.textContent=saved.length?`(${saved.length})`:'';
   if(!saved.length){
     box.innerHTML='<div class="thtc-manual-status">Chưa có phân loại nào được chỉnh và lưu riêng.</div>';
     return;
   }
-  box.innerHTML=`<div style="font-size:12px;font-weight:700;color:var(--title);margin-bottom:7px">Phân loại đã lưu — có thể sửa lại</div>
-    <div class="scroll" style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:7px">
+  box.innerHTML=`<div class="scroll" style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:7px">
       <table>
         <thead><tr><th class="l">Tên loại phiếu B2</th><th class="l">Phân loại đang lưu</th><th>Số dòng</th><th>Thao tác</th></tr></thead>
         <tbody>${saved.map(x=>`<tr>
