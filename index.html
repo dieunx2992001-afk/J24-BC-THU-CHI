@@ -232,13 +232,17 @@ tr:hover td{background:var(--surface2);}
 .thtc-table th,.thtc-table td{height:28px;padding:5px 5px;border-right:1px solid #ded3c3;border-bottom:1px solid #ded3c3;border-top:0;line-height:1.15;}
 .thtc-table th{font-size:9px;text-transform:uppercase;letter-spacing:.35px;text-align:center;background:#eee8dc;color:#756d62;white-space:normal;height:27px;font-weight:700;}
 .thtc-table td{font-size:10.5px;text-align:right;background:#fffdfa;color:#302b25;font-family:var(--mono);}
-.thtc-table thead{position:relative;z-index:50;will-change:transform;}
-.thtc-table thead th{position:relative;z-index:51;background:#eee8dc;box-shadow:0 1px 0 #c8bba9;}
+.thtc-table thead{position:relative;z-index:300;will-change:transform;}
+.thtc-table tbody{position:relative;z-index:1;}
+.thtc-table thead th{position:relative;z-index:301;background:#eee8dc;box-shadow:0 1px 0 #c8bba9;}
 .thtc-table-tools{position:relative;z-index:60;height:42px;padding:5px 8px;display:flex;align-items:center;gap:8px;background:var(--surface);border-bottom:1px solid var(--border);white-space:nowrap;will-change:transform;}
 .thtc-table-tools #thtc-caption{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.thtc-table th:nth-child(1),.thtc-table td:nth-child(1){position:sticky;left:0;z-index:4;width:210px;min-width:210px;text-align:left;background:#fffdfa;font-family:var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.thtc-table thead th:nth-child(1){z-index:40;background:#eee8dc;text-align:center;}
-.thtc-table th:nth-child(n+2),.thtc-table td:nth-child(n+2){width:100px;min-width:100px;}
+.thtc-table th:nth-child(1),.thtc-table td:nth-child(1){position:sticky;left:0;z-index:2;width:185px;min-width:185px;text-align:left;background:#fffdfa;font-family:var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.thtc-table thead th:nth-child(1){z-index:400!important;background:#eee8dc;text-align:center;}
+.thtc-table th:nth-child(n+2),.thtc-table td:nth-child(n+2){width:88px;min-width:88px;}
+.thtc-table th:last-child,.thtc-table td:last-child{width:100px;min-width:100px;}
+.thtc-table thead th:nth-child(n+2){white-space:normal;line-height:1.12;overflow-wrap:normal;}
+.thtc-branch-line{display:block;white-space:nowrap;}
 .thtc-table .thtc-group td{background:#e7eef1!important;color:#153f4b;font-weight:800;border-top:1px solid #c7d4d8;height:32px;}
 .thtc-table .thtc-subhead td{background:#f2eee6!important;color:#5e574e;font-weight:800;}
 .thtc-table .thtc-subhead td:nth-child(n+2){white-space:normal;overflow-wrap:anywhere;line-height:1.2;height:40px;text-align:center;}
@@ -389,6 +393,15 @@ td{
 .thtc-manual{margin-bottom:8px;}
 .thtc-manual summary{padding:8px 11px;font-size:10.5px;}
 .thtc-manual-body{padding:10px 12px;}
+.thtc-day-nav{display:flex;align-items:center;gap:4px;}
+.thtc-day-nav input{min-width:128px;}
+.thtc-day-nav button{
+  width:31px;
+  min-width:31px;
+  padding:0;
+  font-size:16px;
+  line-height:1;
+}
 
 @media(max-width:1100px){
   .side{width:158px;}
@@ -866,7 +879,14 @@ td{
         <div class="row">
           <div><label>Kỳ báo cáo</label><select id="thtc-period"><option value="month">Theo tháng</option><option value="day">Theo ngày</option><option value="range">Khoảng ngày</option></select></div>
           <div id="thtc-month-wrap"><label>Tháng</label><input type="month" id="thtc-month"></div>
-          <div id="thtc-day-wrap" style="display:none"><label>Ngày</label><input type="date" id="thtc-day"></div>
+          <div id="thtc-day-wrap" style="display:none">
+            <label>Ngày</label>
+            <div class="thtc-day-nav">
+              <button type="button" class="ghost" id="thtc-day-prev" title="Lùi 1 ngày" aria-label="Lùi 1 ngày">‹</button>
+              <input type="date" id="thtc-day">
+              <button type="button" class="ghost" id="thtc-day-next" title="Tiến 1 ngày" aria-label="Tiến 1 ngày">›</button>
+            </div>
+          </div>
           <div id="thtc-from-wrap" style="display:none"><label>Từ ngày</label><input type="date" id="thtc-from"></div>
           <div id="thtc-to-wrap" style="display:none"><label>Đến ngày</label><input type="date" id="thtc-to"></div>
           <div><label>Chi nhánh</label><select id="thtc-branch"><option value="ALL">Tất cả chi nhánh</option></select></div>
@@ -4817,7 +4837,26 @@ function getTHTCRange(){
   const last=new Date(Number(m.slice(0,4)),Number(m.slice(5,7)),0).getDate();
   return {from:m+'-01',to:m+'-'+String(last).padStart(2,'0'),label:'tháng '+m.slice(5,7)+'/'+m.slice(0,4)};
 }
+function changeTHTCDay(offset){
+  const input=document.getElementById('thtc-day');
+  const value=input.value||todayISO();
+  const parts=value.split('-').map(Number);
+  const date=new Date(parts[0],parts[1]-1,parts[2]);
+  date.setDate(date.getDate()+offset);
+  input.value=[
+    date.getFullYear(),
+    String(date.getMonth()+1).padStart(2,'0'),
+    String(date.getDate()).padStart(2,'0')
+  ].join('-');
+  renderTongHopThuChiLayout();
+}
 function thtcNorm(s){ return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
+function thtcBranchHeader(name){
+  const parts=String(name||'').trim().split(/\s+/);
+  if(parts.length<2)return thtcEsc(name);
+  const last=parts.pop();
+  return `<span class="thtc-branch-line">${thtcEsc(parts.join(' '))}</span><span class="thtc-branch-line">${thtcEsc(last)}</span>`;
+}
 function thtcBranchMatch(actual, expected){
   if(actual===expected) return true;
   const a=thtcNorm(actual), e=thtcNorm(expected);
@@ -5536,6 +5575,8 @@ function initTongHopThuChiLayout(){
   fillSelect(document.getElementById('thtc-branch'),THTC_LAYOUT_BRANCHES,true);
   document.getElementById('thtc-period').addEventListener('change',syncTHTCPeriod);
   document.getElementById('thtc-run').addEventListener('click',renderTongHopThuChiLayout);
+  document.getElementById('thtc-day-prev').addEventListener('click',()=>changeTHTCDay(-1));
+  document.getElementById('thtc-day-next').addEventListener('click',()=>changeTHTCDay(1));
   document.getElementById('thtc-export').addEventListener('click',exportTongHopThuChiLayout);
   document.getElementById('thtc-zoom-out').addEventListener('click',()=>setTHTCTableZoom(THTC_TABLE_ZOOM-.1,false));
   document.getElementById('thtc-zoom-in').addEventListener('click',()=>setTHTCTableZoom(THTC_TABLE_ZOOM+.1,false));
@@ -5615,14 +5656,14 @@ function renderTongHopThuChiLayout(){
     const total=Object.prototype.hasOwnProperty.call(vals,'__total')?Number(vals.__total)||0:branches.reduce((s,b)=>s+(vals[b]||0),0);
     return cells+makeCell('cong',total,true);
   };
-  let html=`<thead><tr><th>CỬA HÀNG</th>${branches.map(b=>`<th>${b}</th>`).join('')}<th>CỘNG</th></tr></thead><tbody>`;
+  let html=`<thead><tr><th>CỬA HÀNG</th>${branches.map(b=>`<th>${thtcBranchHeader(b)}</th>`).join('')}<th>CỘNG</th></tr></thead><tbody>`;
   THTC_LAYOUT_ROWS.forEach((r,i)=>{
     const key='r'+(i+1)+'_'+thtcLayoutKey(r.name||r.code), cls=r.type?String(r.type).split(' ').map(x=>'thtc-'+x).join(' '):'';
     const label=r.name?(r.code?`${r.code}. ${r.name}`:r.name):(r.code||'');
     html+=`<tr class="${cls}" data-layout-row="${key}"><td title="${thtcEsc(label)}">${thtcEsc(label)}</td>${r.source?valueCells(key,r.source,r):blankCells(key)}</tr>`;
   });
   html+=`<tr class="thtc-detail-title"><td>CHI TIẾT THU CHI THEO MỤC THU CHI</td>${branches.map(()=>'<td></td>').join('')}<td></td></tr>`;
-  html+=`<tr class="thtc-subhead"><td>Phân loại mục thu / chi</td>${branches.map(b=>`<td style="text-align:center">${b}</td>`).join('')}<td style="text-align:center">CỘNG</td></tr>`;
+  html+=`<tr class="thtc-subhead"><td>Phân loại mục thu / chi</td>${branches.map(b=>`<td style="text-align:center">${thtcBranchHeader(b)}</td>`).join('')}<td style="text-align:center">CỘNG</td></tr>`;
   const seen=new Set(),detailNames=[];
   [...THTC_DETAIL_NAMES,...(sourceData.__detailNames||[])].forEach(name=>{
     const k=thtcLayoutKey(name),detail=sourceData.__details&&sourceData.__details[k];
@@ -5641,7 +5682,7 @@ function renderTongHopThuChiLayout(){
   const table=document.getElementById('thtc-table');
   table.innerHTML=html;
   // Khóa chiều rộng đúng bằng tổng độ rộng các cột, tránh trình duyệt tự kéo giãn tạo khoảng trắng.
-  table.style.width=(210+(branches.length+1)*100)+'px';
+  table.style.width=(185+branches.length*88+100)+'px';
   const warnings=[];
   if(sourceData.__unknownRows)warnings.push(`${sourceData.__unknownRows.toLocaleString('vi-VN')} dòng B2 chưa phân loại`);
   if(sourceData.__unassignedBankRows)warnings.push(`${sourceData.__unassignedBankRows.toLocaleString('vi-VN')} dòng ngân hàng chưa xác định Mart`);
