@@ -768,7 +768,20 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
           <div><button class="ghost" id="thtc-category-open">🗂 Danh mục phiếu B2</button></div>
         </div>
       </div>
-      <div class="thtc-design-note" style="margin-bottom:10px">Các nhóm A–D và F được tổng hợp tự động từ Chốt ca, B2, VietinBank, TPBank và TPBank Kho tổng. Các khoản cuối tháng ở nhóm E được nhập bổ sung bên dưới và lưu SQL. Rê chuột vào ô chênh lệch để xem ngày, số tiền, chi nhánh và lý do lệch.</div>
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <div id="thtc-caption" class="small" style="flex:1;min-width:260px"></div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <button type="button" class="ghost" id="thtc-zoom-out" style="padding:5px 10px" title="Chỉ thu nhỏ bảng">−</button>
+            <span id="thtc-zoom-label" class="badge" style="min-width:48px;text-align:center">100%</span>
+            <button type="button" class="ghost" id="thtc-zoom-in" style="padding:5px 10px" title="Chỉ phóng to bảng">＋</button>
+            <button type="button" class="ghost" id="thtc-zoom-fit" style="padding:5px 10px">↔ Vừa khung</button>
+          </div>
+        </div>
+        <div id="thtc-scroll" class="scroll" style="max-height:690px;overflow:auto;border:1px solid var(--border)"><table id="thtc-table" class="thtc-table"></table></div>
+        <div id="thtc-float-scroll" class="thtc-float-scroll" aria-label="Thanh kéo ngang bảng Tổng hợp thu chi"><div id="thtc-float-scroll-inner" class="thtc-float-scroll-inner"></div></div>
+        <p class="note">Cột <b>Cửa hàng</b> được ghim bên trái. Thanh kéo ngang sẽ tự nổi ở đáy màn hình khi cuối bảng chưa hiện ra.</p>
+      </div>
       <details class="thtc-manual" id="thtc-manual-box">
         <summary>✍ Dữ liệu bổ sung cuối tháng (chỉ nhập các khoản không có trong file import)</summary>
         <div class="thtc-manual-body">
@@ -790,7 +803,7 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
           <div id="thtc-manual-status" class="thtc-manual-status">Chưa chọn ngày và chi nhánh.</div>
         </div>
       </details>
-      <details class="thtc-manual" id="thtc-category-box" open>
+      <details class="thtc-manual" id="thtc-category-box">
         <summary>🗂 Danh mục phiếu: phân loại Hàng / Khác / Điều chuyển</summary>
         <div class="thtc-manual-body">
           <p class="note" style="margin-top:0">Danh mục Hàng/Khác/0 trong sheet B0 đã được cài sẵn. Khi import B2 có loại phiếu mới, phiếu vẫn được nhận và đưa lên bảng; chỉ cần chọn phân loại một lần. Lựa chọn được lưu SQL và dùng cho mọi máy.</p>
@@ -809,20 +822,6 @@ body.role-editor table button.danger,body.role-viewer table button.danger{displa
           </details>
         </div>
       </details>
-      <div class="card">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-          <div id="thtc-caption" class="small" style="flex:1;min-width:260px"></div>
-          <div style="display:flex;align-items:center;gap:4px">
-            <button type="button" class="ghost" id="thtc-zoom-out" style="padding:5px 10px" title="Chỉ thu nhỏ bảng">−</button>
-            <span id="thtc-zoom-label" class="badge" style="min-width:48px;text-align:center">100%</span>
-            <button type="button" class="ghost" id="thtc-zoom-in" style="padding:5px 10px" title="Chỉ phóng to bảng">＋</button>
-            <button type="button" class="ghost" id="thtc-zoom-fit" style="padding:5px 10px">↔ Vừa khung</button>
-          </div>
-        </div>
-        <div id="thtc-scroll" class="scroll" style="max-height:690px;overflow:auto;border:1px solid var(--border)"><table id="thtc-table" class="thtc-table"></table></div>
-        <div id="thtc-float-scroll" class="thtc-float-scroll" aria-label="Thanh kéo ngang bảng Tổng hợp thu chi"><div id="thtc-float-scroll-inner" class="thtc-float-scroll-inner"></div></div>
-        <p class="note">Cột <b>Cửa hàng</b> được ghim bên trái. Thanh kéo ngang sẽ tự nổi ở đáy màn hình khi cuối bảng chưa hiện ra.</p>
-      </div>
     </section>
 
     <!-- PAGE 14: BACKUP & PHUC HOI -->
