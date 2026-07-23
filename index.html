@@ -232,9 +232,9 @@ tr:hover td{background:var(--surface2);}
 .thtc-table th,.thtc-table td{height:28px;padding:5px 5px;border-right:1px solid #ded3c3;border-bottom:1px solid #ded3c3;border-top:0;line-height:1.15;}
 .thtc-table th{font-size:9px;text-transform:uppercase;letter-spacing:.35px;text-align:center;background:#eee8dc;color:#756d62;white-space:normal;height:27px;font-weight:700;}
 .thtc-table td{font-size:10.5px;text-align:right;background:#fffdfa;color:#302b25;font-family:var(--mono);}
-.thtc-table thead{position:sticky;top:0;z-index:30;}
-.thtc-table thead th{position:sticky;top:var(--thtc-sticky-top,42px);z-index:31;background:#eee8dc;box-shadow:0 1px 0 #c8bba9;}
-.thtc-table-tools{position:sticky;top:0;z-index:60;height:42px;padding:5px 8px;display:flex;align-items:center;gap:8px;background:var(--surface);border-bottom:1px solid var(--border);white-space:nowrap;}
+.thtc-table thead{position:relative;z-index:50;will-change:transform;}
+.thtc-table thead th{position:relative;z-index:51;background:#eee8dc;box-shadow:0 1px 0 #c8bba9;}
+.thtc-table-tools{position:relative;z-index:60;height:42px;padding:5px 8px;display:flex;align-items:center;gap:8px;background:var(--surface);border-bottom:1px solid var(--border);white-space:nowrap;will-change:transform;}
 .thtc-table-tools #thtc-caption{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .thtc-table th:nth-child(1),.thtc-table td:nth-child(1){position:sticky;left:0;z-index:4;width:210px;min-width:210px;text-align:left;background:#fffdfa;font-family:var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .thtc-table thead th:nth-child(1){z-index:40;background:#eee8dc;text-align:center;}
@@ -5216,8 +5216,7 @@ function initTHTCFloatingScrollbar(){
       const active=page.classList.contains('active');
       const overflow=source.scrollWidth>source.clientWidth+2;
       const tableVisible=rect.top<window.innerHeight-25&&rect.bottom>58;
-      const originalBarBelow=rect.bottom>window.innerHeight-2;
-      const show=active&&overflow&&tableVisible&&originalBarBelow;
+      const show=active&&overflow&&tableVisible;
       bar.style.display=show?'block':'none';
       if(!show)return;
       const left=Math.max(6,rect.left),width=Math.max(80,Math.min(rect.width,window.innerWidth-left-6));
@@ -5431,6 +5430,7 @@ function initTongHopThuChiLayout(){
   document.getElementById('thtc-zoom-out').addEventListener('click',()=>setTHTCTableZoom(THTC_TABLE_ZOOM-.1,false));
   document.getElementById('thtc-zoom-in').addEventListener('click',()=>setTHTCTableZoom(THTC_TABLE_ZOOM+.1,false));
   document.getElementById('thtc-zoom-fit').addEventListener('click',fitTHTCTable);
+  document.getElementById('thtc-scroll').addEventListener('scroll',syncTHTCStickyHeaders,{passive:true});
   window.addEventListener('resize',()=>{if(THTC_TABLE_AUTO_FIT)fitTHTCTable();},{passive:true});
   window.addEventListener('wheel',e=>{
     if(e.ctrlKey&&THTC_TABLE_AUTO_FIT)setTimeout(fitTHTCTable,180);
@@ -5443,6 +5443,13 @@ function initTongHopThuChiLayout(){
   initTHTCFloatingScrollbar();
   syncTHTCPeriod(); renderTongHopThuChiLayout();
 }
+function syncTHTCStickyHeaders(){
+  const wrap=document.getElementById('thtc-scroll'),tools=wrap&&wrap.querySelector('.thtc-table-tools');
+  const thead=document.querySelector('#thtc-table thead');
+  if(!wrap||!tools)return;
+  tools.style.transform=`translateY(${wrap.scrollTop}px)`;
+  if(thead)thead.style.transform=`translateY(${wrap.scrollTop/Math.max(.01,THTC_TABLE_ZOOM)}px)`;
+}
 let THTC_TABLE_ZOOM=1,THTC_TABLE_AUTO_FIT=true;
 function setTHTCTableZoom(value,autoFit=false){
   THTC_TABLE_ZOOM=Math.max(.5,Math.min(1.4,Math.round(value*10)/10));
@@ -5450,6 +5457,7 @@ function setTHTCTableZoom(value,autoFit=false){
   const table=document.getElementById('thtc-table'),label=document.getElementById('thtc-zoom-label');
   if(table){table.style.zoom=String(THTC_TABLE_ZOOM);table.style.setProperty('--thtc-sticky-top',(42/THTC_TABLE_ZOOM)+'px');}
   if(label)label.textContent=Math.round(THTC_TABLE_ZOOM*100)+'%';
+  syncTHTCStickyHeaders();
   if(window._updateTHTCFloatScroll)setTimeout(window._updateTHTCFloatScroll,30);
 }
 function fitTHTCTable(){
@@ -5461,6 +5469,7 @@ function fitTHTCTable(){
   table.style.zoom=String(THTC_TABLE_ZOOM);
   table.style.setProperty('--thtc-sticky-top',(42/THTC_TABLE_ZOOM)+'px');
   document.getElementById('thtc-zoom-label').textContent=Math.round(THTC_TABLE_ZOOM*100)+'%';
+  syncTHTCStickyHeaders();
   if(window._updateTHTCFloatScroll)setTimeout(window._updateTHTCFloatScroll,30);
 }
 function thtcVisibleBranches(sourceData,requestedBranches){
@@ -5529,6 +5538,7 @@ function renderTongHopThuChiLayout(){
   const hiddenCount=requestedBranches.length-branches.length;
   document.getElementById('thtc-caption').textContent=`Kỳ báo cáo: ${range.label} · ${branches.length} cột chi nhánh${hiddenCount?` · đã ẩn ${hiddenCount} cột trống`:''} · ${(sourceData.__b2Count||0).toLocaleString('vi-VN')} phiếu B2${warnings.length?' · ⚠ '+warnings.join(' · '):''} · rê chuột vào ô CL để xem lý do`;
   makeResizable(table);
+  syncTHTCStickyHeaders();
   if(THTC_TABLE_AUTO_FIT)setTimeout(fitTHTCTable,0);else setTHTCTableZoom(THTC_TABLE_ZOOM,false);
   if(window._updateTHTCFloatScroll)setTimeout(window._updateTHTCFloatScroll,30);
 }
