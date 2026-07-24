@@ -167,6 +167,23 @@ tr:hover td{background:var(--surface2);}
 .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;color:#fff;background:var(--good);}
 .date-stepper{display:inline-flex;align-items:center;gap:4px;}
 .date-stepper input[type=date]{flex:1;min-width:0;}
+.qk-title{text-align:center;background:var(--title);color:#fff;font-weight:800;padding:7px 10px;margin:-14px -16px 0;font-size:14px;letter-spacing:.04em;}
+.qk-summary-card{padding-bottom:10px;}
+.qk-summary-scroll{max-height:calc(100vh - 285px);overflow:auto;border:1px solid var(--border);border-top:0;}
+.qk-summary-table{width:max-content;min-width:100%;table-layout:fixed;}
+.qk-summary-table th,.qk-summary-table td{border:1px solid var(--border);padding:5px 7px;font-size:10.5px;}
+.qk-summary-table th{background:#5b2108;color:#fff;text-align:center;white-space:normal;line-height:1.25;vertical-align:middle;}
+.qk-summary-table th:nth-child(1),.qk-summary-table td:nth-child(1){width:42px;text-align:center;}
+.qk-summary-table th:nth-child(2),.qk-summary-table td:nth-child(2){width:46px;text-align:center;}
+.qk-summary-table th:nth-child(n+3):nth-child(-n+12),.qk-summary-table td:nth-child(n+3):nth-child(-n+12){width:112px;}
+.qk-summary-table th:last-child,.qk-summary-table td:last-child{min-width:170px;}
+.qk-summary-table .qk-day{background:#fff900;font-style:italic;color:#111;font-weight:700;}
+.qk-summary-table tbody tr:hover td{background:#f7f2e8;}
+.qk-summary-table tbody tr:hover .qk-day{background:#fff900;}
+.qk-detail{padding:0;overflow:hidden;}
+.qk-detail summary{cursor:pointer;padding:12px 16px;font-size:12px;font-weight:700;color:var(--title);background:var(--surface2);list-style:none;}
+.qk-detail[open] summary{border-bottom:1px solid var(--border);}
+.qk-detail-scroll{max-height:360px;overflow:auto;padding:0 12px 12px;}
 .ds-btn{width:28px;height:34px;border:1px solid var(--border);background:var(--surface);border-radius:8px;cursor:pointer;font-size:12px;color:var(--title);display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;transition:background .15s;}
 .ds-btn:hover{background:var(--title-soft);}
 .ds-btn:active{transform:translateY(1px);}
@@ -764,7 +781,14 @@ td{
       <p class="sub">Tổng hợp các phiếu Loại sổ quỹ = Tiền mặt từ sheet B2</p>
       <div class="card"><div class="row"><div><label>Tháng</label><input type="month" id="qk-month"></div><div><label>Chi nhánh</label><select id="qk-branch"><option value="ALL">Tất cả</option></select></div></div></div>
       <div class="kpi" id="qk-kpi"></div>
-      <div class="card"><div class="scroll" style="max-height:440px;overflow-y:auto"><table id="qk-table"></table></div></div>
+      <div class="card qk-summary-card">
+        <div class="qk-title">TỒN QUỸ KÉT TIỀN MẶT</div>
+        <div class="scroll qk-summary-scroll"><table id="qk-summary-table" class="qk-summary-table"></table></div>
+      </div>
+      <details class="card qk-detail">
+        <summary>▸ Xem chi tiết các phiếu tiền mặt</summary>
+        <div class="scroll qk-detail-scroll"><table id="qk-table"></table></div>
+      </details>
     </section>
 
     <!-- PAGE 11: NHAT KY NHAP LIEU -->
@@ -2397,6 +2421,12 @@ function findCol(headerRow, candidates){
   }
   return -1;
 }
+/* Tìm đúng tên cột, không cho "Thời gian" khớp nhầm "Thời gian tạo". */
+function findExactCol(headerRow,candidates){
+  if(!headerRow)return -1;
+  const wanted=new Set(candidates.map(normalizeLookupText));
+  return headerRow.findIndex(value=>wanted.has(normalizeLookupText(value)));
+}
 // Lấy số tài khoản chính ở phần đầu sao kê. Hỗ trợ đúng mẫu TPBank:
 // "Tài khoản giao dịch (account number):" ở cột A và số tài khoản ở cột C.
 function extractStatementAccount(rows,maxRows=12){
@@ -3055,6 +3085,7 @@ function renderVTRecon(){
 =================================================================== */
 let KHOTONG = [];
 let KT_STAGE = [];
+let KT_STAGE_DATE_PATCHES = [];
 function initKhoTongUI(){
   refreshBranchFilter('kt-filter-branch',KHOTONG,Object.values(KHO_ACC_MAP));
   refreshAccountFilter('kt-filter-account',KHOTONG,KHO_ACC_MAP);
@@ -3062,7 +3093,7 @@ function initKhoTongUI(){
   document.getElementById('kt-raw-kw').addEventListener('input', debounce(renderKTRaw));
   ['kt-from','kt-to','kt-filter-branch','kt-filter-account'].forEach(id=>document.getElementById(id).addEventListener('change',renderKTRaw));
   document.getElementById('kt-stage-save').addEventListener('click', saveKTStage);
-  document.getElementById('kt-stage-cancel').addEventListener('click', ()=>{ KT_STAGE=[]; document.getElementById('kt-stage-banner').style.display='none'; });
+  document.getElementById('kt-stage-cancel').addEventListener('click', ()=>{ KT_STAGE=[];KT_STAGE_DATE_PATCHES=[];document.getElementById('kt-stage-banner').style.display='none'; });
   renderKTCount(); renderKTRaw(); renderKTKpi();
 }
 async function handleKTFile(file){
@@ -3071,7 +3102,7 @@ async function handleKTFile(file){
     if(!rows || rows.length<11){ toast('File rỗng hoặc không đủ 10 dòng tiêu đề như sao kê TPBank chuẩn.'); return; }
     const accStr=extractStatementAccount(rows);
     const branch = KHO_ACC_MAP[accStr] || (accStr? ('TK '+accStr) : 'TK không rõ');
-    let headerIdx=-1, cIdx={date:0,content:2,debit:3,credit:4,balance:5};
+    let headerIdx=-1, cIdx={date:0,valueDate:1,content:2,debit:3,credit:4,balance:5};
     for(let i=0;i<12 && i<rows.length;i++){
       const hr = rows[i]; if(!hr) continue;
       const joined = hr.map(c=>String(c||'').toLowerCase()).join('|');
@@ -3079,6 +3110,7 @@ async function handleKTFile(file){
         headerIdx = i;
         cIdx = {
           date: findCol(hr,['ngày giao dịch','ngay giao dich']),
+          valueDate: findCol(hr,['ngày giá trị','ngay gia tri','value date']),
           content: findCol(hr,['diễn giải','dien giai']),
           debit: findCol(hr,['ghi nợ','ghi no']),
           credit: findCol(hr,['ghi có','ghi co']),
@@ -3091,46 +3123,53 @@ async function handleKTFile(file){
     const data = rows.slice(startRow);
     let candidate=0, dup=0;
     const existKeys = new Set(KHOTONG.map(r=>r.k));
+    const existByKey=new Map(KHOTONG.map(r=>[r.k,r]));
     const seenInStage = new Set();
-    KT_STAGE = [];
+    KT_STAGE = [];KT_STAGE_DATE_PATCHES=[];
     data.forEach(row=>{
       if(!row || row.every(c=>c===null)) return;
       const colA = String(row[0]||'').toLowerCase();
       if(colA.includes('tổng ghi') || colA.includes('số dư cuối') || colA.includes('số dư đầu') || colA.includes('total credit') || colA.includes('total debit') || colA.includes('ending balance') || colA.includes('beginning balance')) return;
       const content = row[cIdx.content]; if(content==null) return;
       const debit = parseVNMoney(row[cIdx.debit])||0, credit = parseVNMoney(row[cIdx.credit])||0, balance = parseVNMoney(row[cIdx.balance])||0;
-      // Ưu tiên ngày thật dò trong nội dung, chỉ fallback cột "Ngày giao dịch" khi nội dung không có ngày
-      let date = null;
-      const contentDateM = String(content).match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/);
-      if(contentDateM){ date = contentDateM[3]+'-'+contentDateM[2].padStart(2,'0')+'-'+contentDateM[1].padStart(2,'0'); }
-      else { date = excelDateToISO(row[cIdx.date]); }
+      // Lưu riêng đúng hai cột ngày của sao kê Kho tổng.
+      const date=excelDateToISO(row[cIdx.date]);
+      const valueDate=cIdx.valueDate>-1?(excelDateToISO(row[cIdx.valueDate])||date):date;
       const k = content+'|'+balance+'|'+debit+'|'+credit;
-      if(existKeys.has(k) || seenInStage.has(k)){ dup++; return; }
+      if(existKeys.has(k)){
+        const old=existByKey.get(k);
+        if(old&&(storageISODate(old.date)!==storageISODate(date)||storageISODate(old.valueDate)!==storageISODate(valueDate))){
+          KT_STAGE_DATE_PATCHES.push({k,date,valueDate});
+        }
+        dup++;return;
+      }
+      if(seenInStage.has(k)){dup++;return;}
       seenInStage.add(k);
       const type = (debit!==0 && content) ? 'Chi' : 'Thu';
-      KT_STAGE.push({k, date, content, debit, credit, balance, account:accStr, branch, type});
+      KT_STAGE.push({k,date,valueDate,content,debit,credit,balance,account:accStr,branch,type});
       candidate++;
     });
     const banner = document.getElementById('kt-stage-banner');
-    if(candidate===0){
+    if(candidate===0&&KT_STAGE_DATE_PATCHES.length===0){
       banner.style.display='none';
       toast(`Không có dòng mới (${dup} dòng trùng)`);
     } else {
-      document.getElementById('kt-stage-msg').textContent = `Đọc được ${candidate} dòng mới — TK ${accStr||'?'} (${branch}) — chưa lưu${dup?', bỏ qua '+dup+' dòng trùng':''}`;
+      document.getElementById('kt-stage-msg').textContent = `Đọc được ${candidate} dòng mới${KT_STAGE_DATE_PATCHES.length?' · cập nhật ngày cho '+KT_STAGE_DATE_PATCHES.length+' dòng cũ':''} — TK ${accStr||'?'} (${branch}) — chưa lưu${dup?', '+dup+' dòng trùng':''}`;
       banner.style.display='flex';
     }
   }catch(err){ toast('Lỗi đọc file: '+err.message); console.error(err); }
 }
 async function saveKTStage(){
-  if(KT_STAGE.length===0) return;
-  const pending=KT_STAGE.slice(),n=pending.length,next=KHOTONG.concat(pending);
+  if(KT_STAGE.length===0&&KT_STAGE_DATE_PATCHES.length===0)return;
+  const pending=KT_STAGE.slice(),patches=new Map(KT_STAGE_DATE_PATCHES.map(p=>[p.k,p])),n=pending.length;
+  const next=KHOTONG.map(r=>patches.has(r.k)?{...r,...patches.get(r.k)}:r).concat(pending);
   const ok = await sset('khotong:list', next, {importedCount:n});
   if(!ok){
     document.getElementById('kt-stage-msg').textContent=`Chưa lưu được ${n} dòng. Lý do: ${window._lastSaveError||'kết nối SQL bị gián đoạn'}. Dữ liệu vẫn đang chờ — hãy bấm Lưu lại.`;
     document.getElementById('kt-stage-banner').style.display='flex';
     return;
   }
-  KHOTONG=next;KT_STAGE=[];
+  KHOTONG=next;KT_STAGE=[];KT_STAGE_DATE_PATCHES=[];
   window._ktLastImportKeys = new Set(pending.map(r=>r.k));
   document.getElementById('kt-stage-banner').style.display='none';
   toast('✓ Đã lưu '+n+' dòng Kho tổng'+(STORAGE_MODE==='turso'?' (SQL)':' (Local)')+' — bấm "↩ Xóa lần import cuối" nếu muốn hoàn tác');
@@ -3237,7 +3276,7 @@ async function handleSQFile(file){
     const header = rows[0];
     const cIdx = {
       maPhieu: findCol(header,['mã phiếu','ma phieu']),
-      time: findCol(header,['thời gian tạo','thoi gian tao']) > -1 ? findCol(header,['thời gian','thoi gian']) : findCol(header,['thời gian','thoi gian']),
+      time: findExactCol(header,['thời gian','thoi gian']),
       branch: findCol(header,['chi nhánh','chi nhanh']),
       loaiThuChi: findCol(header,['loại thu chi','loai thu chi']),
       phuongThuc: findCol(header,['phương thức','phuong thuc']),
@@ -3252,8 +3291,8 @@ async function handleSQFile(file){
       mart1: findCol(header,['10003597861']),
       mart2: findCol(header,['10003597792'])
     };
-    if(cIdx.maPhieu<0 || cIdx.amount<0){
-      toast('Không nhận diện được cột "Mã phiếu" hoặc "Giá trị" trong file. Kiểm tra lại tiêu đề cột (dòng 1).');
+    if(cIdx.maPhieu<0 || cIdx.time<0 || cIdx.amount<0){
+      toast('Không nhận diện được đúng cột "Mã phiếu", "Thời gian" hoặc "Giá trị". B2 bắt buộc lấy ngày từ cột Thời gian, không lấy Thời gian tạo.');
       return;
     }
     const data = rows.slice(1);
@@ -3314,8 +3353,16 @@ async function handleSQFile(file){
   }catch(err){ toast('Lỗi đọc file: '+err.message); console.error(err); }
 }
 function normContent(s){ return normalizeLookupText(s); }
+function isB2CashRow(row){
+  const book=String(row&&row.loaiSoQuy||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
+  return book.includes('tien mat');
+}
+function b2MatchLabel(row){
+  return isB2CashRow(row)?'Tiền mặt chi tại két Phú':String(row&&row.bankMatch||'').trim();
+}
 async function matchB2WithKhoTong(targetRows=B2){
-  const unmatched = targetRows.filter(r=>!r.bankMatch);
+  // Phiếu tiền mặt phát sinh trực tiếp tại két Phú, không đưa sang đối chiếu ngân hàng.
+  const unmatched = targetRows.filter(r=>!r.bankMatch&&!isB2CashRow(r));
   if(unmatched.length===0) return;
 
   // Tiền xử lý Kho tổng 1 LẦN DUY NHẤT (chuẩn hoá nội dung + tách theo chiều Thu/Chi) —
@@ -3410,7 +3457,7 @@ const SQ_HEADER_FILTERS={};
 let SQ_HEADER_FILTER_SOURCE=[];
 function sqHeaderValue(row,key){
   if(key==='amount')return String(Number(row.amount)||0);
-  if(key==='bankMatch')return String(row.bankMatch||'').trim()||'__UNMATCHED__';
+  if(key==='bankMatch')return b2MatchLabel(row)||'__UNMATCHED__';
   return String(row[key]??'').trim()||'__EMPTY__';
 }
 function sqHeaderDisplay(value,key){
@@ -3488,8 +3535,9 @@ function renderSQTable(){
     if(useRange){ if(d<from || d>to) return false; }
     else if(m){ if(!r.time || r.time.slice(0,7)!==m) return false; }
     if(fb!=='ALL'&&r.branch!==fb)return false;
-    if(filter==='matched' && !r.bankMatch) return false;
-    if(filter==='unmatched' && r.bankMatch) return false;
+    const resolved=!!b2MatchLabel(r);
+    if(filter==='matched' && !resolved) return false;
+    if(filter==='unmatched' && resolved) return false;
     if(filter==='tienmat' && !String(r.loaiSoQuy).toLowerCase().includes('tiền mặt') && !String(r.loaiSoQuy).toLowerCase().includes('tien mat')) return false;
     return true;
   });
@@ -3501,7 +3549,7 @@ function renderSQTable(){
 
   const totalThu = rows.filter(r=>r.amount>0).reduce((s,r)=>s+r.amount,0);
   const totalChi = rows.filter(r=>r.amount<0).reduce((s,r)=>s+r.amount,0);
-  const matched = rows.filter(r=>r.bankMatch).length;
+  const matched = rows.filter(r=>b2MatchLabel(r)).length;
 
   // KPI
   const kpiEl = document.getElementById('sq-kpi');
@@ -3510,14 +3558,14 @@ function renderSQTable(){
     <div class="box"><div class="v" style="color:var(--good)">${fmt(totalThu)}</div><div class="l">Tổng Thu</div></div>
     <div class="box"><div class="v" style="color:var(--bad)">${fmt(Math.abs(totalChi))}</div><div class="l">Tổng Chi</div></div>
     <div class="box"><div class="v">${fmt(totalThu+totalChi)}</div><div class="l">Thuần (Thu − Chi)</div></div>
-    <div class="box"><div class="v">${matched}/${rows.length}</div><div class="l">Đã khớp ngân hàng</div></div>`;
+    <div class="box"><div class="v">${matched}/${rows.length}</div><div class="l">Đã xác định nguồn</div></div>`;
 
   let html='<thead><tr>'+SQ_HEADER_COLUMNS.map(c=>`<th class="${c.left?'l ':''}sq-filter-th${SQ_HEADER_FILTERS[c.key]?' active':''}" title="Bấm để lọc cột ${c.label}" onclick="openSQHeaderFilter(event,'${c.key}')"><span class="sq-filter-label">${c.label}</span><span class="sq-filter-trigger" aria-hidden="true">▼</span></th>`).join('')+'</tr></thead><tbody>';
-  html+=`<tr class="tot"><td class="l">TỔNG (${rows.length} phiếu)</td><td></td><td></td><td></td><td></td><td>${fmt(totalThu+totalChi)}</td><td></td><td></td><td></td><td>${matched} khớp</td></tr>`;
+  html+=`<tr class="tot"><td class="l">TỔNG (${rows.length} phiếu)</td><td></td><td></td><td></td><td></td><td>${fmt(totalThu+totalChi)}</td><td></td><td></td><td></td><td>${matched} đã xác định</td></tr>`;
   rows.slice(0,400).forEach(r=>{
-    const editLabel=r.bankMatch?'Sửa':'Chọn';
-    const bankTag=r.bankMatch?`<span class="tag good">${r.manualBankMatch?'✎ ':''}${thtcEsc(r.bankMatch)}</span>`:'<span class="tag bad">chưa khớp</span>';
-    const bankCell=`${bankTag}<span class="sq-manual-actions"><button class="ghost" data-ma="${thtcEsc(r.maPhieu)}" data-note="${thtcEsc(r.note||'')}" onclick="openBKEdit(this.dataset.ma,this.dataset.note)">✎ ${editLabel}</button></span>`;
+    const cash=isB2CashRow(r),matchLabel=b2MatchLabel(r),editLabel=r.bankMatch?'Sửa':'Chọn';
+    const bankTag=matchLabel?`<span class="tag good">${r.manualBankMatch?'✎ ':''}${thtcEsc(matchLabel)}</span>`:'<span class="tag bad">chưa khớp</span>';
+    const bankCell=cash?bankTag:`${bankTag}<span class="sq-manual-actions"><button class="ghost" data-ma="${thtcEsc(r.maPhieu)}" data-note="${thtcEsc(r.note||'')}" onclick="openBKEdit(this.dataset.ma,this.dataset.note)">✎ ${editLabel}</button></span>`;
     html+=`<tr><td class="l" style="font-size:11px">${thtcEsc(r.maPhieu)}</td><td class="l">${thtcEsc(r.time)}</td><td class="l">${thtcEsc(r.branch||'')}</td><td class="l">${thtcEsc(r.loaiThuChi||'')}</td><td class="l" style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${thtcEsc(r.person||'')}</td><td class="${r.amount>0?'cell-good':'cell-bad'}">${fmt(r.amount)}</td><td class="l" style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px">${thtcEsc(r.noiDungCK||'')}</td><td class="l" style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px">${thtcEsc(r.note||'')}</td><td class="l">${thtcEsc(r.loaiSoQuy||'')}</td><td class="l">${bankCell}</td></tr>`;
   });
   if(rows.length===0) html+=`<tr><td class="l small" colspan="10">${B2.length>0?'Không có dữ liệu trong khoảng thời gian đã chọn (có '+B2.length+' phiếu ở tháng khác — thử đổi bộ lọc)':'Chưa có dữ liệu'}</td></tr>`;
@@ -3732,18 +3780,20 @@ function renderBK(){
   const viewFilter = document.getElementById('bk-view').value;
   const BK_EXCLUDE = ['phiếu thu tiền khách trả','phieu thu tien khach tra','phiếu chi tiền trả khách','phieu chi tien tra khach'];
 
-  // Lọc B2 theo kỳ (ngày hoặc tháng), bỏ phiếu thu/chi tiền khách
-  const b2Rows = B2.filter(r=>{
+  const b2MatchesSelectedPeriod=r=>{
     if(!r.time) return false;
-    const match = period==='day' ? r.time.slice(0,10)===day : r.time.slice(0,7)===m;
-    if(!match) return false;
+    return period==='day'?r.time.slice(0,10)===day:r.time.slice(0,7)===m;
+  };
+  // Giữ toàn bộ B2 nội bộ làm ứng viên ghép. Sau khi ghép mới lọc theo Ngày giá trị
+  // của ngân hàng; B2 chưa khớp vẫn hiển thị theo ngày B2 để người dùng xử lý.
+  const b2Rows = B2.filter(r=>{
     const loai = String(r.loai||r.loaiThuChi||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     return !BK_EXCLUDE.some(kw=>loai.includes(kw.normalize('NFD').replace(/[\u0300-\u036f]/g,'')));
   });
 
   // Lọc KHOTONG theo kỳ (ngày hoặc tháng)
   const ktRows = KHOTONG.filter(r=>{
-    const d = r.date ? r.date.split('/').reverse().join('-') : '';
+    const d=storageISODate(r.valueDate||r.date);
     return period==='day' ? d===day : d.slice(0,7)===m;
   });
 
@@ -3752,7 +3802,7 @@ function renderBK(){
 
   // Đánh dấu từng dòng B2: matched / partial / unmatched
   const usedKT = new Set();
-  const result = b2Rows.map(r=>{
+  const allResult = b2Rows.map(r=>{
     // Tiền mặt: không đối chiếu ngân hàng
     const isCash = String(r.loaiSoQuy||'').toLowerCase().includes('ti') && String(r.loaiSoQuy||'').toLowerCase().includes('m');
     if(isCash) return {...r, _status:'cash', _ktMatch:null};
@@ -3795,6 +3845,11 @@ function renderBK(){
     }
     if(hit) usedKT.add(hit);
     return {...r, _status: hit?hitType:'unmatched', _ktMatch: hit||null};
+  });
+  const result=allResult.filter(r=>{
+    const bankDate=storageISODate(r._ktMatch&&(r._ktMatch.valueDate||r._ktMatch.date));
+    const bankInPeriod=bankDate&&(period==='day'?bankDate===day:bankDate.slice(0,7)===m);
+    return bankInPeriod||b2MatchesSelectedPeriod(r);
   });
 
   // Thống kê
@@ -3963,7 +4018,7 @@ function renderBK(){
     html+=`<tr><td colspan="8" style="font-weight:700;color:var(--bad);padding:10px 4px;font-size:12px">⬇ Giao dịch ngân hàng CHƯA CÓ phiếu B2 tương ứng (${ktUnmatched.length} dòng)</td></tr>`;
     ktUnmatched.forEach(kt=>{
       const amt = Math.max(kt.credit||0,kt.debit||0);
-      html+=`<tr style="background:var(--bad-soft)"><td colspan="5" class="l" style="color:var(--muted);font-size:11px">${kt.content}</td><td style="text-align:center"><span class="tag bad">✗ Không có B2</span></td><td class="cell-bad">${fmt(amt)}</td><td class="l">${kt.date||''}</td></tr>`;
+      html+=`<tr style="background:var(--bad-soft)"><td colspan="5" class="l" style="color:var(--muted);font-size:11px">${kt.content}</td><td style="text-align:center"><span class="tag bad">✗ Không có B2</span></td><td class="cell-bad">${fmt(amt)}</td><td class="l">${kt.valueDate||kt.date||''}</td></tr>`;
     });
   }
 
@@ -4192,14 +4247,55 @@ function renderQK(){
   });
   let thu=0,chi=0;
   rows.forEach(r=>{ if(r.amount>0) thu+=r.amount; else chi+=Math.abs(r.amount); });
+  const pad=n=>String(n).padStart(2,'0');
+  const [yy,mm]=(m||todayISO().slice(0,7)).split('-').map(Number);
+  const monthDays=new Date(yy,mm,0).getDate();
+  const monthStart=`${yy}-${pad(mm)}-01`;
+  const monthEnd=`${yy}-${pad(mm)}-${pad(monthDays)}`;
+  const dayMap={};
+  for(let day=1;day<=monthDays;day++){
+    const date=`${yy}-${pad(mm)}-${pad(day)}`;
+    dayMap[date]={date,session:0,otherIncome:0,goodsExpense:0,otherExpense:0,deposit:0,withdraw:0};
+  }
+  Object.entries(CHOTCA).forEach(([key,r])=>{
+    const cut=key.indexOf('|'); if(cut<0)return;
+    const date=key.slice(0,cut),branch=key.slice(cut+1);
+    if(date<monthStart||date>monthEnd||!dayMap[date])return;
+    if(fb!=='ALL'&&!thtcBranchMatch(branch,fb))return;
+    dayMap[date].session+=Number(r.vnd)||0;
+  });
+  rows.forEach(r=>{
+    const date=thtcISODate(r.time);
+    if(!dayMap[date])return;
+    const amount=Number(r.amount)||0,category=thtcCategoryFor(r);
+    if(amount>0&&category==='0')dayMap[date].withdraw+=amount;
+    else if(amount>0&&category==='Khác')dayMap[date].otherIncome+=amount;
+    else if(amount<0&&category==='Hàng')dayMap[date].goodsExpense+=amount;
+    else if(amount<0&&category==='Khác')dayMap[date].otherExpense+=amount;
+    else if(amount<0&&category==='0')dayMap[date].deposit+=amount;
+  });
+  let opening=0;
+  const days=Object.values(dayMap).map((d,i)=>{
+    const closing=opening+d.session+d.otherIncome+d.goodsExpense+d.otherExpense+d.deposit+d.withdraw;
+    const result={...d,stt:i+1,opening,closing};
+    opening=closing;
+    return result;
+  });
+  const qkNum=v=>`<td class="${v<0?'cell-bad':''}">${fmt(v)}</td>`;
+  let summary='<thead><tr><th>STT</th><th>NGÀY</th><th>TỒN ĐẦU<br>NGÀY</th><th>THU TM<br>THEO CHỐT CA</th><th>THU KHÁC<br>TẠI KÉT</th><th>CHI KHÁC BẰNG TM<br>TỪ KÉT</th><th>CHI HÀNG BẰNG TM<br>TỪ KÉT</th><th>NỘP VÀO<br>NGÂN HÀNG</th><th>RÚT NH<br>NHẬP QUỸ</th><th>TỒN CUỐI<br>NGÀY (CT)</th><th>KIỂM KÊ<br>THỰC TẾ</th><th>THỪA/(THIẾU)<br>(J - I)</th><th class="l">GHI CHÚ</th></tr></thead><tbody>';
+  days.forEach(d=>{
+    summary+=`<tr><td>${d.stt}</td><td class="qk-day">${d.stt}</td>${qkNum(d.opening)}${qkNum(d.session)}${qkNum(d.otherIncome)}${qkNum(d.otherExpense)}${qkNum(d.goodsExpense)}${qkNum(d.deposit)}${qkNum(d.withdraw)}${qkNum(d.closing)}<td></td><td></td><td class="l"></td></tr>`;
+  });
+  summary+='</tbody>';
+  document.getElementById('qk-summary-table').innerHTML=summary;
   document.getElementById('qk-kpi').innerHTML = `
     <div class="box"><div class="v">${fmt(thu)}</div><div class="l">Tổng thu tiền mặt</div></div>
     <div class="box"><div class="v">${fmt(chi)}</div><div class="l">Tổng chi tiền mặt</div></div>
-    <div class="box"><div class="v">${fmt(thu-chi)}</div><div class="l">Tồn quỹ kỳ này</div></div>`;
+    <div class="box"><div class="v">${fmt(days.length?days[days.length-1].closing:0)}</div><div class="l">Tồn cuối kỳ</div></div>`;
   let html='<thead><tr><th class="l">Ngày</th><th class="l">Chi nhánh</th><th class="l">Người nộp/nhận</th><th>Số tiền</th><th class="l">Ghi chú</th></tr></thead><tbody>';
   rows.sort((a,c)=>(c.time||'').localeCompare(a.time||''));
   rows.forEach(r=>{ html+=`<tr><td class="l">${r.time}</td><td class="l">${r.branch||''}</td><td class="l">${r.person||''}</td><td>${fmt(r.amount)}</td><td class="l">${r.note||''}</td></tr>`; });
-  if(rows.length===0) html+='<tr><td class="l small">Chưa có phiếu tiền mặt</td></tr>';
+  if(rows.length===0) html+='<tr><td colspan="5" class="l small">Chưa có phiếu tiền mặt</td></tr>';
   html+='</tbody>';
   document.getElementById('qk-table').innerHTML = html;
 }
@@ -4357,17 +4453,17 @@ function openBKEdit(maPhieu, currentNote){
   const b2Row=B2.find(r=>String(r.maPhieu)===String(maPhieu));
   if(!b2Row){toast('Không tìm thấy phiếu B2 '+maPhieu);return;}
   const targetDate=storageISODate(b2Row.time),targetMonth=targetDate.slice(0,7),targetAmt=Math.abs(Number(b2Row.amount)||0);
-  let ktRows=KHOTONG.filter(r=>storageISODate(r.date).slice(0,7)===targetMonth);
+  let ktRows=KHOTONG.filter(r=>storageISODate(r.valueDate||r.date).slice(0,7)===targetMonth);
   if(!ktRows.length)ktRows=KHOTONG.slice();
   const score=kt=>{
     const amt=Math.max(Number(kt.credit)||0,Number(kt.debit)||0),sameDirection=b2Row.amount>=0?Number(kt.credit)>0:Number(kt.debit)>0;
-    const ktDate=storageISODate(kt.date),dayGap=targetDate&&ktDate?thtcDayDistance(targetDate,ktDate):999;
+    const ktDate=storageISODate(kt.valueDate||kt.date),dayGap=targetDate&&ktDate?thtcDayDistance(targetDate,ktDate):999;
     return (sameDirection?0:1e15)+Math.abs(amt-targetAmt)*1000+dayGap;
   };
   ktRows.sort((a,b)=>score(a)-score(b));
   ktRows=ktRows.slice(0,300);
   const opts=ktRows.map((kt,i)=>{
-    const amt=Math.max(Number(kt.credit)||0,Number(kt.debit)||0),d=storageISODate(kt.date)||kt.date||'',branch=kt.branch||KHO_ACC_MAP[String(kt.account||'').replace(/\D/g,'')]||'';
+    const amt=Math.max(Number(kt.credit)||0,Number(kt.debit)||0),d=storageISODate(kt.valueDate||kt.date)||kt.valueDate||kt.date||'',branch=kt.branch||KHO_ACC_MAP[String(kt.account||'').replace(/\D/g,'')]||'';
     return `<option value="${i}">${thtcEsc(d)} | ${thtcEsc(branch)} | ${fmt(amt)} | ${thtcEsc((kt.content||'').slice(0,80))}</option>`;
   }).join('');
   const old=BK_OVERRIDES[maPhieu]||{},noteValue=old.note||currentNote||'';
@@ -4417,9 +4513,9 @@ function applyB2ManualMatch(maPhieu,kt,status,note=''){
   const account=String(kt.account||'').replace(/\D/g,''),branch=kt.branch||KHO_ACC_MAP[account]||'';
   const amount=Math.max(Number(kt.credit)||0,Number(kt.debit)||0);
   row.bankMatch=branch;row.bankAccount=account;row.manualBankMatch=true;
-  row.manualKtContent=kt.content||'';row.manualKtAmount=amount;row.manualKtDate=storageISODate(kt.date);
+  row.manualKtContent=kt.content||'';row.manualKtAmount=amount;row.manualKtDate=storageISODate(kt.valueDate||kt.date);
   row.mart1=branch==='KHO TỔNG MART 1';row.mart2=branch==='KHO TỔNG MART 2';
-  BK_OVERRIDES[maPhieu]={status:'matched',ktContent:kt.content||'',ktAmt:amount,ktBranch:branch,ktAccount:account,ktDate:storageISODate(kt.date),note,savedAt:new Date().toISOString()};
+  BK_OVERRIDES[maPhieu]={status:'matched',ktContent:kt.content||'',ktAmt:amount,ktBranch:branch,ktAccount:account,ktDate:storageISODate(kt.valueDate||kt.date),note,savedAt:new Date().toISOString()};
   return row;
 }
 async function saveBKEdit(maPhieu, status){
@@ -5250,9 +5346,8 @@ function getTHTCSourceData(branches,from,to){
     }
   });
   KHOTONG.forEach(r=>{
-    // TKCARD và CHUYEN CHI HANG NGAY đều ghi ngày ngay trong diễn giải
-    // (thường dạng 09.06.2026). Ưu tiên ngày này để khớp cách Excel xếp giao dịch.
-    const d=thtcISODate(r.content)||thtcISODate(r.date),content=ascii(r.content);
+    // Tổng hợp thu chi luôn dùng đúng cột Ngày giao dịch của TP Bank Kho tổng.
+    const d=thtcISODate(r.date),content=ascii(r.content);
     if(d<from||d>to)return;
     const contentBranch=khotongBranchFromContent(r.content);
     const branch=contentBranch||hitAnyBranch(r.branch);
@@ -5260,6 +5355,12 @@ function getTHTCSourceData(branches,from,to){
     const bankLabel=ascii(KHO_ACC_MAP[acc]||r.branch);
     const mart=KHO_ACC_MAP[acc]==='KHO TỔNG MART 1'||bankLabel.includes('mart 1')?'m1':
       (KHO_ACC_MAP[acc]==='KHO TỔNG MART 2'||bankLabel.includes('mart 2')?'m2':'');
+    const compactContent=normalizeLookupText(r.content);
+    const isCashDeposit=compactContent.includes('NOPTIEN')||compactContent.includes('NOPTM');
+    if(isCashDeposit&&branch&&selected(branch)&&mart&&Number(r.credit)>0){
+      add(mart+'_deposit',branch,Number(r.credit));
+      return;
+    }
     const isDailyTransfer=content.includes('chuyen chi hang ngay')||content.includes('tkcard');
     if(isDailyTransfer&&branch&&selected(branch)&&mart&&Number(r.credit)>0){
       add(mart+'_transfer',branch,Number(r.credit));
@@ -5268,12 +5369,43 @@ function getTHTCSourceData(branches,from,to){
     if(branch&&selected(branch)&&Number(r.credit)>0&&content.includes('tra lai tien gui'))add('bank_interest',branch,r.credit);
   });
 
+  // Khi phiếu B2 khớp một dòng Kho tổng, Tổng hợp thu chi phải xếp theo
+  // Ngày giao dịch của ngân hàng, không dùng ngày B2 hay Ngày giá trị.
+  const ktMatchBuckets=new Map();
+  KHOTONG.forEach(k=>{
+    const amount=Math.max(Number(k.credit)||0,Number(k.debit)||0);
+    if(!amount)return;
+    const direction=Number(k.credit)>0?'thu':'chi',key=direction+'|'+amount;
+    if(!ktMatchBuckets.has(key))ktMatchBuckets.set(key,[]);
+    ktMatchBuckets.get(key).push(k);
+  });
+  const matchedKhotongTransactionDate=row=>{
+    const book=ascii(row&&row.loaiSoQuy);
+    if(book.includes('tien mat'))return '';
+    const amount=Math.abs(Number(row&&row.amount)||0);
+    const key=((Number(row&&row.amount)||0)>=0?'thu':'chi')+'|'+amount;
+    const candidates=ktMatchBuckets.get(key)||[];
+    const needles=[row&&row.noiDungCK,row&&row.person,row&&row.note].map(normalizeLookupText).filter(n=>n.length>=6);
+    const account=String(row&&row.bankAccount||row&&row.soTK||'').replace(/\D/g,'');
+    const b2Date=thtcISODate(row&&row.time);
+    const matched=candidates.filter(k=>{
+      const kAcc=String(k.account||'').replace(/\D/g,'');
+      if(account&&kAcc&&account!==kAcc)return false;
+      const hay=normalizeLookupText(k.content);
+      return needles.some(n=>hay===n||hay.includes(n)||n.includes(hay));
+    }).sort((a,b)=>{
+      const da=thtcISODate(a.date),db=thtcISODate(b.date);
+      return thtcDayDistance(b2Date,da)-thtcDayDistance(b2Date,db);
+    })[0];
+    return matched?thtcISODate(matched.date):'';
+  };
+
   // B2 là nguồn cho toàn bộ thu/chi tiền mặt, hai tài khoản Mart và 74+ dòng chi tiết.
   // Loại phiếu mới vẫn được đưa vào chi tiết; chỉ chưa cộng vào Hàng/Khác cho đến khi được phân loại.
   const detailMap=new Map();
   let b2Count=0,unknownRows=0,unassignedBankRows=0;
   B2.forEach(r=>{
-    const d=thtcISODate(r.time),branch=hitAnyBranch(r.branch);
+    const d=matchedKhotongTransactionDate(r)||thtcISODate(r.time),branch=hitAnyBranch(r.branch);
     if(!branch||!selected(branch)||d<from||d>to)return;
     const amount=Number(r.amount)||0,name=String(r.loaiThuChi||'Chưa phân loại').trim()||'Chưa phân loại';
     if(!amount)return;
@@ -5302,7 +5434,8 @@ function getTHTCSourceData(branches,from,to){
     if(r.mart1===true||KHO_ACC_MAP[acc]==='KHO TỔNG MART 1'||bankLabel.includes('mart 1'))mart='m1';
     else if(r.mart2===true||KHO_ACC_MAP[acc]==='KHO TỔNG MART 2'||bankLabel.includes('mart 2'))mart='m2';
     if(!mart){unassignedBankRows++;return;}
-    if(amount>0&&category==='0')add(mart+'_deposit',branch,amount);
+    // Thu nộp tiền vào tài khoản lấy theo Ghi có thực tế của TP Bank Kho tổng
+    // (nội dung NOP TIEN), không cộng thêm phiếu B2 để tránh trùng hai lần.
     // Phiếu B2 thu lãi vẫn hiển thị ở bảng chi tiết, nhưng không cộng lại vào Thu khác:
     // dòng Tiền lãi ngân hàng đã lấy số thực tế từ sao kê để tránh tính hai lần.
     if(amount>0&&category==='Khác'&&!isBankInterestVoucher)add(mart+'_other_income',branch,amount);
@@ -5814,11 +5947,11 @@ function exportViettin(){
   return {name:'Viettin', rows};
 }
 function exportKhoTong(){
-  const rows = KHOTONG.map(r=>({'Ngày':r.date||'','Chi nhánh':r.branch||'','Tài khoản':r.account||'','Ghi nợ':r.debit||0,'Ghi có':r.credit||0,'Số dư':r.balance||0,'Loại':r.type||'','Nội dung':r.content||''}));
+  const rows = KHOTONG.map(r=>({'Ngày giao dịch':r.date||'','Ngày giá trị':r.valueDate||r.date||'','Chi nhánh':r.branch||'','Tài khoản':r.account||'','Ghi nợ':r.debit||0,'Ghi có':r.credit||0,'Số dư':r.balance||0,'Loại':r.type||'','Nội dung':r.content||''}));
   return {name:'Kho tổng', rows};
 }
 function exportB2(){
-  const rows = B2.map(r=>({'Mã phiếu':r.maPhieu,'Ngày':r.time,'Chi nhánh':r.branch||'','Loại':r.loaiThuChi||'','Người nộp/nhận':r.person||'','Giá trị':r.amount||0,'Thu/Chi':r.flow||(Number(r.amount)>=0?'Thu':'Chi'),'Phân loại Hàng/Khác/0':thtcCategoryFor(r)||'CHƯA PHÂN LOẠI','Nội dung CK':r.noiDungCK||'','Ghi chú':r.note||'','Loại sổ quỹ':r.loaiSoQuy||'','Số tài khoản':r.soTK||r.bankAccount||'','NH phát sinh':r.bankMatch||'','Mart 1':!!r.mart1,'Mart 2':!!r.mart2}));
+  const rows = B2.map(r=>({'Mã phiếu':r.maPhieu,'Ngày':r.time,'Chi nhánh':r.branch||'','Loại':r.loaiThuChi||'','Người nộp/nhận':r.person||'','Giá trị':r.amount||0,'Thu/Chi':r.flow||(Number(r.amount)>=0?'Thu':'Chi'),'Phân loại Hàng/Khác/0':thtcCategoryFor(r)||'CHƯA PHÂN LOẠI','Nội dung CK':r.noiDungCK||'','Ghi chú':r.note||'','Loại sổ quỹ':r.loaiSoQuy||'','Số tài khoản':r.soTK||r.bankAccount||'','NH phát sinh':b2MatchLabel(r),'Mart 1':!!r.mart1,'Mart 2':!!r.mart2}));
   return {name:'CT Thu Chi B2', rows};
 }
 function exportCaTheKV(){
