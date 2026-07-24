@@ -3366,6 +3366,11 @@ function isB2CashDepositContent(row){
   ].filter(Boolean).join(' '));
   return text.includes('NOPTIEN')||text.includes('NOPTM');
 }
+function b2ExpectedMart(row){
+  if(row&&row.mart1===true&&row.mart2!==true)return 'm1';
+  if(row&&row.mart2===true&&row.mart1!==true)return 'm2';
+  return '';
+}
 function b2MatchLabel(row){
   return isB2CashRow(row)?'Tiền mặt chi tại két Phú':String(row&&row.bankMatch||'').trim();
 }
@@ -3383,15 +3388,20 @@ async function matchB2WithKhoTong(targetRows=B2){
   KHOTONG.forEach(k=>{
     const hay = normContent(k.content);
     if(!hay) return;
-    const entry = { hay, hayPre: hay.slice(0,12), amount:Math.max(Number(k.credit)||0,Number(k.debit)||0), k };
+    const acc=String(k.account||'').replace(/\D/g,''),label=String(KHO_ACC_MAP[acc]||k.branch||'').toLowerCase();
+    const mart=label.includes('mart 1')?'m1':(label.includes('mart 2')?'m2':'');
+    const entry = { hay, hayPre: hay.slice(0,12), amount:Math.max(Number(k.credit)||0,Number(k.debit)||0), mart, k };
     if(k.credit>0) khoCredit.push(entry);
     else if(k.debit>0) khoDebit.push(entry);
     else khoNeutral.push(entry);
   });
   const findHit=(needles,bucket,row)=>{
     const targetAmount=Math.abs(Number(row&&row.amount)||0);
-    const exactMoney=bucket.filter(x=>Math.abs(x.amount-targetAmount)<1);
-    const pool=exactMoney.length?exactMoney:bucket;
+    const expectedMart=b2ExpectedMart(row);
+    const rightMart=expectedMart?bucket.filter(x=>x.mart===expectedMart):bucket;
+    const martPool=rightMart.length?rightMart:bucket;
+    const exactMoney=martPool.filter(x=>Math.abs(x.amount-targetAmount)<1);
+    const pool=exactMoney.length?exactMoney:martPool;
     const b2Date=storageISODate(row&&row.time);
     const nearest=list=>list.sort((a,b)=>{
       const da=storageISODate(a.k.date),db=storageISODate(b.k.date);
@@ -3418,6 +3428,7 @@ async function matchB2WithKhoTong(targetRows=B2){
         // Chỉ lưu đúng Ngày giao dịch của sao kê Kho tổng.
         r.bankTransactionDate=storageISODate(hitEntry.k.date);
         r.bankValueDate=storageISODate(hitEntry.k.valueDate);
+        r.bankTransactionMart=hitEntry.mart||'';
       }
     });
     if(unmatched.length>CHUNK){
@@ -4532,7 +4543,7 @@ function applyB2ManualMatch(maPhieu,kt,status,note=''){
     delete BK_OVERRIDES[maPhieu];
     row.bankMatch='';row.bankAccount='';row.manualBankMatch=false;
     delete row.manualKtContent;delete row.manualKtAmount;delete row.manualKtDate;
-    delete row.bankTransactionDate;delete row.bankValueDate;
+    delete row.bankTransactionDate;delete row.bankValueDate;delete row.bankTransactionMart;
     return row;
   }
   if(status==='ignored'){
@@ -4546,6 +4557,7 @@ function applyB2ManualMatch(maPhieu,kt,status,note=''){
   row.bankMatch=branch;row.bankAccount=account;row.manualBankMatch=true;
   row.manualKtContent=kt.content||'';row.manualKtAmount=amount;row.manualKtDate=storageISODate(kt.date);
   row.bankTransactionDate=storageISODate(kt.date);row.bankValueDate=storageISODate(kt.valueDate);
+  row.bankTransactionMart=ascii(branch).includes('mart 1')?'m1':(ascii(branch).includes('mart 2')?'m2':'');
   row.mart1=branch==='KHO TỔNG MART 1';row.mart2=branch==='KHO TỔNG MART 2';
   BK_OVERRIDES[maPhieu]={status:'matched',ktContent:kt.content||'',ktAmt:amount,ktBranch:branch,ktAccount:account,ktDate:storageISODate(kt.date),note,savedAt:new Date().toISOString()};
   return row;
@@ -5437,16 +5449,21 @@ function getTHTCSourceData(branches,from,to){
   const matchedKhotongTransactionDate=row=>{
     const book=ascii(row&&row.loaiSoQuy);
     if(book.includes('tien mat'))return '';
-    if(row&&row.bankTransactionDate)return thtcISODate(row.bankTransactionDate);
+    const expectedMart=b2ExpectedMart(row);
+    if(row&&row.bankTransactionDate&&(!expectedMart||row.bankTransactionMart===expectedMart))return thtcISODate(row.bankTransactionDate);
     const amount=Math.abs(Number(row&&row.amount)||0);
     const key=((Number(row&&row.amount)||0)>=0?'thu':'chi')+'|'+amount;
     const candidates=ktMatchBuckets.get(key)||[];
     const needles=[row&&row.noiDungCK,row&&row.person,row&&row.note].map(normalizeLookupText).filter(n=>n.length>=6);
-    const account=String(row&&row.bankAccount||row&&row.soTK||'').replace(/\D/g,'');
+    // Khi B2 đã có cờ MART rõ ràng, không để tài khoản ghép tự động cũ
+    // khóa nhầm sang Mart còn lại; chỉ giữ số TK gốc nếu file B2 thực sự có.
+    const account=String(expectedMart?(row&&row.soTK||''):(row&&row.soTK||row&&row.bankAccount||'')).replace(/\D/g,'');
     const b2Date=thtcISODate(row&&row.time);
     const matched=candidates.filter(k=>{
       const kAcc=String(k.account||'').replace(/\D/g,'');
       if(account&&kAcc&&account!==kAcc)return false;
+      const kLabel=ascii(KHO_ACC_MAP[kAcc]||k.branch),kMart=kLabel.includes('mart 1')?'m1':(kLabel.includes('mart 2')?'m2':'');
+      if(expectedMart&&kMart&&expectedMart!==kMart)return false;
       const hay=normalizeLookupText(k.content);
       return needles.some(n=>hay===n||hay.includes(n)||n.includes(hay));
     }).sort((a,b)=>{
@@ -5474,7 +5491,7 @@ function getTHTCSourceData(branches,from,to){
     const nameAscii=ascii(name),isBankInterestVoucher=nameAscii.includes('thu lai tai khoan')||nameAscii.includes('thu lai tien gui');
     if(!category)unknownRows++;
     const book=ascii(r.loaiSoQuy),isCash=book.includes('tien mat');
-    const acc=String(r.bankAccount||r.soTK||'').replace(/\D/g,'');
+    const acc=String(r.soTK||r.bankAccount||'').replace(/\D/g,'');
     const bankLabel=ascii(r.bankMatch||KHO_ACC_MAP[acc]||'');
     const isBank=book.includes('ngan hang')||(!isCash&&(r.mart1||r.mart2||acc||bankLabel));
     if(isCash){
@@ -5490,9 +5507,9 @@ function getTHTCSourceData(branches,from,to){
       return;
     }
     if(!isBank)return;
-    let mart='';
-    if(r.mart1===true||KHO_ACC_MAP[acc]==='KHO TỔNG MART 1'||bankLabel.includes('mart 1'))mart='m1';
-    else if(r.mart2===true||KHO_ACC_MAP[acc]==='KHO TỔNG MART 2'||bankLabel.includes('mart 2'))mart='m2';
+    let mart=b2ExpectedMart(r);
+    if(!mart&&(KHO_ACC_MAP[acc]==='KHO TỔNG MART 1'||bankLabel.includes('mart 1')))mart='m1';
+    else if(!mart&&(KHO_ACC_MAP[acc]==='KHO TỔNG MART 2'||bankLabel.includes('mart 2')))mart='m2';
     if(!mart){unassignedBankRows++;return;}
     // Thu nộp tiền vào tài khoản lấy theo Ghi có thực tế của TP Bank Kho tổng
     // (nội dung NOP TIEN), không cộng thêm phiếu B2 để tránh trùng hai lần.
