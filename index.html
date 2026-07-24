@@ -3360,6 +3360,12 @@ function isB2CashRow(row){
   const book=String(row&&row.loaiSoQuy||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
   return book.includes('tien mat');
 }
+function isB2CashDepositContent(row){
+  const text=normalizeLookupText([
+    row&&row.noiDungCK,row&&row.note,row&&row.person,row&&row.loaiThuChi
+  ].filter(Boolean).join(' '));
+  return text.includes('NOPTIEN')||text.includes('NOPTM');
+}
 function b2MatchLabel(row){
   return isB2CashRow(row)?'Tiền mặt chi tại két Phú':String(row&&row.bankMatch||'').trim();
 }
@@ -4277,7 +4283,8 @@ function renderQK(){
     const date=thtcISODate(r.time);
     if(!dayMap[date])return;
     const amount=Number(r.amount)||0,category=thtcCategoryFor(r);
-    if(amount>0&&category==='0')dayMap[date].withdraw+=amount;
+    if(amount<0&&isB2CashDepositContent(r))dayMap[date].deposit+=amount;
+    else if(amount>0&&category==='0')dayMap[date].withdraw+=amount;
     else if(amount>0&&category==='Khác')dayMap[date].otherIncome+=amount;
     else if(amount<0&&category==='Hàng')dayMap[date].goodsExpense+=amount;
     else if(amount<0&&category==='Khác')dayMap[date].otherExpense+=amount;
@@ -5456,11 +5463,15 @@ function getTHTCSourceData(branches,from,to){
     const bankLabel=ascii(r.bankMatch||KHO_ACC_MAP[acc]||'');
     const isBank=book.includes('ngan hang')||(!isCash&&(r.mart1||r.mart2||acc||bankLabel));
     if(isCash){
-      if(amount>0)add('cash_other_income',branch,amount);
-      if(amount<0&&category==='Hàng')add('cash_goods_expense',branch,amount);
-      if(amount<0&&category==='Khác')add('cash_other_expense',branch,amount);
-      if(amount<0&&category==='0')add('cash_deposit',branch,amount);
-      if(amount>0&&category==='0')add('cash_withdraw',branch,amount);
+      // Nội dung NỘP TIỀN / NỘP TM trong B2 luôn là tiền mặt mang đi nộp
+      // vào tài khoản. Chỉ cộng vào một dòng "Chi nộp tiền vào TK", không
+      // tách Mart 1/Mart 2 ở phần quỹ két.
+      if(amount<0&&isB2CashDepositContent(r))add('cash_deposit',branch,amount);
+      else if(amount>0&&category==='0')add('cash_withdraw',branch,amount);
+      else if(amount>0)add('cash_other_income',branch,amount);
+      else if(amount<0&&category==='Hàng')add('cash_goods_expense',branch,amount);
+      else if(amount<0&&category==='Khác')add('cash_other_expense',branch,amount);
+      else if(amount<0&&category==='0')add('cash_deposit',branch,amount);
       return;
     }
     if(!isBank)return;
