@@ -5430,9 +5430,11 @@ function thtcNormalizeCategory(value){
 }
 function thtcCategoryFor(row){
   const key=thtcLayoutKey(row&&row.loaiThuChi);
+  // Danh sách Hàng chuẩn do người dùng xác nhận luôn được ưu tiên cao nhất,
+  // không để phân loại cũ đã lưu hoặc cột phân loại trong file ghi đè.
+  if(THTC_DEFAULT_HANG.has(key))return 'Hàng';
   const override=thtcNormalizeCategory(THTC_CATEGORIES[key]);if(override)return override;
   const fromFile=thtcNormalizeCategory(row&&row.category);if(fromFile)return fromFile;
-  if(THTC_DEFAULT_HANG.has(key))return 'Hàng';
   if(THTC_DEFAULT_ZERO.has(key))return '0';
   if(THTC_DEFAULT_KHAC.has(key))return 'Khác';
   return '';
