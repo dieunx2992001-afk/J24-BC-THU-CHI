@@ -2417,11 +2417,18 @@ function extractStatementAccount(rows,maxRows=12){
 // Làm tròn 1 Date về đúng mốc nửa đêm UTC gần nhất — khắc phục sai số thập phân rất nhỏ
 // mà số serial ngày trong Excel hay gặp (vd. 23:59:30 thay vì đúng 00:00:00), tránh bị lùi 1 ngày.
 function roundToUTCDate(date){ return new Date(Math.round(date.getTime()/86400000)*86400000); }
+// Chuẩn dò dùng chung toàn hệ thống: không phân biệt hoa/thường, dấu tiếng Việt,
+// khoảng trắng đơn/kép, tab, xuống dòng hay dấu phân cách.
+function normalizeLookupText(value){
+  return String(value||'').toUpperCase().normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'').replace(/Đ/g,'D').replace(/[^A-Z0-9]/g,'');
+}
 // Hàm lọc từ khóa dùng chung cho các bảng dữ liệu (TP Bank, Viettin, Kho tổng, B2, Ngân hàng Kiot)
 function matchesKeyword(row, keyword){
   if(!keyword) return true;
-  const kw = keyword.toLowerCase();
-  return Object.values(row).some(v => v!=null && typeof v!=='object' && String(v).toLowerCase().includes(kw));
+  const kw=normalizeLookupText(keyword);
+  if(!kw)return true;
+  return Object.values(row).some(v=>v!=null&&typeof v!=='object'&&normalizeLookupText(v).includes(kw));
 }
 // Trì hoãn nhẹ khi gõ từ khóa để không render lại liên tục từng phím bấm
 function debounce(fn, ms=250){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
@@ -3094,7 +3101,7 @@ async function handleKTFile(file){
       const debit = parseVNMoney(row[cIdx.debit])||0, credit = parseVNMoney(row[cIdx.credit])||0, balance = parseVNMoney(row[cIdx.balance])||0;
       // Ưu tiên ngày thật dò trong nội dung, chỉ fallback cột "Ngày giao dịch" khi nội dung không có ngày
       let date = null;
-      const contentDateM = String(content).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      const contentDateM = String(content).match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/);
       if(contentDateM){ date = contentDateM[3]+'-'+contentDateM[2].padStart(2,'0')+'-'+contentDateM[1].padStart(2,'0'); }
       else { date = excelDateToISO(row[cIdx.date]); }
       const k = content+'|'+balance+'|'+debit+'|'+credit;
@@ -3306,7 +3313,7 @@ async function handleSQFile(file){
     if(typeof refreshTHTCCategoryUI==='function')refreshTHTCCategoryUI();
   }catch(err){ toast('Lỗi đọc file: '+err.message); console.error(err); }
 }
-function normContent(s){ return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function normContent(s){ return normalizeLookupText(s); }
 async function matchB2WithKhoTong(targetRows=B2){
   const unmatched = targetRows.filter(r=>!r.bankMatch);
   if(unmatched.length===0) return;
@@ -3324,16 +3331,23 @@ async function matchB2WithKhoTong(targetRows=B2){
     else if(k.debit>0) khoDebit.push(entry);
     else khoNeutral.push(entry);
   });
-  const findHit = (needle, needlePre, bucket) => bucket.find(({hay,hayPre}) => needle.includes(hayPre) || hay.includes(needlePre));
+  const findHit=(needles,bucket)=>{
+    // Ưu tiên khớp toàn nội dung đã chuẩn hóa; chỉ dùng tiền tố khi không có khớp đầy đủ.
+    let hit=bucket.find(({hay})=>needles.some(n=>n.length>=6&&(hay===n||hay.includes(n)||n.includes(hay))));
+    if(hit)return hit;
+    return bucket.find(({hay,hayPre})=>needles.some(n=>{
+      const pre=n.slice(0,12);
+      return pre.length>=6&&(n.includes(hayPre)||hay.includes(pre));
+    }));
+  };
 
   const CHUNK = 5000;
   for(let i=0;i<unmatched.length;i+=CHUNK){
     unmatched.slice(i, i+CHUNK).forEach(r=>{
-      const needle = normContent(r.person)+normContent(r.noiDungCK)+normContent(r.note);
-      if(!needle){ return; }
-      const needlePre = needle.slice(0,12);
+      const needles=[r.noiDungCK,r.person,r.note].map(normContent).filter(n=>n.length>=6);
+      if(!needles.length){ return; }
       const bucket = r.amount>0 ? khoCredit : khoDebit;
-      const hitEntry = findHit(needle, needlePre, bucket) || findHit(needle, needlePre, khoNeutral);
+      const hitEntry=findHit(needles,bucket)||findHit(needles,khoNeutral);
       if(hitEntry){
         r.bankMatch = hitEntry.k.branch; r.bankAccount = hitEntry.k.account;
       }
@@ -3734,7 +3748,7 @@ function renderBK(){
   });
 
   // Hàm chuẩn hoá chuỗi để so sánh
-  const norm = s => String(s||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9]/g,'');
+  const norm=normalizeLookupText;
 
   // Đánh dấu từng dòng B2: matched / partial / unmatched
   const usedKT = new Set();
