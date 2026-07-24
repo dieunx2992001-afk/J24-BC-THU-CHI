@@ -172,14 +172,17 @@ tr:hover td{background:var(--surface2);}
 .qk-summary-scroll{max-height:calc(100vh - 285px);overflow:auto;border:1px solid var(--border);border-top:0;}
 .qk-summary-table{width:max-content;min-width:100%;table-layout:fixed;}
 .qk-summary-table th,.qk-summary-table td{border:1px solid var(--border);padding:5px 7px;font-size:10.5px;}
-.qk-summary-table th{background:#5b2108;color:#fff;text-align:center;white-space:normal;line-height:1.25;vertical-align:middle;}
+.qk-summary-table th{background:var(--surface2);color:var(--title);text-align:center;white-space:normal;line-height:1.25;vertical-align:middle;border-color:#d7cdbc;}
 .qk-summary-table th:nth-child(1),.qk-summary-table td:nth-child(1){width:42px;text-align:center;}
 .qk-summary-table th:nth-child(2),.qk-summary-table td:nth-child(2){width:46px;text-align:center;}
 .qk-summary-table th:nth-child(n+3):nth-child(-n+12),.qk-summary-table td:nth-child(n+3):nth-child(-n+12){width:112px;}
 .qk-summary-table th:last-child,.qk-summary-table td:last-child{min-width:170px;}
-.qk-summary-table .qk-day{background:#fff900;font-style:italic;color:#111;font-weight:700;}
-.qk-summary-table tbody tr:hover td{background:#f7f2e8;}
-.qk-summary-table tbody tr:hover .qk-day{background:#fff900;}
+.qk-summary-table tbody tr:nth-child(even) td{background:rgba(44,74,82,.025);}
+.qk-summary-table .qk-day{background:var(--title-soft);color:var(--title);font-weight:700;}
+.qk-summary-table td.cell-bad{background:transparent;color:var(--bad);}
+.qk-summary-table tbody tr:nth-child(even) td.cell-bad{background:rgba(192,57,43,.025);}
+.qk-summary-table tbody tr:hover td{background:#f3eee5;}
+.qk-summary-table tbody tr:hover .qk-day{background:rgba(44,74,82,.13);}
 .qk-detail{padding:0;overflow:hidden;}
 .qk-detail summary{cursor:pointer;padding:12px 16px;font-size:12px;font-weight:700;color:var(--title);background:var(--surface2);list-style:none;}
 .qk-detail[open] summary{border-bottom:1px solid var(--border);}
@@ -4229,10 +4232,18 @@ function drawDoughnut(id, key, labels, data){
 /* ===================================================================
    PAGE 10 — QUY KET
 =================================================================== */
+function qkDefaultMonth(){
+  const cashMonths=new Set(B2.filter(isB2CashRow).map(r=>storageISODate(r.time).slice(0,7)).filter(x=>/^\d{4}-\d{2}$/.test(x)));
+  const closeMonths=new Set(Object.keys(CHOTCA).map(key=>storageISODate(key.split('|')[0]).slice(0,7)).filter(x=>/^\d{4}-\d{2}$/.test(x)));
+  const common=[...cashMonths].filter(m=>closeMonths.has(m)).sort();
+  if(common.length)return common[common.length-1];
+  const available=[...new Set([...cashMonths,...closeMonths])].sort();
+  return available.length?available[available.length-1]:todayISO().slice(0,7);
+}
 function initQKUI(){
   fillSelect(document.getElementById('qk-branch'), CHOTCA_BRANCHES, false);
   document.getElementById('qk-branch').insertAdjacentHTML('afterbegin','<option value="ALL" selected>Tất cả</option>');
-  document.getElementById('qk-month').value = todayISO().slice(0,7);
+  document.getElementById('qk-month').value = qkDefaultMonth();
   renderQK();
 }
 function renderQK(){
@@ -4245,8 +4256,6 @@ function renderQK(){
     if(fb!=='ALL' && r.branch!==fb) return false;
     return true;
   });
-  let thu=0,chi=0;
-  rows.forEach(r=>{ if(r.amount>0) thu+=r.amount; else chi+=Math.abs(r.amount); });
   const pad=n=>String(n).padStart(2,'0');
   const [yy,mm]=(m||todayISO().slice(0,7)).split('-').map(Number);
   const monthDays=new Date(yy,mm,0).getDate();
@@ -4259,7 +4268,7 @@ function renderQK(){
   }
   Object.entries(CHOTCA).forEach(([key,r])=>{
     const cut=key.indexOf('|'); if(cut<0)return;
-    const date=key.slice(0,cut),branch=key.slice(cut+1);
+    const date=storageISODate(key.slice(0,cut)),branch=key.slice(cut+1);
     if(date<monthStart||date>monthEnd||!dayMap[date])return;
     if(fb!=='ALL'&&!thtcBranchMatch(branch,fb))return;
     dayMap[date].session+=Number(r.vnd)||0;
@@ -4288,9 +4297,11 @@ function renderQK(){
   });
   summary+='</tbody>';
   document.getElementById('qk-summary-table').innerHTML=summary;
+  const totalIncome=days.reduce((s,d)=>s+d.session+d.otherIncome+d.withdraw,0);
+  const totalExpense=Math.abs(days.reduce((s,d)=>s+d.goodsExpense+d.otherExpense+d.deposit,0));
   document.getElementById('qk-kpi').innerHTML = `
-    <div class="box"><div class="v">${fmt(thu)}</div><div class="l">Tổng thu tiền mặt</div></div>
-    <div class="box"><div class="v">${fmt(chi)}</div><div class="l">Tổng chi tiền mặt</div></div>
+    <div class="box"><div class="v">${fmt(totalIncome)}</div><div class="l">Tổng thu tiền mặt</div></div>
+    <div class="box"><div class="v">${fmt(totalExpense)}</div><div class="l">Tổng chi tiền mặt</div></div>
     <div class="box"><div class="v">${fmt(days.length?days[days.length-1].closing:0)}</div><div class="l">Tồn cuối kỳ</div></div>`;
   let html='<thead><tr><th class="l">Ngày</th><th class="l">Chi nhánh</th><th class="l">Người nộp/nhận</th><th>Số tiền</th><th class="l">Ghi chú</th></tr></thead><tbody>';
   rows.sort((a,c)=>(c.time||'').localeCompare(a.time||''));
@@ -5136,7 +5147,7 @@ function findReconciliationReason(date,branch,bank,expectedDiff=null){
 }
 function thtcManualReasonItem(date,reason){
   const note=String(reason&&reason.note||'').trim()||'(chưa nhập lý do)';
-  return `<b>Lý do từ sheet Chênh lệch — ngày ${thtcDateLabel(date)}:</b> ${fmt(reason.amt)} — ${thtcEsc(note)}`;
+  return `<b>${thtcDateLabel(date)}:</b> ${thtcEsc(note)}`;
 }
 function thtcReconKey(branch,date){ return branch+'|'+date; }
 function thtcDailyAdd(obj,branch,date,amount){
@@ -5243,9 +5254,7 @@ function thtcReconInfo(kind,branch,from,to,recon,allBranches){
   });
   const branchDiff=(kind==='tck'?recon.values.diff_tck[branch]:recon.values.diff_cathe[branch])||0;
   const shown=items.slice(0,14), hidden=Math.max(0,items.length-shown.length);
-  const title=`${kind==='tck'?'Chuyển khoản':'Cà thẻ'} — ${thtcEsc(branch)}`;
-  const summary=`Đã khớp đủ ngày + tiền + chi nhánh: ${matchedCount} ngày${matchedAmount?' ('+fmt(matchedAmount)+')':''}. Chênh lệch kỳ: ${fmt(branchDiff)}.`;
-  const html=`<div class="thtc-tip-title">${title}</div><div class="thtc-tip-summary">${summary}</div>${shown.map(x=>`<div class="thtc-tip-item">${x}</div>`).join('')}${hidden?`<div class="thtc-tip-item">Còn ${hidden} ngày lệch khác.</div>`:''}`;
+  const html=`${shown.map(x=>`<div class="thtc-tip-item">${x}</div>`).join('')}${hidden?`<div class="thtc-tip-item">Còn ${hidden} lý do khác.</div>`:''}`;
   return {branch,diff:branchDiff,matchedCount,issueCount:items.length,items,html};
 }
 function initTHTCHoverTips(){
@@ -5515,8 +5524,8 @@ function getTHTCSourceData(branches,from,to){
   Object.entries(perSource).forEach(([source,infos])=>{
     const bad=infos.filter(x=>x.issueCount);
     const diff=infos.reduce((s,x)=>s+x.diff,0);
-    const kind=source==='diff_tck'?'Chuyển khoản':'Cà thẻ';
-    const html=`<div class="thtc-tip-title">${kind} — CỘNG</div><div class="thtc-tip-summary">${bad.length} chi nhánh có ngày chưa khớp. Chênh lệch cộng: ${fmt(diff)}.</div>${bad.map(x=>`<div class="thtc-tip-branch">${thtcEsc(x.branch)} — chênh ${fmt(x.diff)}</div>${x.items.slice(0,3).map(i=>`<div class="thtc-tip-item">${i}</div>`).join('')}`).join('')}`;
+    const reasons=bad.flatMap(x=>x.items.slice(0,3));
+    const html=reasons.map(i=>`<div class="thtc-tip-item">${i}</div>`).join('');
     THTC_RECON_TIPS[source+'|cong']={diff,issueCount:bad.reduce((s,x)=>s+x.issueCount,0),html};
   });
   return values;
