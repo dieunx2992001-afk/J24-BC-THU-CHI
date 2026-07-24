@@ -5354,6 +5354,30 @@ function getTHTCSourceData(branches,from,to){
       if(Number(r.debit)>0)add('card_fee',branch,-Math.abs(Number(r.debit)||0));
     }
   });
+  // Phân luồng các khoản NỘP TIỀN vào đúng Mart.
+  // Nội dung ghi rõ Mart được ưu tiên. Nếu nhiều dòng NOP TIEN/NOP TM hoàn toàn
+  // giống nhau (cùng ngày + cùng tiền) thì ghép một-một, luân phiên Mart 1/Mart 2.
+  const cashDepositMart=new WeakMap(),genericDepositGroups=new Map();
+  const martFromDepositContent=value=>{
+    const compact=normalizeLookupText(value);
+    if(compact.includes('J24MART1')||compact.includes('MART124H'))return 'm1';
+    if(compact.includes('J24MART2'))return 'm2';
+    return '';
+  };
+  KHOTONG.forEach(r=>{
+    const compact=normalizeLookupText(r.content);
+    if(!(compact.includes('NOPTIEN')||compact.includes('NOPTM'))||Number(r.credit)<=0)return;
+    const explicit=martFromDepositContent(r.content);
+    if(explicit){cashDepositMart.set(r,explicit);return;}
+    const groupKey=[thtcISODate(r.date),Number(r.credit)||0,compact].join('|');
+    if(!genericDepositGroups.has(groupKey))genericDepositGroups.set(groupKey,[]);
+    genericDepositGroups.get(groupKey).push(r);
+  });
+  genericDepositGroups.forEach(group=>{
+    if(group.length<2)return;
+    group.forEach((r,index)=>cashDepositMart.set(r,index%2===0?'m1':'m2'));
+  });
+
   KHOTONG.forEach(r=>{
     // Tổng hợp thu chi luôn dùng đúng cột Ngày giao dịch của TP Bank Kho tổng.
     const d=thtcISODate(r.date),content=ascii(r.content);
@@ -5362,10 +5386,11 @@ function getTHTCSourceData(branches,from,to){
     const branch=contentBranch||hitAnyBranch(r.branch);
     const acc=String(r.account||'').replace(/\D/g,'');
     const bankLabel=ascii(KHO_ACC_MAP[acc]||r.branch);
-    const mart=KHO_ACC_MAP[acc]==='KHO TỔNG MART 1'||bankLabel.includes('mart 1')?'m1':
-      (KHO_ACC_MAP[acc]==='KHO TỔNG MART 2'||bankLabel.includes('mart 2')?'m2':'');
     const compactContent=normalizeLookupText(r.content);
     const isCashDeposit=compactContent.includes('NOPTIEN')||compactContent.includes('NOPTM');
+    const accountMart=KHO_ACC_MAP[acc]==='KHO TỔNG MART 1'||bankLabel.includes('mart 1')?'m1':
+      (KHO_ACC_MAP[acc]==='KHO TỔNG MART 2'||bankLabel.includes('mart 2')?'m2':'');
+    const mart=isCashDeposit?(cashDepositMart.get(r)||accountMart):accountMart;
     if(isCashDeposit&&branch&&selected(branch)&&mart&&Number(r.credit)>0){
       add(mart+'_deposit',branch,Number(r.credit));
       return;
