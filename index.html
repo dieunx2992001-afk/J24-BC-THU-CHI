@@ -5236,8 +5236,8 @@ function getTHTCSourceData(branches,from,to){
     }
   });
   KHOTONG.forEach(r=>{
-    // CHUYEN CHI HANG NGAY ghi ngày ngay trong diễn giải (thường dạng 09.06.2026).
-    // Ưu tiên ngày này để khớp cách Excel xếp giao dịch vào ngày báo cáo.
+    // TKCARD và CHUYEN CHI HANG NGAY đều ghi ngày ngay trong diễn giải
+    // (thường dạng 09.06.2026). Ưu tiên ngày này để khớp cách Excel xếp giao dịch.
     const d=thtcISODate(r.content)||thtcISODate(r.date),content=ascii(r.content);
     if(d<from||d>to)return;
     const contentBranch=khotongBranchFromContent(r.content);
@@ -5246,7 +5246,8 @@ function getTHTCSourceData(branches,from,to){
     const bankLabel=ascii(KHO_ACC_MAP[acc]||r.branch);
     const mart=KHO_ACC_MAP[acc]==='KHO TỔNG MART 1'||bankLabel.includes('mart 1')?'m1':
       (KHO_ACC_MAP[acc]==='KHO TỔNG MART 2'||bankLabel.includes('mart 2')?'m2':'');
-    if(content.includes('chuyen chi hang ngay')&&branch&&selected(branch)&&mart&&Number(r.credit)>0){
+    const isDailyTransfer=content.includes('chuyen chi hang ngay')||content.includes('tkcard');
+    if(isDailyTransfer&&branch&&selected(branch)&&mart&&Number(r.credit)>0){
       add(mart+'_transfer',branch,Number(r.credit));
       return;
     }
