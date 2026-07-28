@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-28-V58-OPENING-BALANCE-VALUE-DATE -->
+<!-- J24 BUILD 2026-07-28-V59-EXACT-OPENING-CLOSING-BALANCE -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -2588,7 +2588,7 @@ async function handleTPFile(file){
     const seenInStage = new Set();
     TP_STAGE = [];
     TP_STAGE_ACCOUNT_PATCHES=new Set();TP_STAGE_ACCOUNT=accStr;
-    data.forEach(row=>{
+    data.forEach((row,sourceOrder)=>{
       if(!row || row.every(c=>c===null)) return;
       // Bỏ qua dòng tổng kết cuối sao kê (Tổng ghi Có/Nợ, Số dư cuối kỳ...) — không phải giao dịch thật
       const colA = String(row[0]||'').toLowerCase();
@@ -3174,20 +3174,26 @@ async function handleKTFile(file){
       const content = row[cIdx.content]; if(content==null) return;
       const debit = parseVNMoney(row[cIdx.debit])||0, credit = parseVNMoney(row[cIdx.credit])||0, balance = parseVNMoney(row[cIdx.balance])||0;
       // Lưu riêng đúng hai cột ngày của sao kê Kho tổng.
-      const date=excelDateToISO(row[cIdx.date]);
+      const transactionRaw=row[cIdx.date];
+      const date=excelDateToISO(transactionRaw);
+      // Giữ cả giờ giao dịch để xác định chính xác số dư đầu/cuối ngày.
+      // sourceOrder giữ thứ tự dòng của sao kê TPBank (mới nhất ở trên).
+      const transactionAt=transactionRaw instanceof Date
+        ? transactionRaw.toISOString()
+        : String(transactionRaw||'').trim();
       const valueDate=cIdx.valueDate>-1?(excelDateToISO(row[cIdx.valueDate])||date):date;
       const k = content+'|'+balance+'|'+debit+'|'+credit;
       if(existKeys.has(k)){
         const old=existByKey.get(k);
         if(old&&(storageISODate(old.date)!==storageISODate(date)||storageISODate(old.valueDate)!==storageISODate(valueDate))){
-          KT_STAGE_DATE_PATCHES.push({k,date,valueDate});
+          KT_STAGE_DATE_PATCHES.push({k,date,valueDate,transactionAt,sourceOrder});
         }
         dup++;return;
       }
       if(seenInStage.has(k)){dup++;return;}
       seenInStage.add(k);
       const type = (debit!==0 && content) ? 'Chi' : 'Thu';
-      KT_STAGE.push({k,date,valueDate,content,debit,credit,balance,account:accStr,branch,type});
+      KT_STAGE.push({k,date,valueDate,transactionAt,sourceOrder,content,debit,credit,balance,account:accStr,branch,type});
       candidate++;
     });
     const banner = document.getElementById('kt-stage-banner');
@@ -4147,10 +4153,20 @@ function renderBK(){
     return d&&d.slice(0,7)===month;
   });
   const daily=new Map();
+  const transactionTime=(r,index)=>{
+    const raw=String(r.transactionAt||'').trim();
+    let m=raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if(m)return Date.UTC(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0),+(m[6]||0));
+    const parsed=Date.parse(raw);
+    if(Number.isFinite(parsed))return parsed;
+    // Sao kê TPBank mặc định xếp mới nhất ở trên: chỉ số nhỏ hơn là giao dịch muộn hơn.
+    return -index;
+  };
   const emptyDay=d=>({
     date:d,
     m1ThuPosted:0,m1ThuUnposted:0,m1ChiPosted:0,m1ChiUnposted:0,m1Balance:null,m1UnpostedCount:0,
-    m2ThuPosted:0,m2ThuUnposted:0,m2ChiPosted:0,m2ChiUnposted:0,m2Balance:null,m2UnpostedCount:0
+    m2ThuPosted:0,m2ThuUnposted:0,m2ChiPosted:0,m2ChiUnposted:0,m2Balance:null,m2UnpostedCount:0,
+    m1BalanceTime:-Infinity,m2BalanceTime:-Infinity
   });
   bankRows.forEach(r=>{
     const d=reportDate(r),mart=bkBankMart(r);
@@ -4160,26 +4176,26 @@ function renderBK(){
     if(credit)x[`${mart}Thu${posted?'Posted':'Unposted'}`]+=credit;
     if(debit)x[`${mart}Chi${posted?'Posted':'Unposted'}`]+=debit;
     if(!posted&&(credit||debit))x[`${mart}UnpostedCount`]++;
-    const balance=Number(r.balance);
-    if(Number.isFinite(balance))x[`${mart}Balance`]=balance;
+    const balance=Number(r.balance),sourceIndex=KHOTONG.indexOf(r),time=transactionTime(r,sourceIndex);
+    // Số dư cuối ngày phải là số dư của giao dịch MUỘN NHẤT trong ngày giá trị.
+    if(Number.isFinite(balance)&&time>x[`${mart}BalanceTime`]){
+      x[`${mart}Balance`]=balance;
+      x[`${mart}BalanceTime`]=time;
+    }
   });
   const rows=[...daily.values()].sort((a,b)=>a.date.localeCompare(b.date));
   // Số dư đầu kỳ: ưu tiên số dư cuối cùng trước tháng đang xem. Nếu file
   // không có dòng trước kỳ, suy ngược từ số dư cuối ngày đầu tiên.
   const opening={m1:null,m2:null};
-  KHOTONG.forEach(r=>{
-    const d=reportDate(r),mart=bkBankMart(r),balance=Number(r.balance);
-    if(!d||d>=`${month}-01`||!mart||!Number.isFinite(balance))return;
-    const key=`_${mart}Date`;
-    if(!opening[key]||d>=opening[key]){opening[mart]=balance;opening[key]=d;}
-  });
   ['m1','m2'].forEach(mart=>{
-    if(opening[mart]!=null)return;
-    const first=rows.find(x=>x[`${mart}Balance`]!=null);
-    if(!first){opening[mart]=0;return;}
-    const thu=(Number(first[`${mart}ThuPosted`])||0)+(Number(first[`${mart}ThuUnposted`])||0);
-    const chi=(Number(first[`${mart}ChiPosted`])||0)+(Number(first[`${mart}ChiUnposted`])||0);
-    opening[mart]=Number(first[`${mart}Balance`])-thu+chi;
+    const entries=bankRows
+      .map(r=>({r,time:transactionTime(r,KHOTONG.indexOf(r))}))
+      .filter(x=>bkBankMart(x.r)===mart&&Number.isFinite(Number(x.r.balance)))
+      .sort((a,b)=>a.time-b.time);
+    if(!entries.length){opening[mart]=0;return;}
+    const earliest=entries[0].r;
+    // Số dư trước giao dịch đầu tiên = số dư sau GD + Ghi nợ - Ghi có.
+    opening[mart]=Number(earliest.balance)+(Number(earliest.debit)||0)-(Number(earliest.credit)||0);
   });
   const account1='10003597861',account2='10003597792';
   const num=(v,negative=false,unposted=false)=>{
