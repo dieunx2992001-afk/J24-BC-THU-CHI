@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-28-V54-MONTHLY-BANK-RECON -->
+<!-- J24 BUILD 2026-07-28-V55-FIX-BANK-TABLE -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -3868,7 +3868,7 @@ async function renderBalance(){
 =================================================================== */
 function bkBankAccount(row){return String(row&&row.account||'').replace(/\D/g,'');}
 function bkBankMart(row){
-  const account=bkBankAccount(row),label=ascii(KHO_ACC_MAP[account]||row&&row.branch||'');
+  const account=bkBankAccount(row),label=normalizeFundType(KHO_ACC_MAP[account]||row&&row.branch||'');
   return label.includes('mart 1')?'m1':(label.includes('mart 2')?'m2':'');
 }
 function buildKhotongB2Reconciliation(b2Rows=B2,bankRows=KHOTONG){
@@ -4122,6 +4122,7 @@ function renderBKLegacy(){
   document.getElementById('bk-table').innerHTML=html;
 }
 function renderBK(){
+  try{
   const month=document.getElementById('bk-month').value;
   if(!month)return;
   const b2Rows=B2.filter(r=>!shouldSkipB2CustomerReceipt(r.loaiThuChi));
@@ -4189,6 +4190,12 @@ function renderBK(){
   }
   html+='</tbody>';
   document.getElementById('bk-daily-table').innerHTML=html;
+  }catch(e){
+    console.error('Lỗi dựng bảng đối chiếu ngân hàng:',e);
+    const table=document.getElementById('bk-daily-table');
+    if(table)table.innerHTML=`<tbody><tr><td class="l cell-bad">Không dựng được bảng: ${thtcEsc(e.message||String(e))}</td></tr></tbody>`;
+    toast('Lỗi dựng bảng đối chiếu: '+(e.message||e),6000);
+  }
 }
 document.getElementById('bk-month').addEventListener('change', renderBK);
 document.getElementById('bk-run').addEventListener('click', renderBK);
@@ -4681,7 +4688,8 @@ function applyB2ManualMatch(maPhieu,kt,status,note=''){
   row.bankMatch=branch;row.bankAccount=account;row.manualBankMatch=true;
   row.manualKtContent=kt.content||'';row.manualKtAmount=amount;row.manualKtDate=storageISODate(kt.date);
   row.bankTransactionDate=storageISODate(kt.date);row.bankValueDate=storageISODate(kt.valueDate);
-  row.bankTransactionMart=ascii(branch).includes('mart 1')?'m1':(ascii(branch).includes('mart 2')?'m2':'');
+  const branchNorm=normalizeFundType(branch);
+  row.bankTransactionMart=branchNorm.includes('mart 1')?'m1':(branchNorm.includes('mart 2')?'m2':'');
   row.mart1=branch==='KHO TỔNG MART 1';row.mart2=branch==='KHO TỔNG MART 2';
   BK_OVERRIDES[maPhieu]={status:'matched',ktContent:kt.content||'',ktAmt:amount,ktBranch:branch,ktAccount:account,ktDate:storageISODate(kt.date),note,savedAt:new Date().toISOString()};
   return row;
