@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-28-V51-GREEN-REMAINING -->
+<!-- J24 BUILD 2026-07-28-V52-STRICT-BANK-DATE -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -3424,12 +3424,23 @@ async function matchB2WithKhoTong(targetRows=B2){
   const findHit=(needles,bucket,row)=>{
     const targetAmount=Math.abs(Number(row&&row.amount)||0);
     const expectedMart=b2ExpectedMart(row);
-    const rightMart=expectedMart?bucket.filter(x=>x.mart===expectedMart):bucket;
+    const account=String(row&&row.soTK||'').replace(/\D/g,'');
+    const rightMart=(expectedMart?bucket.filter(x=>x.mart===expectedMart):bucket)
+      .filter(x=>{
+        const bankAccount=String(x.k.account||'').replace(/\D/g,'');
+        return !account||!bankAccount||account===bankAccount;
+      });
     const martPool=rightMart.length?rightMart:bucket;
     const exactMoney=martPool.filter(x=>Math.abs(x.amount-targetAmount)<1);
-    const pool=exactMoney.length?exactMoney:martPool;
+    // Bắt buộc khớp đúng số tiền. Không lấy một giao dịch khác số tiền chỉ
+    // vì nội dung gần giống, vì sẽ làm sai ngày của Thu khác / Chi khác.
+    if(!exactMoney.length)return undefined;
+    const pool=exactMoney;
     const b2Date=storageISODate(row&&row.time);
-    const nearest=list=>list.sort((a,b)=>{
+    const nearest=list=>list.filter(x=>{
+      const bankDate=storageISODate(x.k.date);
+      return !!b2Date&&!!bankDate&&thtcDayDistance(b2Date,bankDate)<=3;
+    }).sort((a,b)=>{
       const da=storageISODate(a.k.date),db=storageISODate(b.k.date);
       return thtcDayDistance(b2Date,da)-thtcDayDistance(b2Date,db);
     })[0];
@@ -5490,7 +5501,11 @@ function getTHTCSourceData(branches,from,to){
       const kLabel=ascii(KHO_ACC_MAP[kAcc]||k.branch),kMart=kLabel.includes('mart 1')?'m1':(kLabel.includes('mart 2')?'m2':'');
       if(expectedMart&&kMart&&expectedMart!==kMart)return false;
       const hay=normalizeLookupText(k.content);
-      return needles.some(n=>hay===n||hay.includes(n)||n.includes(hay));
+      const sameContent=needles.some(n=>hay===n||hay.includes(n)||n.includes(hay));
+      const bankDate=thtcISODate(k.date);
+      // Chỉ dùng ngày ngân hàng khi giao dịch thực sự gần ngày phiếu B2.
+      // Tối đa 3 ngày để bao gồm trường hợp ngân hàng hạch toán chậm cuối tuần.
+      return sameContent&&!!b2Date&&!!bankDate&&thtcDayDistance(b2Date,bankDate)<=3;
     }).sort((a,b)=>{
       const da=thtcISODate(a.date),db=thtcISODate(b.date);
       // Giao dịch gần ngày B2 nhất đứng trước.
