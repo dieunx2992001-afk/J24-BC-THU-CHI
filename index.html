@@ -2466,11 +2466,20 @@ function matchesKeyword(row, keyword){
 // Trì hoãn nhẹ khi gõ từ khóa để không render lại liên tục từng phím bấm
 function debounce(fn, ms=250){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
 function excelDateToISO(v){
-  if(v instanceof Date){ const d=roundToUTCDate(v); return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`; }
-  if(typeof v==='number'){ const d=roundToUTCDate(new Date((v-25569)*86400*1000)); return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`; }
+  // SheetJS giữ ngày giờ Excel trong Date theo UTC. Chỉ lấy phần lịch UTC,
+  // tuyệt đối không làm tròn timestamp vì giờ chiều/tối có thể nhảy sang ngày kế.
+  if(v instanceof Date){ return `${v.getUTCFullYear()}-${String(v.getUTCMonth()+1).padStart(2,'0')}-${String(v.getUTCDate()).padStart(2,'0')}`; }
+  // Với serial Excel, bỏ phần giờ và chuyển đúng số ngày lịch.
+  if(typeof v==='number'){
+    const wholeDay=Math.floor(v+1e-7);
+    const d=new Date((wholeDay-25569)*86400*1000);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+  }
   if(typeof v==='string'){
     const m = v.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
     if(m) return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+    const iso=v.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if(iso)return iso[1]+'-'+iso[2].padStart(2,'0')+'-'+iso[3].padStart(2,'0');
   }
   return null;
 }
@@ -3299,9 +3308,11 @@ async function handleSQFile(file){
       return;
     }
     const data = rows.slice(1);
-    const existIds = new Set(B2.map(r=>r.maPhieu));
+    const baseRows=B2.map(r=>({...r}));
+    const existIds = new Set(baseRows.map(r=>String(r.maPhieu)));
+    const existingById=new Map(baseRows.map(r=>[String(r.maPhieu),r]));
     const newRows=[];
-    let added=0, skipped=0, customerSkipped=readResult.customerSkipped||0;
+    let added=0, dateUpdated=0, skipped=0, customerSkipped=readResult.customerSkipped||0;
     // Xử lý theo từng lô (chunk) + nhường lại luồng chính định kỳ, để trình duyệt không bị "đơ"
     // (Trang không phản hồi) khi file có hàng chục nghìn dòng trở lên.
     const CHUNK = 3000;
@@ -3309,19 +3320,31 @@ async function handleSQFile(file){
       data.slice(i, i+CHUNK).forEach(row=>{
         if(!row || row.every(c=>c===null)) return;
         const maPhieu = row[cIdx.maPhieu]; if(!maPhieu) return;
-        if(existIds.has(maPhieu)) return; // không nhập lại phiếu đã có
+        const maKey=String(maPhieu);
+        const rawTime=cIdx.time>-1?row[cIdx.time]:null;
+        const parsedTime=rawTime?(excelDateToISO(rawTime)||storageISODate(rawTime)||''):'';
+        if(existIds.has(maKey)){
+          // Import lại cùng mã phiếu không tạo trùng; chỉ sửa ngày cũ đã bị lệch
+          // bởi bộ chuyển ngày trước đây.
+          const old=existingById.get(maKey);
+          if(old&&parsedTime&&storageISODate(old.time)!==parsedTime){
+            old.time=parsedTime;
+            delete old.bankTransactionDate;delete old.bankValueDate;delete old.bankTransactionMart;
+            dateUpdated++;
+          }
+          return;
+        }
         const loaiThuChi = cIdx.loaiThuChi>-1 ? row[cIdx.loaiThuChi] : '';
         // Hai loại này chiếm gần như toàn bộ file Sổ quỹ lớn nhưng không dùng cho báo cáo
         // thu chi nội bộ, nên bỏ ngay trước khi tạo dữ liệu và gửi lên SQL.
         if(shouldSkipB2CustomerReceipt(loaiThuChi)){customerSkipped++;return;}
         const amount = parseVNMoney(row[cIdx.amount]);
         if(isNaN(amount)){ skipped++; return; }
-        const time = cIdx.time>-1 ? row[cIdx.time] : null;
         const loaiSoQuy = cIdx.loaiSoQuy>-1 ? row[cIdx.loaiSoQuy] : (cIdx.phuongThuc>-1 ? row[cIdx.phuongThuc] : '');
         const boolCell=v=>v===true||v===1||['true','x','có','co','1'].includes(String(v||'').trim().toLowerCase());
         newRows.push({
           maPhieu,
-          time: time ? (excelDateToISO(time)||String(time)) : '',
+          time: parsedTime,
           branch: cIdx.branch>-1 ? row[cIdx.branch] : '',
           loaiThuChi,
           person: cIdx.person>-1 ? row[cIdx.person] : '',
@@ -3336,21 +3359,21 @@ async function handleSQFile(file){
           mart2: cIdx.mart2>-1 ? boolCell(row[cIdx.mart2]) : false,
           bankMatch:'', bankAccount:''
         });
-        existIds.add(maPhieu);
+        existIds.add(maKey);
         added++;
       });
       if(data.length>CHUNK){
-        toast(`⏳ Đang xử lý... ${Math.min(i+CHUNK,data.length)}/${data.length} dòng · giữ ${added} phiếu nội bộ · bỏ ${customerSkipped} phiếu khách trả`, 2500);
+        toast(`⏳ Đang xử lý... ${Math.min(i+CHUNK,data.length)}/${data.length} dòng · thêm ${added} phiếu · sửa ngày ${dateUpdated} phiếu`, 2500);
         await new Promise(r=>setTimeout(r,0)); // nhường luồng chính cho trình duyệt vẽ lại giao diện
       }
     }
-    const nextB2=B2.concat(newRows);
+    const nextB2=baseRows.concat(newRows);
     await matchB2WithKhoTong(nextB2);
-    const ok = await sset('b2:list', nextB2, {importedCount:added});
+    const ok = await sset('b2:list', nextB2, {importedCount:added+dateUpdated});
     if(!ok){toast(`⚠ Chưa lưu được ${added} phiếu B2. ${window._lastSaveError||'Hãy thử nhập lại file.'}`,6500);renderSQCount();renderSQTable();return;}
     B2=nextB2;
     window._b2LastImportIds = new Set(newRows.map(r=>r.maPhieu));
-    toast(`✓ Đã import ${added} phiếu nội bộ${customerSkipped?' · bỏ '+customerSkipped+' phiếu khách trả':''}${skipped?' · '+skipped+' dòng lỗi':''} — bấm "↩ Xóa lần import cuối" nếu muốn hoàn tác`,5000);
+    toast(`✓ Đã thêm ${added} phiếu${dateUpdated?' · sửa đúng ngày '+dateUpdated+' phiếu cũ':''}${customerSkipped?' · bỏ '+customerSkipped+' phiếu khách trả':''}${skipped?' · '+skipped+' dòng lỗi':''}`,5000);
     renderSQCount(); renderSQTable();
     if(typeof refreshTHTCCategoryUI==='function')refreshTHTCCategoryUI();
   }catch(err){ toast('Lỗi đọc file: '+err.message); console.error(err); }
@@ -5478,16 +5501,21 @@ function getTHTCSourceData(branches,from,to){
   const detailMap=new Map();
   let b2Count=0,unknownRows=0,unassignedBankRows=0;
   B2.forEach(r=>{
-    const d=matchedKhotongTransactionDate(r)||thtcISODate(r.time),branch=hitAnyBranch(r.branch);
-    if(!branch||!selected(branch)||d<from||d>to)return;
     const amount=Number(r.amount)||0,name=String(r.loaiThuChi||'Chưa phân loại').trim()||'Chưa phân loại';
     if(!amount)return;
+    const category=thtcCategoryFor(r);
+    const b2Date=thtcISODate(r.time);
+    // Toàn bộ số liệu lấy từ B2 đều tổng hợp đúng theo cột Thời gian của B2.
+    // Không dùng Thời gian tạo, ngày trong nội dung, Ngày giao dịch hay Ngày giá trị ngân hàng.
+    const d=b2Date;
+    const branch=hitAnyBranch(r.branch);
+    if(!branch||!selected(branch)||d<from||d>to)return;
     b2Count++;
     const detailKey=thtcLayoutKey(name);
     if(!detailMap.has(detailKey))detailMap.set(detailKey,{name,vals:Object.fromEntries(branches.map(b=>[b,0])),count:0,category:''});
     const detail=detailMap.get(detailKey);detail.vals[branch]+=amount;detail.count++;
 
-    const category=thtcCategoryFor(r);detail.category=category;
+    detail.category=category;
     const nameAscii=ascii(name),isBankInterestVoucher=nameAscii.includes('thu lai tai khoan')||nameAscii.includes('thu lai tien gui');
     if(!category)unknownRows++;
     const book=ascii(r.loaiSoQuy),isCash=book.includes('tien mat');
