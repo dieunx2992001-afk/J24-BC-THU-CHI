@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-28-V56-BANK-TITLE-COLORS -->
+<!-- J24 BUILD 2026-07-28-V58-OPENING-BALANCE-VALUE-DATE -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -184,12 +184,14 @@ tr:hover td{background:var(--surface2);}
 .date-stepper{display:inline-flex;align-items:center;gap:4px;}
 .date-stepper input[type=date]{flex:1;min-width:0;}
 .qk-title{text-align:center;background:var(--title);color:#fff;font-weight:800;padding:7px 10px;margin:-14px -16px 0;font-size:14px;letter-spacing:.04em;}
-.bk-report-title{background:linear-gradient(90deg,#315f8c 0%,#315f8c 49.8%,#2f7d52 50.2%,#2f7d52 100%);}
+.bk-report-card{padding-bottom:10px;overflow:visible;}
+.bk-report-title{background:linear-gradient(90deg,#315f8c 0%,#315f8c 49.8%,#2f7d52 50.2%,#2f7d52 100%);position:sticky;top:56px;z-index:18;box-shadow:0 2px 4px rgba(0,0,0,.12);}
+.bk-daily-scroll{max-height:calc(100vh - 210px);min-height:260px;overflow:auto;border:1px solid var(--border);border-top:0;}
 .bk-daily-table{width:max-content;min-width:100%;table-layout:fixed;}
 .bk-daily-table th,.bk-daily-table td{border:1px solid var(--border);padding:5px 7px;font-size:10px;height:30px;}
 .bk-daily-table th{position:sticky;background:#5d2a0e;color:#fff;text-align:center;white-space:normal;line-height:1.2;text-transform:none;letter-spacing:0;vertical-align:middle;}
-.bk-daily-table thead tr:first-child th{top:0;background:#2c4a52;font-size:10.5px;}
-.bk-daily-table thead tr:nth-child(2) th{top:31px;background:#6a2d0b;}
+.bk-daily-table thead tr:first-child th{top:0;background:#2c4a52;font-size:10.5px;z-index:12;}
+.bk-daily-table thead tr:nth-child(2) th{top:31px;background:#6a2d0b;z-index:11;}
 .bk-daily-table thead tr:first-child th.bk-m1-head{background:#315f8c;}
 .bk-daily-table thead tr:first-child th.bk-m2-head{background:#2f7d52;}
 .bk-daily-table thead tr:nth-child(2) th:nth-child(-n+5){background:#4477a8;}
@@ -199,6 +201,8 @@ tr:hover td{background:var(--surface2);}
 .bk-daily-table th:nth-child(12),.bk-daily-table td:nth-child(12){width:120px;}
 .bk-daily-table th:last-child,.bk-daily-table td:last-child{width:230px;max-width:230px;}
 .bk-daily-table .bk-day{font-style:italic;font-weight:800;background:#eff4f1;}
+.bk-daily-table .bk-opening-row td{background:#dfe9e5;font-weight:800;border-bottom:2px solid #78978b;}
+.bk-daily-table .bk-opening-row .bk-day{font-style:normal;color:#234f45;line-height:1.15;}
 .bk-daily-table .bk-balance{background:#fffbd2;font-weight:800;}
 .bk-daily-table td:nth-child(6).bk-balance{background:#e7f0f8;color:#234f77;}
 .bk-daily-table td:nth-child(11).bk-balance{background:#e4f2e9;color:#23633f;}
@@ -796,9 +800,9 @@ td{
           <div><button class="save" id="bk-run">Xem đối chiếu</button></div>
         </div>
       </div>
-      <div class="card" style="margin-bottom:12px">
+      <div class="card bk-report-card" style="margin-bottom:12px">
         <div class="qk-title bk-report-title">ĐỐI CHIẾU TÀI KHOẢN NGÂN HÀNG KHO TỔNG — J24 MART 1 VÀ J24 MART 2</div>
-        <div class="scroll"><table id="bk-daily-table" class="bk-daily-table"></table></div>
+        <div class="scroll bk-daily-scroll"><table id="bk-daily-table" class="bk-daily-table"></table></div>
       </div>
     </section>
 
@@ -4135,8 +4139,11 @@ function renderBK(){
   const b2Rows=B2.filter(r=>!shouldSkipB2CustomerReceipt(r.loaiThuChi));
   const reconciliation=buildKhotongB2Reconciliation(b2Rows,KHOTONG);
   const usedKT=reconciliation.usedKT;
+  // Báo cáo Kho tổng ghi nhận theo NGÀY GIÁ TRỊ của ngân hàng.
+  // Ngày giao dịch chỉ dùng cho bảng Tổng hợp thu chi.
+  const reportDate=r=>storageISODate(r.valueDate||r.date);
   const bankRows=KHOTONG.filter(r=>{
-    const d=storageISODate(r.date);
+    const d=reportDate(r);
     return d&&d.slice(0,7)===month;
   });
   const daily=new Map();
@@ -4146,7 +4153,7 @@ function renderBK(){
     m2ThuPosted:0,m2ThuUnposted:0,m2ChiPosted:0,m2ChiUnposted:0,m2Balance:null,m2UnpostedCount:0
   });
   bankRows.forEach(r=>{
-    const d=storageISODate(r.date),mart=bkBankMart(r);
+    const d=reportDate(r),mart=bkBankMart(r);
     if(!d||!mart)return;
     if(!daily.has(d))daily.set(d,emptyDay(d));
     const x=daily.get(d),posted=usedKT.has(r),credit=Number(r.credit)||0,debit=Number(r.debit)||0;
@@ -4157,6 +4164,23 @@ function renderBK(){
     if(Number.isFinite(balance))x[`${mart}Balance`]=balance;
   });
   const rows=[...daily.values()].sort((a,b)=>a.date.localeCompare(b.date));
+  // Số dư đầu kỳ: ưu tiên số dư cuối cùng trước tháng đang xem. Nếu file
+  // không có dòng trước kỳ, suy ngược từ số dư cuối ngày đầu tiên.
+  const opening={m1:null,m2:null};
+  KHOTONG.forEach(r=>{
+    const d=reportDate(r),mart=bkBankMart(r),balance=Number(r.balance);
+    if(!d||d>=`${month}-01`||!mart||!Number.isFinite(balance))return;
+    const key=`_${mart}Date`;
+    if(!opening[key]||d>=opening[key]){opening[mart]=balance;opening[key]=d;}
+  });
+  ['m1','m2'].forEach(mart=>{
+    if(opening[mart]!=null)return;
+    const first=rows.find(x=>x[`${mart}Balance`]!=null);
+    if(!first){opening[mart]=0;return;}
+    const thu=(Number(first[`${mart}ThuPosted`])||0)+(Number(first[`${mart}ThuUnposted`])||0);
+    const chi=(Number(first[`${mart}ChiPosted`])||0)+(Number(first[`${mart}ChiUnposted`])||0);
+    opening[mart]=Number(first[`${mart}Balance`])-thu+chi;
+  });
   const account1='10003597861',account2='10003597792';
   const num=(v,negative=false,unposted=false)=>{
     const n=Number(v)||0;
@@ -4173,7 +4197,13 @@ function renderBK(){
     <tr>
       <th>Thu có hoạch<br>toán vào Kiot</th><th>Thu không hoạch<br>toán vào Kiot</th><th>Chi có hoạch<br>toán vào Kiot</th><th>Chi không hoạch<br>toán vào Kiot</th><th>Số dư</th>
       <th>Thu có hoạch<br>toán vào Kiot</th><th>Thu không hoạch<br>toán vào Kiot</th><th>Chi có hoạch<br>toán vào Kiot</th><th>Chi không hoạch<br>toán vào Kiot</th><th>Số dư</th>
-    </tr></thead><tbody>`;
+    </tr></thead><tbody>
+    <tr class="bk-opening-row">
+      <td class="bk-day">Số dư<br>đầu kỳ</td>
+      <td>–</td><td>–</td><td>–</td><td>–</td><td class="bk-balance">${fmt(opening.m1||0)}</td>
+      <td>–</td><td>–</td><td>–</td><td>–</td><td class="bk-balance">${fmt(opening.m2||0)}</td>
+      <td class="bk-total-balance">${fmt((opening.m1||0)+(opening.m2||0))}</td><td></td>
+    </tr>`;
   rows.forEach(x=>{
     const totalBalance=(Number(x.m1Balance)||0)+(Number(x.m2Balance)||0);
     const notes=[];
