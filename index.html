@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-28-V52-STRICT-BANK-DATE -->
+<!-- J24 BUILD 2026-07-28-V53-BANK-RECON -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -140,6 +140,21 @@ tr:hover td{background:var(--surface2);}
 .sq-filter-foot{display:flex;justify-content:space-between;gap:7px;margin-top:10px;}
 .sq-manual-actions{display:inline-flex;gap:4px;align-items:center;margin-left:5px;vertical-align:middle;}
 .sq-manual-actions button{font-size:10px;padding:3px 6px;}
+#sq-table{width:max-content;min-width:100%;table-layout:fixed;font-size:10px;}
+#sq-table th,#sq-table td{height:30px;padding:4px 6px;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;}
+#sq-table td.l{white-space:nowrap;}
+#sq-table th:nth-child(1),#sq-table td:nth-child(1){width:82px;max-width:82px;}
+#sq-table th:nth-child(2),#sq-table td:nth-child(2){width:98px;max-width:98px;}
+#sq-table th:nth-child(3),#sq-table td:nth-child(3){width:100px;max-width:100px;}
+#sq-table th:nth-child(4),#sq-table td:nth-child(4){width:220px;max-width:220px;}
+#sq-table th:nth-child(5),#sq-table td:nth-child(5){width:180px;max-width:180px;}
+#sq-table th:nth-child(6),#sq-table td:nth-child(6){width:100px;max-width:100px;}
+#sq-table th:nth-child(7),#sq-table td:nth-child(7){width:170px;max-width:170px;}
+#sq-table th:nth-child(8),#sq-table td:nth-child(8){width:180px;max-width:180px;}
+#sq-table th:nth-child(9),#sq-table td:nth-child(9){width:90px;max-width:90px;}
+#sq-table th:nth-child(10),#sq-table td:nth-child(10){width:155px;max-width:155px;}
+#sq-table .tag{font-size:9.5px;padding:2px 7px;white-space:nowrap;}
+#sq-table .sq-manual-actions button{font-size:9px;padding:2px 5px;}
 .cell-bad{background:var(--bad-soft);color:var(--bad);font-weight:700;border-radius:4px;}
 .cell-good{color:var(--good);font-weight:600;}
 .note{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.7;}
@@ -169,6 +184,21 @@ tr:hover td{background:var(--surface2);}
 .date-stepper{display:inline-flex;align-items:center;gap:4px;}
 .date-stepper input[type=date]{flex:1;min-width:0;}
 .qk-title{text-align:center;background:var(--title);color:#fff;font-weight:800;padding:7px 10px;margin:-14px -16px 0;font-size:14px;letter-spacing:.04em;}
+.bk-daily-table{width:max-content;min-width:100%;table-layout:fixed;}
+.bk-daily-table th,.bk-daily-table td{border:1px solid var(--border);padding:5px 7px;font-size:10px;height:30px;}
+.bk-daily-table th{position:sticky;background:#5d2a0e;color:#fff;text-align:center;white-space:normal;line-height:1.2;text-transform:none;letter-spacing:0;vertical-align:middle;}
+.bk-daily-table thead tr:first-child th{top:0;background:#2c4a52;font-size:10.5px;}
+.bk-daily-table thead tr:nth-child(2) th{top:31px;background:#6a2d0b;}
+.bk-daily-table th:first-child,.bk-daily-table td:first-child{width:48px;text-align:center;}
+.bk-daily-table th:nth-child(n+2):nth-child(-n+11),.bk-daily-table td:nth-child(n+2):nth-child(-n+11){width:112px;}
+.bk-daily-table th:nth-child(12),.bk-daily-table td:nth-child(12){width:120px;}
+.bk-daily-table th:last-child,.bk-daily-table td:last-child{width:230px;max-width:230px;}
+.bk-daily-table .bk-day{font-style:italic;font-weight:800;background:#eff4f1;}
+.bk-daily-table .bk-balance{background:#fffbd2;font-weight:800;}
+.bk-daily-table .bk-total-balance{background:#e5eef2;font-weight:800;}
+.bk-daily-table .bk-unposted{color:var(--bad);font-weight:800;}
+.bk-daily-table .bk-note{font-family:var(--sans);font-size:9.5px;color:var(--bad);white-space:normal;}
+.bk-daily-table tbody tr:nth-child(even) td:not(.bk-balance):not(.bk-total-balance){background:rgba(44,74,82,.025);}
 .qk-summary-card{padding-bottom:10px;}
 .qk-summary-scroll{max-height:calc(100vh - 285px);overflow:auto;border:1px solid var(--border);border-top:0;}
 .qk-summary-table{width:max-content;min-width:100%;table-layout:fixed;}
@@ -751,8 +781,8 @@ td{
 
     <!-- PAGE 8: BAO CAO KHO TONG -->
     <section class="page" id="p8">
-      <h2>Đối chiếu Kho tổng — B2 vs TP Bank Kho tổng</h2>
-      <p class="sub">So khớp từng phiếu B2 với diễn giải ngân hàng · Khớp / Gần khớp (kiểm tra lại) / Chưa khớp</p>
+      <h2>Báo cáo đối chiếu ngân hàng Kho tổng</h2>
+      <p class="sub">Khớp nội dung + số tiền với B2 · số chưa có B2 tự đưa vào Thu/Chi không hoạch toán vào Kiot</p>
       <div class="card">
         <div class="row">
           <div><label>Kỳ báo cáo</label><select id="bk-period">
@@ -761,22 +791,12 @@ td{
           </select></div>
           <div id="bk-monthwrap"><label>Tháng</label><input type="month" id="bk-month"></div>
           <div id="bk-daywrap" style="display:none"><label>Ngày</label><input type="date" id="bk-day"></div>
-          <div><label>Hiển thị</label><select id="bk-view">
-            <option value="all">Tất cả</option>
-            <option value="matched">✓ Khớp</option>
-            <option value="partial">⚠ Gần khớp</option>
-            <option value="unmatched">✗ Chưa khớp</option>
-            <option value="cash">💵 Tiền mặt chi tại két</option>
-            <option value="ignored">— Đã bỏ qua</option>
-          </select></div>
           <div><button class="save" id="bk-run">Xem đối chiếu</button></div>
         </div>
       </div>
-      <div class="kpi" id="bk-kpi"></div>
-      <div class="card" id="bk-summary" style="margin-bottom:12px"></div>
-      <div class="card">
-        <p class="note">⚠ Đã loại trừ: <b>Phiếu thu Tiền khách trả</b> và <b>Phiếu chi Tiền trả khách</b></p>
-        <div class="scroll" style="max-height:500px;overflow-y:auto"><table id="bk-table"></table></div>
+      <div class="card" style="margin-bottom:12px">
+        <div class="qk-title">ĐỐI CHIẾU THU CHI NGÂN HÀNG THEO NGÀY</div>
+        <div class="scroll"><table id="bk-daily-table" class="bk-daily-table"></table></div>
       </div>
     </section>
 
@@ -3635,7 +3655,18 @@ function renderSQTable(){
     const cash=isB2CashRow(r),matchLabel=b2MatchLabel(r),editLabel=r.bankMatch?'Sửa':'Chọn';
     const bankTag=matchLabel?`<span class="tag good">${r.manualBankMatch?'✎ ':''}${thtcEsc(matchLabel)}</span>`:'<span class="tag bad">chưa khớp</span>';
     const bankCell=cash?bankTag:`${bankTag}<span class="sq-manual-actions"><button class="ghost" data-ma="${thtcEsc(r.maPhieu)}" data-note="${thtcEsc(r.note||'')}" onclick="openBKEdit(this.dataset.ma,this.dataset.note)">✎ ${editLabel}</button></span>`;
-    html+=`<tr><td class="l" style="font-size:11px">${thtcEsc(r.maPhieu)}</td><td class="l">${thtcEsc(r.time)}</td><td class="l">${thtcEsc(r.branch||'')}</td><td class="l">${thtcEsc(r.loaiThuChi||'')}</td><td class="l" style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${thtcEsc(r.person||'')}</td><td class="${r.amount>0?'cell-good':'cell-bad'}">${fmt(r.amount)}</td><td class="l" style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px">${thtcEsc(r.noiDungCK||'')}</td><td class="l" style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px">${thtcEsc(r.note||'')}</td><td class="l">${thtcEsc(r.loaiSoQuy||'')}</td><td class="l">${bankCell}</td></tr>`;
+    html+=`<tr>
+      <td class="l" title="${thtcEsc(r.maPhieu)}">${thtcEsc(r.maPhieu)}</td>
+      <td class="l" title="${thtcEsc(r.time)}">${thtcEsc(r.time)}</td>
+      <td class="l" title="${thtcEsc(r.branch||'')}">${thtcEsc(r.branch||'')}</td>
+      <td class="l" title="${thtcEsc(r.loaiThuChi||'')}">${thtcEsc(r.loaiThuChi||'')}</td>
+      <td class="l" title="${thtcEsc(r.person||'')}">${thtcEsc(r.person||'')}</td>
+      <td class="${r.amount>0?'cell-good':'cell-bad'}">${fmt(r.amount)}</td>
+      <td class="l" title="${thtcEsc(r.noiDungCK||'')}">${thtcEsc(r.noiDungCK||'')}</td>
+      <td class="l" title="${thtcEsc(r.note||'')}">${thtcEsc(r.note||'')}</td>
+      <td class="l" title="${thtcEsc(r.loaiSoQuy||'')}">${thtcEsc(r.loaiSoQuy||'')}</td>
+      <td class="l" title="${thtcEsc(matchLabel||'Chưa khớp')}">${bankCell}</td>
+    </tr>`;
   });
   if(rows.length===0) html+=`<tr><td class="l small" colspan="10">${B2.length>0?'Không có dữ liệu trong khoảng thời gian đã chọn (có '+B2.length+' phiếu ở tháng khác — thử đổi bộ lọc)':'Chưa có dữ liệu'}</td></tr>`;
   html+='</tbody>';
@@ -3840,7 +3871,55 @@ async function renderBalance(){
 /* ===================================================================
    PAGE 8 — BAO CAO KHO TONG (tu B2)
 =================================================================== */
-function renderBK(){
+function bkBankAccount(row){return String(row&&row.account||'').replace(/\D/g,'');}
+function bkBankMart(row){
+  const account=bkBankAccount(row),label=ascii(KHO_ACC_MAP[account]||row&&row.branch||'');
+  return label.includes('mart 1')?'m1':(label.includes('mart 2')?'m2':'');
+}
+function buildKhotongB2Reconciliation(b2Rows=B2,bankRows=KHOTONG){
+  const usedKT=new Set(),results=[];
+  const bankPrepared=bankRows.map((k,index)=>({
+    k,index,content:normalizeLookupText(k.content),amount:Math.max(Number(k.credit)||0,Number(k.debit)||0),
+    direction:Number(k.credit)>0?'thu':(Number(k.debit)>0?'chi':''),mart:bkBankMart(k),
+    date:storageISODate(k.date)
+  })).filter(x=>x.amount&&x.direction&&x.content);
+  const byKey=new Map();
+  bankPrepared.forEach(x=>{
+    const key=x.direction+'|'+x.amount;
+    if(!byKey.has(key))byKey.set(key,[]);
+    byKey.get(key).push(x);
+  });
+  b2Rows.slice().sort((a,b)=>String(a.time||'').localeCompare(String(b.time||''))).forEach(r=>{
+    if(isB2CashRow(r)){results.push({...r,_status:'cash',_ktMatch:null});return;}
+    const ov=BK_OVERRIDES[r.maPhieu];
+    if(ov&&ov.status==='ignored'){results.push({...r,_status:'ignored',_ktMatch:null,_ovNote:ov.note||''});return;}
+    const amount=Math.abs(Number(r.amount)||0),direction=Number(r.amount)>=0?'thu':'chi';
+    const expectedMart=b2ExpectedMart(r);
+    const account=String(r.soTK||'').replace(/\D/g,'');
+    const primaryNeedles=[r.noiDungCK,r.note].map(normalizeLookupText).filter(x=>x.length>=6);
+    const needles=primaryNeedles.length?primaryNeedles:[normalizeLookupText(r.person)].filter(x=>x.length>=6);
+    const b2Date=storageISODate(r.time);
+    const candidates=(byKey.get(direction+'|'+amount)||[]).filter(x=>{
+      if(usedKT.has(x.k))return false;
+      if(expectedMart&&x.mart&&expectedMart!==x.mart)return false;
+      const bankAccount=bkBankAccount(x.k);
+      if(account&&bankAccount&&account!==bankAccount)return false;
+      return needles.some(n=>x.content===n||x.content.includes(n)||n.includes(x.content));
+    }).sort((a,b)=>{
+      const gapA=b2Date&&a.date?thtcDayDistance(b2Date,a.date):9999;
+      const gapB=b2Date&&b.date?thtcDayDistance(b2Date,b.date):9999;
+      return gapA-gapB||a.index-b.index;
+    });
+    const hit=candidates[0];
+    if(hit){
+      usedKT.add(hit.k);
+      results.push({...r,_status:'matched',_ktMatch:hit.k,bankMatch:hit.k.branch,bankAccount:hit.k.account,
+        bankTransactionDate:hit.date,bankValueDate:storageISODate(hit.k.valueDate),bankTransactionMart:hit.mart});
+    }else results.push({...r,_status:'unmatched',_ktMatch:null});
+  });
+  return {results,usedKT};
+}
+function renderBKLegacy(){
   const period = document.getElementById('bk-period').value; // 'day' | 'month'
   const m = document.getElementById('bk-month').value;
   const day = document.getElementById('bk-day').value;
@@ -3853,70 +3932,22 @@ function renderBK(){
     if(!r.time) return false;
     return period==='day'?r.time.slice(0,10)===day:r.time.slice(0,7)===m;
   };
-  // Giữ toàn bộ B2 nội bộ làm ứng viên ghép. Sau khi ghép mới lọc theo Ngày giá trị
-  // của ngân hàng; B2 chưa khớp vẫn hiển thị theo ngày B2 để người dùng xử lý.
+  // Giữ toàn bộ B2 làm ứng viên ghép một-một. Phiếu khớp được lọc theo
+  // Ngày giao dịch ngân hàng; phiếu chưa khớp tạm hiển thị theo Thời gian B2.
   const b2Rows = B2.filter(r=>{
     const loai = String(r.loai||r.loaiThuChi||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     return !BK_EXCLUDE.some(kw=>loai.includes(kw.normalize('NFD').replace(/[\u0300-\u036f]/g,'')));
   });
 
-  // Lọc KHOTONG theo kỳ (ngày hoặc tháng)
+  // Lọc KHOTONG theo đúng Ngày giao dịch, không dùng Ngày giá trị.
   const ktRows = KHOTONG.filter(r=>{
-    const d=storageISODate(r.valueDate||r.date);
+    const d=storageISODate(r.date);
     return period==='day' ? d===day : d.slice(0,7)===m;
   });
-
-  // Hàm chuẩn hoá chuỗi để so sánh
-  const norm=normalizeLookupText;
-
-  // Đánh dấu từng dòng B2: matched / partial / unmatched
-  const usedKT = new Set();
-  const allResult = b2Rows.map(r=>{
-    // Tiền mặt: không đối chiếu ngân hàng
-    const isCash = String(r.loaiSoQuy||'').toLowerCase().includes('ti') && String(r.loaiSoQuy||'').toLowerCase().includes('m');
-    if(isCash) return {...r, _status:'cash', _ktMatch:null};
-
-    // Override thủ công đã lưu
-    const ov = BK_OVERRIDES[r.maPhieu];
-    if(ov){
-      if(ov.status==='ignored') return {...r, _status:'ignored', _ktMatch:null, _ovNote:ov.note||''};
-      if(ov.status==='matched') return {...r, bankMatch:ov.ktBranch||r.bankMatch, bankAccount:ov.ktAccount||r.bankAccount, _status:'matched', _ktMatch:{content:ov.ktContent, credit:r.amount>=0?ov.ktAmt:0, debit:r.amount<0?ov.ktAmt:0, branch:ov.ktBranch||'', account:ov.ktAccount||'', date:ov.ktDate||''}, _manual:true};
-    }
-    if(r.manualBankMatch&&r.bankMatch) return {...r, _status:'matched', _ktMatch:{content:r.manualKtContent||'',credit:r.amount>=0?(r.manualKtAmount||Math.abs(r.amount)):0,debit:r.amount<0?(r.manualKtAmount||Math.abs(r.amount)):0,branch:r.bankMatch,account:r.bankAccount||'',date:r.manualKtDate||''},_manual:true};
-
-    // So sánh: Nội dung chuyển khoản B2 (noiDungCK) với Diễn giải ngân hàng (content)
-    // Ghi chú (note) dùng làm phụ nếu noiDungCK trống
-    const primaryNeedle = norm(r.noiDungCK||'');
-    const fallbackNeedles = [norm(r.person||''), norm(r.note||'')].filter(s=>s.length>=4);
-    if(!primaryNeedle && !fallbackNeedles.length) return {...r, _status:'unmatched', _ktMatch:null};
-
-    let hit = null, hitType = null;
-    for(const kt of ktRows){
-      if(usedKT.has(kt)) continue;
-      const hay = norm(kt.content);
-      if(!hay) continue;
-      const sameDir = (r.amount>0 && (kt.credit||0)>0) || (r.amount<0 && (kt.debit||0)>0);
-      if(!sameDir) continue;
-      const amtMatch = Math.abs(Math.abs(r.amount) - Math.max(kt.credit||0, kt.debit||0)) < 1;
-      // Khớp chính: noiDungCK vs diễn giải ngân hàng (12 ký tự đầu)
-      const textFull = (primaryNeedle.length>=6 && (hay.includes(primaryNeedle.slice(0,12))||primaryNeedle.includes(hay.slice(0,12))))
-                    || fallbackNeedles.some(n=>n.length>=6 && (hay.includes(n.slice(0,10))||n.includes(hay.slice(0,10))));
-      if(textFull && amtMatch){ hit=kt; hitType='matched'; break; }
-    }
-    if(!hit){
-      for(const kt of ktRows){
-        if(usedKT.has(kt)) continue;
-        const hay = norm(kt.content);
-        const textOk = (primaryNeedle.length>=6 && (hay.includes(primaryNeedle.slice(0,10))||primaryNeedle.includes(hay.slice(0,10))))
-                    || fallbackNeedles.some(n=>n.length>=6 && (hay.includes(n.slice(0,10))||n.includes(hay.slice(0,10))));
-        if(textOk){ hit=kt; hitType='partial'; break; }
-      }
-    }
-    if(hit) usedKT.add(hit);
-    return {...r, _status: hit?hitType:'unmatched', _ktMatch: hit||null};
-  });
+  const reconciliation=buildKhotongB2Reconciliation(b2Rows,KHOTONG);
+  const usedKT=reconciliation.usedKT,allResult=reconciliation.results;
   const result=allResult.filter(r=>{
-    const bankDate=storageISODate(r._ktMatch&&(r._ktMatch.valueDate||r._ktMatch.date));
+    const bankDate=storageISODate(r._ktMatch&&r._ktMatch.date);
     const bankInPeriod=bankDate&&(period==='day'?bankDate===day:bankDate.slice(0,7)===m);
     return bankInPeriod||b2MatchesSelectedPeriod(r);
   });
@@ -4094,6 +4125,78 @@ function renderBK(){
   if(filtered.length===0&&ktUnmatched.length===0) html+=`<tr><td class="l small" colspan="8">Không có dữ liệu trong ${period==='day'?'ngày':'tháng'} này</td></tr>`;
   html+='</tbody>';
   document.getElementById('bk-table').innerHTML=html;
+}
+function renderBK(){
+  const period=document.getElementById('bk-period').value;
+  const month=document.getElementById('bk-month').value;
+  const day=document.getElementById('bk-day').value;
+  if(period==='month'&&!month)return;
+  if(period==='day'&&!day)return;
+  const b2Rows=B2.filter(r=>!shouldSkipB2CustomerReceipt(r.loaiThuChi));
+  const reconciliation=buildKhotongB2Reconciliation(b2Rows,KHOTONG);
+  const usedKT=reconciliation.usedKT;
+  const bankRows=KHOTONG.filter(r=>{
+    const d=storageISODate(r.date);
+    return d&&(period==='day'?d===day:d.slice(0,7)===month);
+  });
+  const daily=new Map();
+  const emptyDay=d=>({
+    date:d,
+    m1ThuPosted:0,m1ThuUnposted:0,m1ChiPosted:0,m1ChiUnposted:0,m1Balance:null,m1UnpostedCount:0,
+    m2ThuPosted:0,m2ThuUnposted:0,m2ChiPosted:0,m2ChiUnposted:0,m2Balance:null,m2UnpostedCount:0
+  });
+  bankRows.forEach(r=>{
+    const d=storageISODate(r.date),mart=bkBankMart(r);
+    if(!d||!mart)return;
+    if(!daily.has(d))daily.set(d,emptyDay(d));
+    const x=daily.get(d),posted=usedKT.has(r),credit=Number(r.credit)||0,debit=Number(r.debit)||0;
+    if(credit)x[`${mart}Thu${posted?'Posted':'Unposted'}`]+=credit;
+    if(debit)x[`${mart}Chi${posted?'Posted':'Unposted'}`]+=debit;
+    if(!posted&&(credit||debit))x[`${mart}UnpostedCount`]++;
+    const balance=Number(r.balance);
+    if(Number.isFinite(balance))x[`${mart}Balance`]=balance;
+  });
+  const rows=[...daily.values()].sort((a,b)=>a.date.localeCompare(b.date));
+  const account1='10003597861',account2='10003597792';
+  const num=(v,negative=false,unposted=false)=>{
+    const n=Number(v)||0;
+    if(!n)return '–';
+    const cls=unposted?' class="bk-unposted"':'';
+    return `<span${cls}>${fmt(negative?-Math.abs(n):n)}</span>`;
+  };
+  let html=`<thead>
+    <tr><th rowspan="2">Ngày</th>
+      <th colspan="5">TPBank ${account1} — J24 MART 1</th>
+      <th colspan="5">TPBank ${account2} — J24 MART 2</th>
+      <th rowspan="2">Tổng số dư<br>2 tài khoản</th><th rowspan="2" class="l">Ghi chú</th>
+    </tr>
+    <tr>
+      <th>Thu có hoạch<br>toán vào Kiot</th><th>Thu không hoạch<br>toán vào Kiot</th><th>Chi có hoạch<br>toán vào Kiot</th><th>Chi không hoạch<br>toán vào Kiot</th><th>Số dư</th>
+      <th>Thu có hoạch<br>toán vào Kiot</th><th>Thu không hoạch<br>toán vào Kiot</th><th>Chi có hoạch<br>toán vào Kiot</th><th>Chi không hoạch<br>toán vào Kiot</th><th>Số dư</th>
+    </tr></thead><tbody>`;
+  rows.forEach(x=>{
+    const totalBalance=(Number(x.m1Balance)||0)+(Number(x.m2Balance)||0);
+    const notes=[];
+    if(x.m1UnpostedCount)notes.push(`MART 1: ${x.m1UnpostedCount} giao dịch chưa hoạch toán`);
+    if(x.m2UnpostedCount)notes.push(`MART 2: ${x.m2UnpostedCount} giao dịch chưa hoạch toán`);
+    html+=`<tr>
+      <td class="bk-day">${Number(x.date.slice(8,10))}</td>
+      <td>${num(x.m1ThuPosted)}</td><td>${num(x.m1ThuUnposted,false,true)}</td><td>${num(x.m1ChiPosted,true)}</td><td>${num(x.m1ChiUnposted,true,true)}</td><td class="bk-balance">${x.m1Balance==null?'–':fmt(x.m1Balance)}</td>
+      <td>${num(x.m2ThuPosted)}</td><td>${num(x.m2ThuUnposted,false,true)}</td><td>${num(x.m2ChiPosted,true)}</td><td>${num(x.m2ChiUnposted,true,true)}</td><td class="bk-balance">${x.m2Balance==null?'–':fmt(x.m2Balance)}</td>
+      <td class="bk-total-balance">${fmt(totalBalance)}</td><td class="l bk-note">${notes.join(' · ')||''}</td>
+    </tr>`;
+  });
+  if(!rows.length)html+=`<tr><td colspan="13" class="l small">Không có giao dịch ngân hàng trong kỳ đã chọn</td></tr>`;
+  if(rows.length){
+    const sum=key=>rows.reduce((s,x)=>s+(Number(x[key])||0),0),last=rows[rows.length-1];
+    html+=`<tr class="tot"><td>TỔNG</td>
+      <td>${num(sum('m1ThuPosted'))}</td><td>${num(sum('m1ThuUnposted'),false,true)}</td><td>${num(sum('m1ChiPosted'),true)}</td><td>${num(sum('m1ChiUnposted'),true,true)}</td><td class="bk-balance">${last.m1Balance==null?'–':fmt(last.m1Balance)}</td>
+      <td>${num(sum('m2ThuPosted'))}</td><td>${num(sum('m2ThuUnposted'),false,true)}</td><td>${num(sum('m2ChiPosted'),true)}</td><td>${num(sum('m2ChiUnposted'),true,true)}</td><td class="bk-balance">${last.m2Balance==null?'–':fmt(last.m2Balance)}</td>
+      <td class="bk-total-balance">${fmt((Number(last.m1Balance)||0)+(Number(last.m2Balance)||0))}</td><td></td>
+    </tr>`;
+  }
+  html+='</tbody>';
+  document.getElementById('bk-daily-table').innerHTML=html;
 }
 document.getElementById('bk-month').addEventListener('change', renderBK);
 document.getElementById('bk-day').addEventListener('change', renderBK);
@@ -5516,6 +5619,11 @@ function getTHTCSourceData(branches,from,to){
 
   // B2 là nguồn cho toàn bộ thu/chi tiền mặt, hai tài khoản Mart và 74+ dòng chi tiết.
   // Loại phiếu mới vẫn được đưa vào chi tiết; chỉ chưa cộng vào Hàng/Khác cho đến khi được phân loại.
+  // Dùng đúng cùng một kết quả ghép một-một với trang Báo cáo Kho tổng,
+  // tránh một giao dịch ngân hàng bị dùng lại cho nhiều phiếu B2.
+  const thtcBankRecon=buildKhotongB2Reconciliation(B2,KHOTONG);
+  const thtcBankMatchById=new Map(thtcBankRecon.results.filter(x=>x._status==='matched')
+    .map(x=>[String(x.maPhieu),x]));
   const detailMap=new Map();
   let b2Count=0,unknownRows=0,unassignedBankRows=0;
   B2.forEach(r=>{
@@ -5528,7 +5636,8 @@ function getTHTCSourceData(branches,from,to){
     // - Không có dòng đối ứng: lấy cột Thời gian của B2.
     // Không dùng Thời gian tạo, ngày ghi trong nội dung hoặc Ngày giá trị.
     // Luôn dò lại từ dữ liệu Kho tổng hiện tại để tự sửa các ngày ghép cũ đã lưu sai.
-    const d=matchedKhotongTransactionDate(r)||b2Date;
+    const reconciled=thtcBankMatchById.get(String(r.maPhieu));
+    const d=reconciled&&reconciled.bankTransactionDate?reconciled.bankTransactionDate:b2Date;
     const branch=hitAnyBranch(r.branch);
     if(!branch||!selected(branch)||d<from||d>to)return;
     b2Count++;
@@ -5556,7 +5665,7 @@ function getTHTCSourceData(branches,from,to){
       return;
     }
     if(!isBank)return;
-    let mart=b2ExpectedMart(r);
+    let mart=reconciled&&reconciled.bankTransactionMart?reconciled.bankTransactionMart:b2ExpectedMart(r);
     if(!mart&&(KHO_ACC_MAP[acc]==='KHO TỔNG MART 1'||bankLabel.includes('mart 1')))mart='m1';
     else if(!mart&&(KHO_ACC_MAP[acc]==='KHO TỔNG MART 2'||bankLabel.includes('mart 2')))mart='m2';
     if(!mart){unassignedBankRows++;return;}
