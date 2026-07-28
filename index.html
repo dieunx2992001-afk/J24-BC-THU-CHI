@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- J24 BUILD 2026-07-28-V51-GREEN-REMAINING -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -269,6 +270,8 @@ tr:hover td{background:var(--surface2);}
 .thtc-table .thtc-main td:nth-child(1){font-weight:700;}
 .thtc-table .thtc-compare td:nth-child(1){font-style:italic;font-weight:400;color:#595249;padding-left:12px;}
 .thtc-table .thtc-total td{font-weight:800;background:#eee8dc!important;border-top:1px solid #c8bba9;}
+.thtc-table .thtc-remaining td{background:#dfece4!important;color:#23633f;border-top:1px solid #9fc1aa;border-bottom:1px solid #9fc1aa;}
+.thtc-table .thtc-remaining td.cell-bad{color:var(--bad)!important;}
 .thtc-table .thtc-final td{font-weight:800;background:#dfece4!important;color:#23633f;border-top:2px solid #6c9b7e;}
 .thtc-table .thtc-detail-title td{background:#e7eef1!important;color:#153f4b;font-weight:800;height:32px;border-top:1px solid #c7d4d8;}
 .thtc-table .thtc-detail-row td:nth-child(1){font-size:9.5px;}
@@ -5135,11 +5138,11 @@ const THTC_LAYOUT_ROWS = [
   {code:'J24 MART 1',name:'',type:'subhead'},
   {name:'Thu từ nộp tiền mặt vào tài khoản',type:'main',source:'m1_deposit'},{name:'Chuyển tiền sang tài khoản J24 Mart 1',type:'main',source:'m1_transfer'},
   {name:'Thu khác qua tài khoản ngân hàng',type:'main',source:'m1_other_income'},{name:'Chi thanh toán tiền hàng qua tài khoản ngân hàng',type:'main',source:'m1_goods_expense'},
-  {name:'Chi khác qua tài khoản ngân hàng',type:'main',source:'m1_other_expense'},{name:'Chi rút tiền tài khoản nhập quỹ',type:'main',source:'m1_withdraw'},{name:'Còn lại',type:'total',source:'m1_remaining'},
+  {name:'Chi khác qua tài khoản ngân hàng',type:'main',source:'m1_other_expense'},{name:'Chi rút tiền tài khoản nhập quỹ',type:'main',source:'m1_withdraw'},{name:'Còn lại',type:'total remaining',source:'m1_remaining'},
   {code:'J24 MART 2',name:'',type:'subhead'},
   {name:'Thu từ nộp tiền mặt vào tài khoản',type:'main',source:'m2_deposit'},{name:'Chuyển tiền sang tài khoản J24 Mart 2',type:'main',source:'m2_transfer'},
   {name:'Thu khác qua tài khoản ngân hàng',type:'main',source:'m2_other_income'},{name:'Chi thanh toán tiền hàng qua tài khoản ngân hàng',type:'main',source:'m2_goods_expense'},
-  {name:'Chi khác qua tài khoản ngân hàng',type:'main',source:'m2_other_expense'},{name:'Còn lại',type:'total',source:'m2_remaining'},
+  {name:'Chi khác qua tài khoản ngân hàng',type:'main',source:'m2_other_expense'},{name:'Còn lại',type:'total remaining',source:'m2_remaining'},
   {name:'Tổng tồn quỹ tài khoản thu chi',type:'total',source:'bank_accounts_total'},
   {name:'Phí ngân hàng',type:'subhead'},{name:'Tiền lãi ngân hàng',type:'main',source:'bank_interest'},{name:'Phí chuyển khoản',type:'main',source:'transfer_fee'},{name:'Phí cà thẻ',type:'main',source:'card_fee'},
   {code:'D',name:'CÒN LẠI QUYẾT TOÁN QUỸ',type:'group',source:'qt_total'},
@@ -5473,7 +5476,6 @@ function getTHTCSourceData(branches,from,to){
     const book=ascii(row&&row.loaiSoQuy);
     if(book.includes('tien mat'))return '';
     const expectedMart=b2ExpectedMart(row);
-    if(row&&row.bankTransactionDate&&(!expectedMart||row.bankTransactionMart===expectedMart))return thtcISODate(row.bankTransactionDate);
     const amount=Math.abs(Number(row&&row.amount)||0);
     const key=((Number(row&&row.amount)||0)>=0?'thu':'chi')+'|'+amount;
     const candidates=ktMatchBuckets.get(key)||[];
@@ -5491,6 +5493,7 @@ function getTHTCSourceData(branches,from,to){
       return needles.some(n=>hay===n||hay.includes(n)||n.includes(hay));
     }).sort((a,b)=>{
       const da=thtcISODate(a.date),db=thtcISODate(b.date);
+      // Giao dịch gần ngày B2 nhất đứng trước.
       return thtcDayDistance(b2Date,da)-thtcDayDistance(b2Date,db);
     })[0];
     return matched?thtcISODate(matched.date):'';
@@ -5505,9 +5508,12 @@ function getTHTCSourceData(branches,from,to){
     if(!amount)return;
     const category=thtcCategoryFor(r);
     const b2Date=thtcISODate(r.time);
-    // Toàn bộ số liệu lấy từ B2 đều tổng hợp đúng theo cột Thời gian của B2.
-    // Không dùng Thời gian tạo, ngày trong nội dung, Ngày giao dịch hay Ngày giá trị ngân hàng.
-    const d=b2Date;
+    // Quy tắc ngày dùng chung cho TOÀN BỘ phiếu:
+    // - Có dòng đối ứng ở TP Bank Kho tổng: lấy cột Ngày giao dịch của ngân hàng.
+    // - Không có dòng đối ứng: lấy cột Thời gian của B2.
+    // Không dùng Thời gian tạo, ngày ghi trong nội dung hoặc Ngày giá trị.
+    // Luôn dò lại từ dữ liệu Kho tổng hiện tại để tự sửa các ngày ghép cũ đã lưu sai.
+    const d=matchedKhotongTransactionDate(r)||b2Date;
     const branch=hitAnyBranch(r.branch);
     if(!branch||!selected(branch)||d<from||d>to)return;
     b2Count++;
