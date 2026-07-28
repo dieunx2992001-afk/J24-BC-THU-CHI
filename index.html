@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-28-V53-BANK-RECON -->
+<!-- J24 BUILD 2026-07-28-V54-MONTHLY-BANK-RECON -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -785,17 +785,12 @@ td{
       <p class="sub">Khớp nội dung + số tiền với B2 · số chưa có B2 tự đưa vào Thu/Chi không hoạch toán vào Kiot</p>
       <div class="card">
         <div class="row">
-          <div><label>Kỳ báo cáo</label><select id="bk-period">
-            <option value="month" selected>Theo tháng</option>
-            <option value="day">Theo ngày</option>
-          </select></div>
-          <div id="bk-monthwrap"><label>Tháng</label><input type="month" id="bk-month"></div>
-          <div id="bk-daywrap" style="display:none"><label>Ngày</label><input type="date" id="bk-day"></div>
+          <div><label>Tháng báo cáo</label><input type="month" id="bk-month"></div>
           <div><button class="save" id="bk-run">Xem đối chiếu</button></div>
         </div>
       </div>
       <div class="card" style="margin-bottom:12px">
-        <div class="qk-title">ĐỐI CHIẾU THU CHI NGÂN HÀNG THEO NGÀY</div>
+        <div class="qk-title">ĐỐI CHIẾU THU CHI NGÂN HÀNG THEO THÁNG — CHI TIẾT TỪNG NGÀY</div>
         <div class="scroll"><table id="bk-daily-table" class="bk-daily-table"></table></div>
       </div>
     </section>
@@ -1703,7 +1698,7 @@ function restoreUIState(){
     // Đồng bộ lại các khung "Theo ngày/Theo tháng..." cho khớp đúng dropdown hiện tại —
     // luôn làm bước này (không chỉ khi giá trị thay đổi), vì trình duyệt đôi khi tự nhớ lựa chọn
     // dropdown khi tải lại trang mà không tự kích hoạt phần hiển thị tương ứng.
-    ['bk-period','th-period'].forEach(id=>{
+    ['th-period'].forEach(id=>{
       const el = document.getElementById(id);
       if(el) el.dispatchEvent(new Event('change', {bubbles:true}));
     });
@@ -4127,17 +4122,14 @@ function renderBKLegacy(){
   document.getElementById('bk-table').innerHTML=html;
 }
 function renderBK(){
-  const period=document.getElementById('bk-period').value;
   const month=document.getElementById('bk-month').value;
-  const day=document.getElementById('bk-day').value;
-  if(period==='month'&&!month)return;
-  if(period==='day'&&!day)return;
+  if(!month)return;
   const b2Rows=B2.filter(r=>!shouldSkipB2CustomerReceipt(r.loaiThuChi));
   const reconciliation=buildKhotongB2Reconciliation(b2Rows,KHOTONG);
   const usedKT=reconciliation.usedKT;
   const bankRows=KHOTONG.filter(r=>{
     const d=storageISODate(r.date);
-    return d&&(period==='day'?d===day:d.slice(0,7)===month);
+    return d&&d.slice(0,7)===month;
   });
   const daily=new Map();
   const emptyDay=d=>({
@@ -4199,14 +4191,6 @@ function renderBK(){
   document.getElementById('bk-daily-table').innerHTML=html;
 }
 document.getElementById('bk-month').addEventListener('change', renderBK);
-document.getElementById('bk-day').addEventListener('change', renderBK);
-document.getElementById('bk-period').addEventListener('change', ()=>{
-  const p = document.getElementById('bk-period').value;
-  document.getElementById('bk-monthwrap').style.display = p==='month' ? '' : 'none';
-  document.getElementById('bk-daywrap').style.display = p==='day' ? '' : 'none';
-  if(p==='day' && !document.getElementById('bk-day').value) document.getElementById('bk-day').value = todayISO();
-  renderBK();
-});
 document.getElementById('bk-run').addEventListener('click', renderBK);
 
 /* ===================================================================
@@ -4838,7 +4822,6 @@ function renderLog(){
       // Tìm tháng gần nhất có dữ liệu B2, nếu không thì dùng tháng hiện tại
       window._latestB2Month = B2.length ? B2.reduce((m,r)=>(!m||r.time>m)?r.time:m,'').slice(0,7) : todayISO().slice(0,7);
       document.getElementById('bk-month').value = window._latestB2Month || todayISO().slice(0,7);
-      document.getElementById('bk-day').value = todayISO();
       renderBK();
     });
     safe('TH', ()=>{
