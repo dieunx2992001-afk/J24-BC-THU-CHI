@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-28-V55-FIX-BANK-TABLE -->
+<!-- J24 BUILD 2026-07-28-V56-BANK-TITLE-COLORS -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -184,17 +184,24 @@ tr:hover td{background:var(--surface2);}
 .date-stepper{display:inline-flex;align-items:center;gap:4px;}
 .date-stepper input[type=date]{flex:1;min-width:0;}
 .qk-title{text-align:center;background:var(--title);color:#fff;font-weight:800;padding:7px 10px;margin:-14px -16px 0;font-size:14px;letter-spacing:.04em;}
+.bk-report-title{background:linear-gradient(90deg,#315f8c 0%,#315f8c 49.8%,#2f7d52 50.2%,#2f7d52 100%);}
 .bk-daily-table{width:max-content;min-width:100%;table-layout:fixed;}
 .bk-daily-table th,.bk-daily-table td{border:1px solid var(--border);padding:5px 7px;font-size:10px;height:30px;}
 .bk-daily-table th{position:sticky;background:#5d2a0e;color:#fff;text-align:center;white-space:normal;line-height:1.2;text-transform:none;letter-spacing:0;vertical-align:middle;}
 .bk-daily-table thead tr:first-child th{top:0;background:#2c4a52;font-size:10.5px;}
 .bk-daily-table thead tr:nth-child(2) th{top:31px;background:#6a2d0b;}
+.bk-daily-table thead tr:first-child th.bk-m1-head{background:#315f8c;}
+.bk-daily-table thead tr:first-child th.bk-m2-head{background:#2f7d52;}
+.bk-daily-table thead tr:nth-child(2) th:nth-child(-n+5){background:#4477a8;}
+.bk-daily-table thead tr:nth-child(2) th:nth-child(n+6){background:#438b63;}
 .bk-daily-table th:first-child,.bk-daily-table td:first-child{width:48px;text-align:center;}
 .bk-daily-table th:nth-child(n+2):nth-child(-n+11),.bk-daily-table td:nth-child(n+2):nth-child(-n+11){width:112px;}
 .bk-daily-table th:nth-child(12),.bk-daily-table td:nth-child(12){width:120px;}
 .bk-daily-table th:last-child,.bk-daily-table td:last-child{width:230px;max-width:230px;}
 .bk-daily-table .bk-day{font-style:italic;font-weight:800;background:#eff4f1;}
 .bk-daily-table .bk-balance{background:#fffbd2;font-weight:800;}
+.bk-daily-table td:nth-child(6).bk-balance{background:#e7f0f8;color:#234f77;}
+.bk-daily-table td:nth-child(11).bk-balance{background:#e4f2e9;color:#23633f;}
 .bk-daily-table .bk-total-balance{background:#e5eef2;font-weight:800;}
 .bk-daily-table .bk-unposted{color:var(--bad);font-weight:800;}
 .bk-daily-table .bk-note{font-family:var(--sans);font-size:9.5px;color:var(--bad);white-space:normal;}
@@ -781,7 +788,7 @@ td{
 
     <!-- PAGE 8: BAO CAO KHO TONG -->
     <section class="page" id="p8">
-      <h2>Báo cáo đối chiếu ngân hàng Kho tổng</h2>
+      <h2>Đối chiếu tài khoản ngân hàng Kho tổng — J24 MART 1 và J24 MART 2</h2>
       <p class="sub">Khớp nội dung + số tiền với B2 · số chưa có B2 tự đưa vào Thu/Chi không hoạch toán vào Kiot</p>
       <div class="card">
         <div class="row">
@@ -790,7 +797,7 @@ td{
         </div>
       </div>
       <div class="card" style="margin-bottom:12px">
-        <div class="qk-title">ĐỐI CHIẾU THU CHI NGÂN HÀNG THEO THÁNG — CHI TIẾT TỪNG NGÀY</div>
+        <div class="qk-title bk-report-title">ĐỐI CHIẾU TÀI KHOẢN NGÂN HÀNG KHO TỔNG — J24 MART 1 VÀ J24 MART 2</div>
         <div class="scroll"><table id="bk-daily-table" class="bk-daily-table"></table></div>
       </div>
     </section>
@@ -4159,8 +4166,8 @@ function renderBK(){
   };
   let html=`<thead>
     <tr><th rowspan="2">Ngày</th>
-      <th colspan="5">TPBank ${account1} — J24 MART 1</th>
-      <th colspan="5">TPBank ${account2} — J24 MART 2</th>
+      <th colspan="5" class="bk-m1-head">TPBank ${account1} — J24 MART 1</th>
+      <th colspan="5" class="bk-m2-head">TPBank ${account2} — J24 MART 2</th>
       <th rowspan="2">Tổng số dư<br>2 tài khoản</th><th rowspan="2" class="l">Ghi chú</th>
     </tr>
     <tr>
