@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-29-V63-BANK-TRANSACTION-DATE-FOR-EXPENSES -->
+<!-- J24 BUILD 2026-07-29-V64-RECONCILED-RUNNING-BALANCE-PARENTHESES -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -539,7 +539,7 @@ td{
     <div class="side-group-label">Đối chiếu &amp; Báo cáo</div>
     <button class="nav-item" data-p="p12">📊 Báo cáo chốt ca</button>
     <button class="nav-item" data-p="p7">💰 Số dư ngân hàng</button>
-    <button class="nav-item" data-p="p8">📊 BC Kho tổng</button>
+    <button class="nav-item" data-p="p8">📊 Đối chiếu NH Kho tổng</button>
     <button class="nav-item" data-p="p10">🧮 Quỹ két</button>
     <button class="nav-item" data-p="p16">📑 Tổng hợp thu chi</button>
     <div class="side-group-label">Hệ thống</div>
@@ -793,7 +793,7 @@ td{
 
     <!-- PAGE 8: BAO CAO KHO TONG -->
     <section class="page" id="p8">
-      <h2>Đối chiếu tài khoản ngân hàng Kho tổng — J24 MART 1 và J24 MART 2</h2>
+      <h2>Đối chiếu ngân hàng Kho tổng — J24 MART 1 và J24 MART 2</h2>
       <p class="sub">Khớp nội dung + số tiền với B2 · số chưa có B2 tự đưa vào Thu/Chi không hoạch toán vào Kiot</p>
       <div class="card">
         <div class="row">
@@ -802,7 +802,7 @@ td{
         </div>
       </div>
       <div class="card bk-report-card" style="margin-bottom:12px">
-        <div class="qk-title bk-report-title">ĐỐI CHIẾU TÀI KHOẢN NGÂN HÀNG KHO TỔNG — J24 MART 1 VÀ J24 MART 2</div>
+        <div class="qk-title bk-report-title">ĐỐI CHIẾU NGÂN HÀNG KHO TỔNG — J24 MART 1 VÀ J24 MART 2</div>
         <div class="scroll bk-daily-scroll"><table id="bk-daily-table" class="bk-daily-table"></table></div>
       </div>
     </section>
@@ -1740,7 +1740,7 @@ function refreshPageData(pageId){
     case 'p5': run('Kho tổng',()=>{refreshBranchFilter('kt-filter-branch',KHOTONG,Object.values(KHO_ACC_MAP));refreshAccountFilter('kt-filter-account',KHOTONG,KHO_ACC_MAP);renderKTCount();renderKTRaw();renderKTKpi();});break;
     case 'p6': run('CT Thu Chi',()=>{refreshBranchFilter('sq-filter-branch',B2,BRANCHES);renderSQCount();renderSQTable();});break;
     case 'p7': run('Số dư ngân hàng',()=>{document.getElementById('bal-source').dispatchEvent(new Event('change'));return renderBalance();});break;
-    case 'p8': run('BC Kho tổng',renderBK);break;
+    case 'p8': run('Đối chiếu ngân hàng Kho tổng',renderBK);break;
     case 'p10': run('Quỹ két',renderQK);break;
     case 'p11': run('Nhật ký',renderLog);break;
     case 'p12': run('Báo cáo chốt ca',()=>{renderTH();return renderDoiChieuTong();});break;
@@ -4215,16 +4215,31 @@ function renderBK(){
       .filter(x=>bkBankMart(x.r)===mart&&Number.isFinite(Number(x.r.balance)))
       .sort((a,b)=>a.time-b.time);
     if(!entries.length){opening[mart]=0;return;}
-    const earliest=entries[0].r;
+    // Tìm đầu chuỗi số dư, không phụ thuộc thứ tự dòng trong SQL/sao kê.
+    const afterBalances=new Set(entries.map(x=>Number(x.r.balance)));
+    const starts=entries.filter(x=>{
+      const before=Number(x.r.balance)+(Number(x.r.debit)||0)-(Number(x.r.credit)||0);
+      return !afterBalances.has(before);
+    });
+    const earliest=(starts.length?starts:entries)[0].r;
     // Số dư trước giao dịch đầu tiên = số dư sau GD + Ghi nợ - Ghi có.
     opening[mart]=Number(earliest.balance)+(Number(earliest.debit)||0)-(Number(earliest.credit)||0);
   });
   let carryM1=opening.m1||0,carryM2=opening.m2||0;
   rows.forEach(x=>{
-    if(x.m1Balance==null)x.m1Balance=carryM1;else carryM1=x.m1Balance;
-    if(x.m2Balance==null)x.m2Balance=carryM2;else carryM2=x.m2Balance;
+    // Số dư cuối ngày luôn được đối chiếu theo công thức:
+    // đầu ngày + toàn bộ Thu - toàn bộ Chi.
+    carryM1+=(Number(x.m1ThuPosted)||0)+(Number(x.m1ThuUnposted)||0)
+      -(Number(x.m1ChiPosted)||0)-(Number(x.m1ChiUnposted)||0);
+    carryM2+=(Number(x.m2ThuPosted)||0)+(Number(x.m2ThuUnposted)||0)
+      -(Number(x.m2ChiPosted)||0)-(Number(x.m2ChiUnposted)||0);
+    x.m1Balance=carryM1;x.m2Balance=carryM2;
   });
   const account1='10003597861',account2='10003597792';
+  const bkFmt=value=>{
+    const n=Number(value)||0;
+    return n<0?`(${fmt(Math.abs(n))})`:fmt(n);
+  };
   const num=(v,negative=false,unposted=false,tip='')=>{
     const n=Number(v)||0;
     if(!n)return '–';
@@ -4232,7 +4247,7 @@ function renderBK(){
     const cls=classes?` class="${classes}"`:'';
     const note=tip?thtcEsc(tip):'';
     const title=tip?` title="${note}" data-hover-note="${note}"`:'';
-    return `<span${cls}${title}>${fmt(negative?-Math.abs(n):n)}</span>`;
+    return `<span${cls}${title}>${bkFmt(negative?-Math.abs(n):n)}</span>`;
   };
   let html=`<thead>
     <tr><th rowspan="2">Ngày</th>
@@ -4246,16 +4261,16 @@ function renderBK(){
     </tr></thead><tbody>
     <tr class="bk-opening-row">
       <td class="bk-day">Số dư<br>đầu kỳ</td>
-      <td>–</td><td>–</td><td>–</td><td>–</td><td class="bk-balance">${fmt(opening.m1||0)}</td>
-      <td>–</td><td>–</td><td>–</td><td>–</td><td class="bk-balance">${fmt(opening.m2||0)}</td>
-      <td class="bk-total-balance">${fmt((opening.m1||0)+(opening.m2||0))}</td><td></td>
+      <td>–</td><td>–</td><td>–</td><td>–</td><td class="bk-balance">${bkFmt(opening.m1||0)}</td>
+      <td>–</td><td>–</td><td>–</td><td>–</td><td class="bk-balance">${bkFmt(opening.m2||0)}</td>
+      <td class="bk-total-balance">${bkFmt((opening.m1||0)+(opening.m2||0))}</td><td></td>
     </tr>`;
   rows.forEach(x=>{
     const totalBalance=(Number(x.m1Balance)||0)+(Number(x.m2Balance)||0);
     const notes=[];
     const qttTip=list=>list.length?'Chi quyết toán:\\n'+list.join('\\n'):'';
     const unpostedTip=(label,list)=>list.length
-      ?`${label}:\\n`+list.map(r=>`${fmt(r.amount)} — ${r.content||'Không có nội dung'}`).join('\\n')
+      ?`${label}:\\n`+list.map(r=>`${label.startsWith('Chi')?'('+fmt(Math.abs(r.amount))+')':fmt(r.amount)} — ${r.content||'Không có nội dung'}`).join('\\n')
       :'';
     const m1QttPosted=qttTip(x.m1QttPosted),m2QttPosted=qttTip(x.m2QttPosted);
     const m1ThuUnpostedTip=unpostedTip('Thu không hoạch toán vào Kiot',x.m1ThuUnpostedDetails);
@@ -4266,18 +4281,18 @@ function renderBK(){
     if(x.m2UnpostedCount)notes.push(`MART 2: ${x.m2UnpostedCount} giao dịch chưa hoạch toán`);
     html+=`<tr>
       <td class="bk-day">${Number(x.date.slice(8,10))}</td>
-      <td>${num(x.m1ThuPosted)}</td><td>${num(x.m1ThuUnposted,false,true,m1ThuUnpostedTip)}</td><td>${num(x.m1ChiPosted,true,false,m1QttPosted)}</td><td>${num(x.m1ChiUnposted,true,true,m1ChiUnpostedTip)}</td><td class="bk-balance">${x.m1Balance==null?'–':fmt(x.m1Balance)}</td>
-      <td>${num(x.m2ThuPosted)}</td><td>${num(x.m2ThuUnposted,false,true,m2ThuUnpostedTip)}</td><td>${num(x.m2ChiPosted,true,false,m2QttPosted)}</td><td>${num(x.m2ChiUnposted,true,true,m2ChiUnpostedTip)}</td><td class="bk-balance">${x.m2Balance==null?'–':fmt(x.m2Balance)}</td>
-      <td class="bk-total-balance">${fmt(totalBalance)}</td><td class="l bk-note">${notes.join(' · ')||''}</td>
+      <td>${num(x.m1ThuPosted)}</td><td>${num(x.m1ThuUnposted,false,true,m1ThuUnpostedTip)}</td><td>${num(x.m1ChiPosted,true,false,m1QttPosted)}</td><td>${num(x.m1ChiUnposted,true,true,m1ChiUnpostedTip)}</td><td class="bk-balance">${x.m1Balance==null?'–':bkFmt(x.m1Balance)}</td>
+      <td>${num(x.m2ThuPosted)}</td><td>${num(x.m2ThuUnposted,false,true,m2ThuUnpostedTip)}</td><td>${num(x.m2ChiPosted,true,false,m2QttPosted)}</td><td>${num(x.m2ChiUnposted,true,true,m2ChiUnpostedTip)}</td><td class="bk-balance">${x.m2Balance==null?'–':bkFmt(x.m2Balance)}</td>
+      <td class="bk-total-balance">${bkFmt(totalBalance)}</td><td class="l bk-note">${notes.join(' · ')||''}</td>
     </tr>`;
   });
   if(!rows.length)html+=`<tr><td colspan="13" class="l small">Không có giao dịch ngân hàng trong kỳ đã chọn</td></tr>`;
   if(rows.length){
     const sum=key=>rows.reduce((s,x)=>s+(Number(x[key])||0),0),last=rows[rows.length-1];
     html+=`<tr class="tot"><td>TỔNG</td>
-      <td>${num(sum('m1ThuPosted'))}</td><td>${num(sum('m1ThuUnposted'),false,true)}</td><td>${num(sum('m1ChiPosted'),true)}</td><td>${num(sum('m1ChiUnposted'),true,true)}</td><td class="bk-balance">${last.m1Balance==null?'–':fmt(last.m1Balance)}</td>
-      <td>${num(sum('m2ThuPosted'))}</td><td>${num(sum('m2ThuUnposted'),false,true)}</td><td>${num(sum('m2ChiPosted'),true)}</td><td>${num(sum('m2ChiUnposted'),true,true)}</td><td class="bk-balance">${last.m2Balance==null?'–':fmt(last.m2Balance)}</td>
-      <td class="bk-total-balance">${fmt((Number(last.m1Balance)||0)+(Number(last.m2Balance)||0))}</td><td></td>
+      <td>${num(sum('m1ThuPosted'))}</td><td>${num(sum('m1ThuUnposted'),false,true)}</td><td>${num(sum('m1ChiPosted'),true)}</td><td>${num(sum('m1ChiUnposted'),true,true)}</td><td class="bk-balance">${last.m1Balance==null?'–':bkFmt(last.m1Balance)}</td>
+      <td>${num(sum('m2ThuPosted'))}</td><td>${num(sum('m2ThuUnposted'),false,true)}</td><td>${num(sum('m2ChiPosted'),true)}</td><td>${num(sum('m2ChiUnposted'),true,true)}</td><td class="bk-balance">${last.m2Balance==null?'–':bkFmt(last.m2Balance)}</td>
+      <td class="bk-total-balance">${bkFmt((Number(last.m1Balance)||0)+(Number(last.m2Balance)||0))}</td><td></td>
     </tr>`;
   }
   html+='</tbody>';
