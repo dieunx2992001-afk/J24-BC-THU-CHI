@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-28-V62-DAILY-CARRY-BALANCE-UPRIGHT-DAY -->
+<!-- J24 BUILD 2026-07-29-V63-BANK-TRANSACTION-DATE-FOR-EXPENSES -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -5720,7 +5720,15 @@ function getTHTCSourceData(branches,from,to){
     // Không dùng Thời gian tạo, ngày ghi trong nội dung hoặc Ngày giá trị.
     // Luôn dò lại từ dữ liệu Kho tổng hiện tại để tự sửa các ngày ghép cũ đã lưu sai.
     const reconciled=thtcBankMatchById.get(String(r.maPhieu));
-    const d=reconciled&&reconciled.bankTransactionDate?reconciled.bankTransactionDate:b2Date;
+    // Chi tiền hàng/Chi khác qua ngân hàng phải đi theo NGÀY GIAO DỊCH.
+    // Nếu lần dựng hiện tại chưa ghép lại được, dùng ngày giao dịch ngân hàng
+    // đã lưu trên phiếu; tuyệt đối không dùng bankValueDate cho hai mục này.
+    const bankTransactionDate=storageISODate(
+      reconciled&&reconciled.bankTransactionDate
+        ?reconciled.bankTransactionDate
+        :r.bankTransactionDate
+    );
+    const d=bankTransactionDate||b2Date;
     const branch=hitAnyBranch(r.branch);
     if(!branch||!selected(branch)||d<from||d>to)return;
     b2Count++;
