@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-29-V72-HONOR-B2-BANK-MATCH -->
+<!-- J24 BUILD 2026-07-29-V75-B2-UNMATCHED-SOURCE -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -152,7 +152,14 @@ tr:hover td{background:var(--surface2);}
 #sq-table th:nth-child(7),#sq-table td:nth-child(7){width:170px;max-width:170px;}
 #sq-table th:nth-child(8),#sq-table td:nth-child(8){width:180px;max-width:180px;}
 #sq-table th:nth-child(9),#sq-table td:nth-child(9){width:90px;max-width:90px;}
-#sq-table th:nth-child(10),#sq-table td:nth-child(10){width:155px;max-width:155px;}
+#sq-table th:nth-child(n+10):nth-child(-n+12),#sq-table td:nth-child(n+10):nth-child(-n+12){width:92px;max-width:92px;text-align:center;}
+#sq-table thead tr:first-child th[rowspan]{vertical-align:middle;}
+#sq-table .sq-source-group{background:#2c4a52;color:#fff;text-align:center;font-weight:800;letter-spacing:.03em;}
+#sq-table .sq-source-head{background:#e8eee9;text-align:center;white-space:normal;line-height:1.15;height:38px;}
+#sq-table .sq-source-check{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:1px solid #9cb4a6;border-radius:4px;background:#e8f4ec;color:#247047;font-size:13px;font-weight:900;}
+#sq-table .sq-source-empty{color:#c6beb2;font-size:14px;}
+#sq-table .sq-source-edit{display:block;margin:2px auto 0!important;padding:1px 4px!important;font-size:8px!important;}
+#sq-table .sq-source-unmatched{display:block;margin:0 auto 2px;width:max-content;max-width:86px;padding:2px 5px;border-radius:10px;background:#fde5e2;color:#bf3026;font-size:8px;font-weight:800;white-space:nowrap;}
 #sq-table .tag{font-size:9.5px;padding:2px 7px;white-space:nowrap;}
 #sq-table .sq-manual-actions button{font-size:9px;padding:2px 5px;}
 .cell-bad{background:var(--bad-soft);color:var(--bad);font-weight:700;border-radius:4px;}
@@ -3722,13 +3729,17 @@ const SQ_HEADER_COLUMNS=[
   {key:'noiDungCK',label:'Nội dung CK',left:true},
   {key:'note',label:'Ghi chú',left:true},
   {key:'loaiSoQuy',label:'Loại sổ quỹ',left:true},
-  {key:'bankMatch',label:'NH phát sinh',left:true}
+  {key:'sourceMart1',label:'TPBank MART 1'},
+  {key:'sourceMart2',label:'TPBank MART 2'},
+  {key:'sourceCash',label:'Tiền mặt két Phú'}
 ];
 const SQ_HEADER_FILTERS={};
 let SQ_HEADER_FILTER_SOURCE=[];
 function sqHeaderValue(row,key){
   if(key==='amount')return String(Number(row.amount)||0);
-  if(key==='bankMatch')return b2MatchLabel(row)||'__UNMATCHED__';
+  if(key==='sourceCash')return isB2CashRow(row)?'Có':'Không';
+  if(key==='sourceMart1')return !isB2CashRow(row)&&b2ExpectedMart(row)==='m1'?'Có':'Không';
+  if(key==='sourceMart2')return !isB2CashRow(row)&&b2ExpectedMart(row)==='m2'?'Có':'Không';
   return String(row[key]??'').trim()||'__EMPTY__';
 }
 function sqHeaderDisplay(value,key){
@@ -3831,12 +3842,24 @@ function renderSQTable(){
     <div class="box"><div class="v">${fmt(totalThu+totalChi)}</div><div class="l">Thuần (Thu − Chi)</div></div>
     <div class="box"><div class="v">${matched}/${rows.length}</div><div class="l">Đã xác định nguồn</div></div>`;
 
-  let html='<thead><tr>'+SQ_HEADER_COLUMNS.map(c=>`<th class="${c.left?'l ':''}sq-filter-th${SQ_HEADER_FILTERS[c.key]?' active':''}" title="Bấm để lọc cột ${c.label}" onclick="openSQHeaderFilter(event,'${c.key}')"><span class="sq-filter-label">${c.label}</span><span class="sq-filter-trigger" aria-hidden="true">▼</span></th>`).join('')+'</tr></thead><tbody>';
-  html+=`<tr class="tot"><td class="l">TỔNG (${rows.length} phiếu)</td><td></td><td></td><td></td><td></td><td>${fmt(totalThu+totalChi)}</td><td></td><td></td><td></td><td>${matched} đã xác định</td></tr>`;
+  const sqFilterHead=c=>`<th class="${c.left?'l ':''}sq-filter-th${SQ_HEADER_FILTERS[c.key]?' active':''}" title="Bấm để lọc cột ${c.label}" onclick="openSQHeaderFilter(event,'${c.key}')"><span class="sq-filter-label">${c.label}</span><span class="sq-filter-trigger" aria-hidden="true">▼</span></th>`;
+  const baseHeaders=SQ_HEADER_COLUMNS.slice(0,9),sourceHeaders=SQ_HEADER_COLUMNS.slice(9);
+  let html='<thead><tr>'+baseHeaders.map(c=>{
+    const cell=sqFilterHead(c);
+    return cell.replace('<th ','<th rowspan="2" ');
+  }).join('')+'<th colspan="3" class="sq-source-group">NGUỒN PHÁT SINH</th></tr><tr>'+
+    sourceHeaders.map(c=>sqFilterHead(c).replace('<th ','<th class="sq-source-head" ').replace('class="sq-source-head" class="','class="sq-source-head ')).join('')+
+    '</tr></thead><tbody>';
+  html+=`<tr class="tot"><td class="l">TỔNG (${rows.length} phiếu)</td><td></td><td></td><td></td><td></td><td>${fmt(totalThu+totalChi)}</td><td></td><td></td><td></td><td colspan="3">${matched} đã xác định</td></tr>`;
   rows.slice(0,400).forEach(r=>{
-    const cash=isB2CashRow(r),matchLabel=b2MatchLabel(r),editLabel=r.bankMatch?'Sửa':'Chọn';
-    const bankTag=matchLabel?`<span class="tag good">${r.manualBankMatch?'✎ ':''}${thtcEsc(matchLabel)}</span>`:'<span class="tag bad">chưa khớp</span>';
-    const bankCell=cash?bankTag:`${bankTag}<span class="sq-manual-actions"><button class="ghost" data-ma="${thtcEsc(r.maPhieu)}" data-note="${thtcEsc(r.note||'')}" onclick="openBKEdit(this.dataset.ma,this.dataset.note)">✎ ${editLabel}</button></span>`;
+    const cash=isB2CashRow(r),matchLabel=b2MatchLabel(r),mart=b2ExpectedMart(r);
+    const sourceMark=checked=>checked?'<span class="sq-source-check">✓</span>':'<span class="sq-source-empty">–</span>';
+    const editButton=!cash?`<button class="ghost sq-source-edit" data-ma="${thtcEsc(r.maPhieu)}" data-note="${thtcEsc(r.note||'')}" onclick="openBKEdit(this.dataset.ma,this.dataset.note)">✎ ${matchLabel?'Sửa':'Chọn'}</button>`:'';
+    const unmatched=!cash&&!matchLabel&&!mart;
+    const m1Cell=(unmatched?'<span class="sq-source-unmatched">Chưa khớp</span>':sourceMark(mart==='m1'))
+      +((mart==='m1'||unmatched)?editButton:'');
+    const m2Cell=sourceMark(mart==='m2')+(mart==='m2'?editButton:'');
+    const cashCell=sourceMark(cash);
     html+=`<tr>
       <td class="l" title="${thtcEsc(r.maPhieu)}">${thtcEsc(r.maPhieu)}</td>
       <td class="l" title="${thtcEsc(r.time)}">${thtcEsc(r.time)}</td>
@@ -3847,10 +3870,12 @@ function renderSQTable(){
       <td class="l" title="${thtcEsc(r.noiDungCK||'')}">${thtcEsc(r.noiDungCK||'')}</td>
       <td class="l" title="${thtcEsc(r.note||'')}">${thtcEsc(r.note||'')}</td>
       <td class="l" title="${thtcEsc(r.loaiSoQuy||'')}">${thtcEsc(r.loaiSoQuy||'')}</td>
-      <td class="l" title="${thtcEsc(matchLabel||'Chưa khớp')}">${bankCell}</td>
+      <td title="${mart==='m1'?thtcEsc(matchLabel):''}">${m1Cell}</td>
+      <td title="${mart==='m2'?thtcEsc(matchLabel):''}">${m2Cell}</td>
+      <td title="${cash?'Tiền mặt chi tại két Phú':''}">${cashCell}</td>
     </tr>`;
   });
-  if(rows.length===0) html+=`<tr><td class="l small" colspan="10">${B2.length>0?'Không có dữ liệu trong khoảng thời gian đã chọn (có '+B2.length+' phiếu ở tháng khác — thử đổi bộ lọc)':'Chưa có dữ liệu'}</td></tr>`;
+  if(rows.length===0) html+=`<tr><td class="l small" colspan="12">${B2.length>0?'Không có dữ liệu trong khoảng thời gian đã chọn (có '+B2.length+' phiếu ở tháng khác — thử đổi bộ lọc)':'Chưa có dữ liệu'}</td></tr>`;
   html+='</tbody>';
   document.getElementById('sq-table').innerHTML = html;
   renderFilterNotice('sq-filter-notice', {month:(!from||!to)?m:'', from, to, count:rows.length, total:B2.length});
@@ -4478,9 +4503,16 @@ function renderBK(){
   rows.forEach(x=>{
     const totalBalance=(Number(x.m1Balance)||0)+(Number(x.m2Balance)||0);
     const notes=[];
-    const qttTip=list=>list.length?'Chi quyết toán:\\n'+list.join('\\n'):'';
+    const qttTip=list=>list.length
+      ?['Chi quyết toán',...list.map(item=>`• ${item}`)].join('\n')
+      :'';
     const unpostedTip=(label,list)=>list.length
-      ?`${label}:\\n`+list.map(r=>`${label.startsWith('Chi')?'('+fmt(Math.abs(r.amount))+')':fmt(r.amount)} — ${r.content||'Không có nội dung'}`).join('\\n')
+      ?[label,...list.map(r=>{
+        const amount=label.startsWith('Chi')
+          ?`(${fmt(Math.abs(r.amount))})`
+          :fmt(r.amount);
+        return `• ${amount} — ${r.content||'Không có nội dung'}`;
+      })].join('\n')
       :'';
     const m1QttPosted=qttTip(x.m1QttPosted),m2QttPosted=qttTip(x.m2QttPosted);
     const m1ThuUnpostedTip=unpostedTip('Thu không hoạch toán vào Kiot',x.m1ThuUnpostedDetails);
