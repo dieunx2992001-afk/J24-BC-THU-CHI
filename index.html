@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-29-V80-FIX-BANK-TABLE-NO-OVERLAP -->
+<!-- J24 BUILD 2026-07-29-V78-TOOLTIP-TOTAL-ROW -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -187,8 +187,8 @@ tr:hover td{background:var(--surface2);}
 .bk-report-card{padding-bottom:10px;overflow:visible;}
 .bk-report-title{background:linear-gradient(90deg,#315f8c 0%,#315f8c 49.8%,#2f7d52 50.2%,#2f7d52 100%);position:sticky;top:56px;z-index:18;box-shadow:0 2px 4px rgba(0,0,0,.12);}
 .bk-daily-scroll{max-height:calc(100vh - 210px);min-height:260px;overflow:auto;border:1px solid var(--border);border-top:0;}
-.bk-daily-table{width:100%;min-width:980px;table-layout:fixed;}
-.bk-daily-table th,.bk-daily-table td{border:1px solid var(--border);padding:5px 4px;font-size:9.5px;height:30px;overflow:hidden;text-overflow:ellipsis;}
+.bk-daily-table{width:max-content;min-width:100%;table-layout:fixed;}
+.bk-daily-table th,.bk-daily-table td{border:1px solid var(--border);padding:5px 7px;font-size:10px;height:30px;}
 .bk-daily-table th{position:sticky;background:#5d2a0e;color:#fff;text-align:center;white-space:normal;line-height:1.2;text-transform:none;letter-spacing:0;vertical-align:middle;}
 .bk-daily-table thead tr:first-child th{top:0;background:#2c4a52;font-size:10.5px;z-index:12;}
 .bk-daily-table thead tr:nth-child(2) th{top:31px;background:#6a2d0b;z-index:11;}
@@ -196,9 +196,10 @@ tr:hover td{background:var(--surface2);}
 .bk-daily-table thead tr:first-child th.bk-m2-head{background:#2f7d52;}
 .bk-daily-table thead tr:nth-child(2) th:nth-child(-n+5){background:#4477a8;}
 .bk-daily-table thead tr:nth-child(2) th:nth-child(n+6){background:#438b63;}
-.bk-daily-table th:first-child,.bk-daily-table td:first-child{width:5%;text-align:center;}
-.bk-daily-table th:nth-child(n+2):nth-child(-n+11),.bk-daily-table td:nth-child(n+2):nth-child(-n+11){width:8.3%;}
-.bk-daily-table th:nth-child(12),.bk-daily-table td:nth-child(12){width:12%;}
+.bk-daily-table th:first-child,.bk-daily-table td:first-child{width:48px;text-align:center;}
+.bk-daily-table th:nth-child(n+2):nth-child(-n+11),.bk-daily-table td:nth-child(n+2):nth-child(-n+11){width:112px;}
+.bk-daily-table th:nth-child(12),.bk-daily-table td:nth-child(12){width:120px;}
+.bk-daily-table th:last-child,.bk-daily-table td:last-child{width:230px;max-width:230px;}
 .bk-daily-table .bk-day{font-style:normal;font-weight:800;background:#eff4f1;}
 .bk-daily-table .bk-opening-row td{background:#dfe9e5;font-weight:800;border-bottom:2px solid #78978b;}
 .bk-daily-table .bk-opening-row .bk-day{font-style:normal;color:#234f45;line-height:1.15;}
@@ -4501,7 +4502,7 @@ function renderBK(){
     <tr><th rowspan="2">Ngày</th>
       <th colspan="5" class="bk-m1-head">TPBank ${account1} — J24 MART 1</th>
       <th colspan="5" class="bk-m2-head">TPBank ${account2} — J24 MART 2</th>
-      <th rowspan="2">Tổng số dư<br>2 tài khoản</th>
+      <th rowspan="2">Tổng số dư<br>2 tài khoản</th><th rowspan="2" class="l">Ghi chú</th>
     </tr>
     <tr>
       <th>Thu có hoạch<br>toán vào Kiot</th><th>Thu không hoạch<br>toán vào Kiot</th><th>Chi có hoạch<br>toán vào Kiot</th><th>Chi không hoạch<br>toán vào Kiot</th><th>Số dư</th>
@@ -4511,7 +4512,7 @@ function renderBK(){
       <td class="bk-day">Số dư<br>đầu kỳ</td>
       <td>–</td><td>–</td><td>–</td><td>–</td><td class="bk-balance">${bkFmt(opening.m1||0)}</td>
       <td>–</td><td>–</td><td>–</td><td>–</td><td class="bk-balance">${bkFmt(opening.m2||0)}</td>
-      <td class="bk-total-balance">${bkFmt((opening.m1||0)+(opening.m2||0))}</td>
+      <td class="bk-total-balance">${bkFmt((opening.m1||0)+(opening.m2||0))}</td><td></td>
     </tr>`;
   rows.forEach(x=>{
     const totalBalance=(Number(x.m1Balance)||0)+(Number(x.m2Balance)||0);
@@ -4540,16 +4541,16 @@ function renderBK(){
       <td class="bk-day">${Number(x.date.slice(8,10))}</td>
       <td>${num(x.m1ThuPosted)}</td><td>${num(x.m1ThuUnposted,false,true,m1ThuUnpostedTip)}</td><td>${num(x.m1ChiPosted,true,false,m1QttPosted)}</td><td>${num(x.m1ChiUnposted,true,true,m1ChiUnpostedTip)}</td><td class="bk-balance">${x.m1Balance==null?'–':bkFmt(x.m1Balance)}</td>
       <td>${num(x.m2ThuPosted)}</td><td>${num(x.m2ThuUnposted,false,true,m2ThuUnpostedTip)}</td><td>${num(x.m2ChiPosted,true,false,m2QttPosted)}</td><td>${num(x.m2ChiUnposted,true,true,m2ChiUnpostedTip)}</td><td class="bk-balance">${x.m2Balance==null?'–':bkFmt(x.m2Balance)}</td>
-      <td class="bk-total-balance">${bkFmt(totalBalance)}</td>
+      <td class="bk-total-balance">${bkFmt(totalBalance)}</td><td class="l bk-note">${notes.join(' · ')||''}</td>
     </tr>`;
   });
-  if(!rows.length)html+=`<tr><td colspan="12" class="l small">Không có giao dịch ngân hàng trong kỳ đã chọn</td></tr>`;
+  if(!rows.length)html+=`<tr><td colspan="13" class="l small">Không có giao dịch ngân hàng trong kỳ đã chọn</td></tr>`;
   if(rows.length){
     const sum=key=>rows.reduce((s,x)=>s+(Number(x[key])||0),0),last=rows[rows.length-1];
     html+=`<tr class="tot"><td>TỔNG</td>
       <td>${num(sum('m1ThuPosted'))}</td><td>${num(sum('m1ThuUnposted'),false,true)}</td><td>${num(sum('m1ChiPosted'),true)}</td><td>${num(sum('m1ChiUnposted'),true,true)}</td><td class="bk-balance">${last.m1Balance==null?'–':bkFmt(last.m1Balance)}</td>
       <td>${num(sum('m2ThuPosted'))}</td><td>${num(sum('m2ThuUnposted'),false,true)}</td><td>${num(sum('m2ChiPosted'),true)}</td><td>${num(sum('m2ChiUnposted'),true,true)}</td><td class="bk-balance">${last.m2Balance==null?'–':bkFmt(last.m2Balance)}</td>
-      <td class="bk-total-balance">${bkFmt((Number(last.m1Balance)||0)+(Number(last.m2Balance)||0))}</td>
+      <td class="bk-total-balance">${bkFmt((Number(last.m1Balance)||0)+(Number(last.m2Balance)||0))}</td><td></td>
     </tr>`;
   }
   html+='</tbody>';
