@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-29-V69-VIETNAMESE-DATE-FILTER -->
+<!-- J24 BUILD 2026-07-29-V70-KHOTONG-DAY-NUMBER-COLUMN -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -3435,12 +3435,13 @@ function renderKTRaw(){
     return true;
   });
   if(kw)source=source.filter(r=>matchesKeyword(r,kw));
-  let html='<thead><tr><th class="l">Ngày</th><th class="l">Diễn giải</th><th>Ghi nợ</th><th>Ghi có</th><th class="l">TK</th><th class="l">Chi nhánh</th><th class="l">Loại</th></tr></thead><tbody>';
+  let html='<thead><tr><th class="l">Ngày GD</th><th>Ngày</th><th class="l">Diễn giải</th><th>Ghi nợ</th><th>Ghi có</th><th class="l">TK</th><th class="l">Chi nhánh</th><th class="l">Loại</th></tr></thead><tbody>';
   source.slice(0,300).forEach(r=>{
     const isoDate=storageISODate(r.date),displayDate=isoDate?isoDate.split('-').reverse().join('/'):(r.date||'');
-    html+=`<tr><td class="l">${displayDate}</td><td class="l" style="max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}</td><td>${fmt(r.debit)}</td><td>${fmt(r.credit)}</td><td class="l">${r.account}</td><td class="l">${r.branch}</td><td class="l">${r.type}</td></tr>`;
+    const dayNumber=isoDate?Number(isoDate.slice(8,10)):'';
+    html+=`<tr><td class="l">${displayDate}</td><td>${dayNumber}</td><td class="l" style="max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}</td><td>${fmt(r.debit)}</td><td>${fmt(r.credit)}</td><td class="l">${r.account}</td><td class="l">${r.branch}</td><td class="l">${r.type}</td></tr>`;
   });
-  if(source.length===0)html+='<tr><td class="l small" colspan="7">Không có dữ liệu đúng bộ lọc đã chọn</td></tr>';
+  if(source.length===0)html+='<tr><td class="l small" colspan="8">Không có dữ liệu đúng bộ lọc đã chọn</td></tr>';
   html+='</tbody>';
   document.getElementById('kt-raw').innerHTML = KHOTONG.length? html : '<tbody><tr><td class="l small">Chưa import dữ liệu</td></tr></tbody>';
   renderFilterNotice('kt-filter-notice', {from,to,count: source.slice(0,300).length, total: KHOTONG.length});
