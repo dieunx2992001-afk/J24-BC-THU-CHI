@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-29-V70-KHOTONG-DAY-NUMBER-COLUMN -->
+<!-- J24 BUILD 2026-07-29-V72-HONOR-B2-BANK-MATCH -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -3434,9 +3434,22 @@ function renderKTRaw(){
     if(account!=='ALL'&&String(r.account||'').replace(/\D/g,'')!==account)return false;
     return true;
   });
-  if(kw)source=source.filter(r=>matchesKeyword(r,kw));
+  if(kw){
+    const rawKw=String(kw).trim();
+    const isoKw=storageISODate(rawKw);
+    source=source.filter(r=>{
+      const isoDate=storageISODate(r.date);
+      const displayDate=isoDate?isoDate.split('-').reverse().join('/'):'';
+      const dayNumber=isoDate?String(Number(isoDate.slice(8,10))):'';
+      // Nếu người dùng nhập đúng một ngày, ưu tiên lọc cột Ngày giao dịch,
+      // không để ngày nằm trong Diễn giải làm xuất hiện sai dòng.
+      if(isoKw)return isoDate===isoKw;
+      if(/^\d{1,2}$/.test(rawKw))return dayNumber===String(Number(rawKw));
+      return displayDate.includes(rawKw)||matchesKeyword(r,rawKw);
+    });
+  }
   let html='<thead><tr><th class="l">Ngày GD</th><th>Ngày</th><th class="l">Diễn giải</th><th>Ghi nợ</th><th>Ghi có</th><th class="l">TK</th><th class="l">Chi nhánh</th><th class="l">Loại</th></tr></thead><tbody>';
-  source.slice(0,300).forEach(r=>{
+  source.forEach(r=>{
     const isoDate=storageISODate(r.date),displayDate=isoDate?isoDate.split('-').reverse().join('/'):(r.date||'');
     const dayNumber=isoDate?Number(isoDate.slice(8,10)):'';
     html+=`<tr><td class="l">${displayDate}</td><td>${dayNumber}</td><td class="l" style="max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}</td><td>${fmt(r.debit)}</td><td>${fmt(r.credit)}</td><td class="l">${r.account}</td><td class="l">${r.branch}</td><td class="l">${r.type}</td></tr>`;
@@ -3444,7 +3457,7 @@ function renderKTRaw(){
   if(source.length===0)html+='<tr><td class="l small" colspan="8">Không có dữ liệu đúng bộ lọc đã chọn</td></tr>';
   html+='</tbody>';
   document.getElementById('kt-raw').innerHTML = KHOTONG.length? html : '<tbody><tr><td class="l small">Chưa import dữ liệu</td></tr></tbody>';
-  renderFilterNotice('kt-filter-notice', {from,to,count: source.slice(0,300).length, total: KHOTONG.length});
+  renderFilterNotice('kt-filter-notice', {from,to,count: source.length, total: KHOTONG.length});
 }
 
 /* ===================================================================
@@ -3575,6 +3588,15 @@ function isB2CashDepositContent(row){
 function b2ExpectedMart(row){
   if(row&&row.mart1===true&&row.mart2!==true)return 'm1';
   if(row&&row.mart2===true&&row.mart1!==true)return 'm2';
+  // Các bản ghi B2 đã đối chiếu có thể chỉ lưu nhãn ngân hàng/tài khoản,
+  // không còn hai cờ mart1/mart2. Phải kế thừa kết quả đã xác định này khi
+  // dựng báo cáo, nếu không giao dịch đúng sẽ bị rơi vào "chưa hoạch toán".
+  const account=String(row&&(row.bankAccount||row.soTK)||'').replace(/\D/g,'');
+  const label=normalizeFundType(
+    String(row&&row.bankMatch||'')+' '+String(KHO_ACC_MAP[account]||'')
+  );
+  if(label.includes('mart 1')||account==='10003597861')return 'm1';
+  if(label.includes('mart 2')||account==='10003597792')return 'm2';
   return '';
 }
 function b2MatchLabel(row){
@@ -4059,17 +4081,35 @@ function buildKhotongB2Reconciliation(b2Rows=B2,bankRows=KHOTONG){
     const primaryNeedles=[r.noiDungCK,r.note].map(normalizeLookupText).filter(x=>x.length>=6);
     const needles=primaryNeedles.length?primaryNeedles:[normalizeLookupText(r.person)].filter(x=>x.length>=6);
     const b2Date=storageISODate(r.time);
-    const candidates=(byKey.get(direction+'|'+amount)||[]).filter(x=>{
+    const amountMartCandidates=(byKey.get(direction+'|'+amount)||[]).filter(x=>{
       if(usedKT.has(x.k))return false;
       if(expectedMart&&x.mart&&expectedMart!==x.mart)return false;
       const bankAccount=bkBankAccount(x.k);
       if(account&&bankAccount&&account!==bankAccount)return false;
-      return needles.some(n=>x.content===n||x.content.includes(n)||n.includes(x.content));
-    }).sort((a,b)=>{
+      return true;
+    });
+    const sortNearest=(list)=>list.sort((a,b)=>{
       const gapA=b2Date&&a.date?thtcDayDistance(b2Date,a.date):9999;
       const gapB=b2Date&&b.date?thtcDayDistance(b2Date,b.date):9999;
       return gapA-gapB||a.index-b.index;
     });
+    let candidates=sortNearest(amountMartCandidates.filter(x=>
+      needles.some(n=>x.content===n||x.content.includes(n)||n.includes(x.content))
+    ));
+
+    // Nếu B2 đã lưu rõ nguồn Kho tổng, coi đó là kết quả đối chiếu đã được
+    // xác định. Khi cách viết nội dung giữa hai file lệch nhau, cho phép ghép
+    // bằng đúng chiều + đúng số tiền + đúng MART/tài khoản + ngày giao dịch gần.
+    // Chỉ nhận tự động khi còn đúng một ứng viên để không ghép nhầm các khoản
+    // trùng số tiền.
+    if(!candidates.length&&(r.bankMatch||r.bankAccount||r.bankTransactionDate)){
+      const savedDate=storageISODate(r.bankTransactionDate);
+      const near=sortNearest(amountMartCandidates.filter(x=>{
+        if(savedDate&&x.date)return thtcDayDistance(savedDate,x.date)===0;
+        return !!b2Date&&!!x.date&&thtcDayDistance(b2Date,x.date)<=3;
+      }));
+      if(near.length===1)candidates=near;
+    }
     const hit=candidates[0];
     if(hit){
       usedKT.add(hit.k);
