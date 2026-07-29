@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-29-V64-RECONCILED-RUNNING-BALANCE-PARENTHESES -->
+<!-- J24 BUILD 2026-07-29-V66-PREMONTH-TRANSACTIONS-IN-OPENING-BALANCE -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -4159,6 +4159,13 @@ function renderBK(){
     const d=reportDate(r);
     return d&&d.slice(0,7)===month;
   });
+  const monthStart=`${month}-01`;
+  // Ngày giá trị thuộc tháng báo cáo nhưng Ngày giao dịch nằm trước tháng:
+  // đưa thẳng vào số dư đầu kỳ, không tính lại vào Thu/Chi ngày 1.
+  const openingMovementRows=new Set(bankRows.filter(r=>{
+    const transactionDate=storageISODate(r.date);
+    return transactionDate&&transactionDate<monthStart;
+  }));
   const daily=new Map();
   const transactionTime=(r,index)=>{
     const raw=String(r.transactionAt||'').trim();
@@ -4178,6 +4185,7 @@ function renderBK(){
     m1ThuUnpostedDetails:[],m1ChiUnpostedDetails:[],m2ThuUnpostedDetails:[],m2ChiUnpostedDetails:[]
   });
   bankRows.forEach(r=>{
+    if(openingMovementRows.has(r))return;
     const d=reportDate(r),mart=bkBankMart(r);
     if(!d||!mart)return;
     if(!daily.has(d))daily.set(d,emptyDay(d));
@@ -4224,16 +4232,37 @@ function renderBK(){
     const earliest=(starts.length?starts:entries)[0].r;
     // Số dư trước giao dịch đầu tiên = số dư sau GD + Ghi nợ - Ghi có.
     opening[mart]=Number(earliest.balance)+(Number(earliest.debit)||0)-(Number(earliest.credit)||0);
+    openingMovementRows.forEach(r=>{
+      if(bkBankMart(r)!==mart)return;
+      opening[mart]+=(Number(r.credit)||0)-(Number(r.debit)||0);
+    });
   });
+  // Dò số dư cuối từng ngày theo chuỗi số dư của sao kê. Giao dịch cuối ngày
+  // là dòng có "số dư sau GD" không còn xuất hiện ở "số dư trước GD" của
+  // một giao dịch khác cùng ngày. Cách này không phụ thuộc thứ tự lưu trong SQL.
+  const bankClosingForDay=(date,mart)=>{
+    const entries=bankRows.filter(r=>reportDate(r)===date&&bkBankMart(r)===mart&&Number.isFinite(Number(r.balance)));
+    if(!entries.length)return null;
+    const beforeBalances=new Set(entries.map(r=>
+      Number(r.balance)+(Number(r.debit)||0)-(Number(r.credit)||0)
+    ));
+    const ends=entries.filter(r=>!beforeBalances.has(Number(r.balance)));
+    const candidates=ends.length?ends:entries;
+    candidates.sort((a,b)=>transactionTime(b,KHOTONG.indexOf(b))-transactionTime(a,KHOTONG.indexOf(a)));
+    return Number(candidates[0].balance);
+  };
   let carryM1=opening.m1||0,carryM2=opening.m2||0;
   rows.forEach(x=>{
-    // Số dư cuối ngày luôn được đối chiếu theo công thức:
-    // đầu ngày + toàn bộ Thu - toàn bộ Chi.
-    carryM1+=(Number(x.m1ThuPosted)||0)+(Number(x.m1ThuUnposted)||0)
+    const calcM1=carryM1+(Number(x.m1ThuPosted)||0)+(Number(x.m1ThuUnposted)||0)
       -(Number(x.m1ChiPosted)||0)-(Number(x.m1ChiUnposted)||0);
-    carryM2+=(Number(x.m2ThuPosted)||0)+(Number(x.m2ThuUnposted)||0)
+    const calcM2=carryM2+(Number(x.m2ThuPosted)||0)+(Number(x.m2ThuUnposted)||0)
       -(Number(x.m2ChiPosted)||0)-(Number(x.m2ChiUnposted)||0);
-    x.m1Balance=carryM1;x.m2Balance=carryM2;
+    const bankM1=bankClosingForDay(x.date,'m1'),bankM2=bankClosingForDay(x.date,'m2');
+    x.m1Balance=bankM1==null?carryM1:bankM1;
+    x.m2Balance=bankM2==null?carryM2:bankM2;
+    x.m1ReconDiff=bankM1==null?0:bankM1-calcM1;
+    x.m2ReconDiff=bankM2==null?0:bankM2-calcM2;
+    carryM1=x.m1Balance;carryM2=x.m2Balance;
   });
   const account1='10003597861',account2='10003597792';
   const bkFmt=value=>{
@@ -4279,6 +4308,8 @@ function renderBK(){
     const m2ChiUnpostedTip=unpostedTip('Chi không hoạch toán vào Kiot',x.m2ChiUnpostedDetails);
     if(x.m1UnpostedCount)notes.push(`MART 1: ${x.m1UnpostedCount} giao dịch chưa hoạch toán`);
     if(x.m2UnpostedCount)notes.push(`MART 2: ${x.m2UnpostedCount} giao dịch chưa hoạch toán`);
+    if(x.m1ReconDiff)notes.push(`MART 1 lệch phân loại ${bkFmt(x.m1ReconDiff)}`);
+    if(x.m2ReconDiff)notes.push(`MART 2 lệch phân loại ${bkFmt(x.m2ReconDiff)}`);
     html+=`<tr>
       <td class="bk-day">${Number(x.date.slice(8,10))}</td>
       <td>${num(x.m1ThuPosted)}</td><td>${num(x.m1ThuUnposted,false,true,m1ThuUnpostedTip)}</td><td>${num(x.m1ChiPosted,true,false,m1QttPosted)}</td><td>${num(x.m1ChiUnposted,true,true,m1ChiUnpostedTip)}</td><td class="bk-balance">${x.m1Balance==null?'–':bkFmt(x.m1Balance)}</td>
