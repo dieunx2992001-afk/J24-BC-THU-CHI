@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-29-V76-B2-CLASSIC-AUTO-HIDE-EMPTY -->
+<!-- J24 BUILD 2026-07-29-V77-B2-AUTO-MART-FROM-CONTENT -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -3469,6 +3469,8 @@ function shouldSkipB2CustomerReceipt(value){
   return normalized.includes('phieu thu tien khach tra')||normalized.includes('phieu chi tien tra khach');
 }
 function initB2UI(){
+  const hinted=applyB2MartContentHints(B2);
+  if(hinted)sset('b2:list',B2);
   document.getElementById('sq-month').value = window._latestB2Month || todayISO().slice(0,7);
   refreshBranchFilter('sq-filter-branch',B2,BRANCHES);
   setupDrop('sq-drop','sq-file', handleSQFile);
@@ -3585,6 +3587,31 @@ function isB2CashDepositContent(row){
   ].filter(Boolean).join(' '));
   return text.includes('NOPTIEN')||text.includes('NOPTM');
 }
+function inferB2MartFromContent(row){
+  const text=normalizeLookupText([
+    row&&row.noiDungCK,row&&row.note,row&&row.person,row&&row.loaiThuChi
+  ].filter(Boolean).join(' '));
+  const hasM1=/J24MART1|MART1(?:24H)?/.test(text);
+  const hasM2=/J24MART2|MART2/.test(text);
+  if(hasM1&&!hasM2)return 'm1';
+  if(hasM2&&!hasM1)return 'm2';
+  return '';
+}
+function applyB2MartContentHints(rows=B2){
+  let changed=0;
+  (rows||[]).forEach(row=>{
+    if(!row||isB2CashRow(row)||row.bankMatch)return;
+    const mart=inferB2MartFromContent(row);
+    if(!mart)return;
+    row.bankMatch=mart==='m1'?'KHO TỔNG MART 1':'KHO TỔNG MART 2';
+    row.bankAccount=mart==='m1'?'10003597861':'10003597792';
+    row.bankTransactionMart=mart;
+    row.mart1=mart==='m1';row.mart2=mart==='m2';
+    row.contentMartHint=true;
+    changed++;
+  });
+  return changed;
+}
 function b2ExpectedMart(row){
   if(row&&row.mart1===true&&row.mart2!==true)return 'm1';
   if(row&&row.mart2===true&&row.mart1!==true)return 'm2';
@@ -3597,12 +3624,17 @@ function b2ExpectedMart(row){
   );
   if(label.includes('mart 1')||account==='10003597861')return 'm1';
   if(label.includes('mart 2')||account==='10003597792')return 'm2';
-  return '';
+  return inferB2MartFromContent(row);
 }
 function b2MatchLabel(row){
-  return isB2CashRow(row)?'Tiền mặt chi tại két Phú':String(row&&row.bankMatch||'').trim();
+  if(isB2CashRow(row))return 'Tiền mặt chi tại két Phú';
+  const saved=String(row&&row.bankMatch||'').trim();
+  if(saved)return saved;
+  const mart=inferB2MartFromContent(row);
+  return mart==='m1'?'KHO TỔNG MART 1':(mart==='m2'?'KHO TỔNG MART 2':'');
 }
 async function matchB2WithKhoTong(targetRows=B2){
+  applyB2MartContentHints(targetRows);
   // Phiếu tiền mặt phát sinh trực tiếp tại két Phú, không đưa sang đối chiếu ngân hàng.
   // Đồng thời ghép lại các dòng cũ đã có tên ngân hàng nhưng chưa lưu Ngày giao dịch.
   const unmatched = targetRows.filter(r=>!isB2CashRow(r)&&(!r.bankMatch||(!r.manualBankMatch&&!r.bankTransactionDate)));
