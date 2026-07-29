@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-29-V66-PREMONTH-TRANSACTIONS-IN-OPENING-BALANCE -->
+<!-- J24 BUILD 2026-07-29-V67-FUNNEL-FILTERS-ALL-DATA-SHEETS -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -210,6 +210,16 @@ tr:hover td{background:var(--surface2);}
 .bk-daily-table .bk-unposted{color:var(--bad);font-weight:800;}
 .bk-daily-table .bk-qTT-tip{cursor:help;text-decoration:underline dotted;text-underline-offset:3px;}
 .bk-daily-table .bk-note{font-family:var(--sans);font-size:9.5px;color:var(--bad);white-space:normal;}
+.sheet-filter-th{position:relative;padding-right:24px!important;}
+.sheet-filter-btn{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:17px;height:17px;padding:0;border:1px solid #d2a17f;border-radius:4px;background:#fff;color:#bf5d28;font-size:9px;line-height:15px;cursor:pointer;}
+.sheet-filter-btn:hover,.sheet-filter-btn.active{background:#c1652f;color:#fff;border-color:#c1652f;}
+.sheet-filter-menu{position:fixed;z-index:10020;width:260px;max-height:360px;overflow:hidden;background:#fffdf9;border:1px solid #d9c8b4;border-radius:8px;box-shadow:0 10px 30px rgba(58,42,27,.24);padding:8px;font-family:var(--sans);font-size:12px;}
+.sheet-filter-menu input{width:100%;box-sizing:border-box;margin-bottom:7px;padding:7px 8px;}
+.sheet-filter-actions{display:flex;gap:5px;margin-bottom:6px;}
+.sheet-filter-actions button{flex:1;padding:5px 6px;font-size:11px;}
+.sheet-filter-values{max-height:255px;overflow:auto;border-top:1px solid #eadfce;}
+.sheet-filter-value{display:block;width:100%;padding:6px 7px;border:0;border-bottom:1px solid #f0e7da;background:transparent;text-align:left;color:var(--title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
+.sheet-filter-value:hover,.sheet-filter-value.selected{background:#e7f2eb;color:#17643b;font-weight:700;}
 .bk-daily-table tbody tr:nth-child(even) td:not(.bk-balance):not(.bk-total-balance){background:rgba(44,74,82,.025);}
 .qk-summary-card{padding-bottom:10px;}
 .qk-summary-scroll{max-height:calc(100vh - 285px);overflow:auto;border:1px solid var(--border);border-top:0;}
@@ -1215,11 +1225,125 @@ function addDateStepper(id){
   document.addEventListener('mousemove', e=>{ tip.style.left=(e.clientX+14)+'px'; tip.style.top=(e.clientY+10)+'px'; });
   document.addEventListener('mouseout', e=>{ tip.style.display='none'; });
 })();
+
+// Phễu lọc trực tiếp trên tiêu đề cho các sheet dữ liệu.
+// Các sheet Báo cáo/Đối chiếu tổng hợp không nằm trong danh sách này.
+const SHEET_FILTER_TABLES=new Set([
+  'cc-table','cl-table','tp-raw','vt-raw','kt-raw','log-table','cak-table'
+]);
+const SHEET_COL_FILTERS={};
+let _sheetFilterMenu=null;
+function closeSheetFilterMenu(){
+  if(_sheetFilterMenu){_sheetFilterMenu.remove();_sheetFilterMenu=null;}
+}
+function sheetFilterText(cell){return String(cell&&cell.innerText||'').replace(/\s+/g,' ').trim();}
+function applySheetColumnFilters(table){
+  if(!table||!SHEET_FILTER_TABLES.has(table.id))return;
+  const filters=SHEET_COL_FILTERS[table.id]||{};
+  const active=Object.entries(filters).filter(([,v])=>v!==undefined&&v!==null);
+  table.querySelectorAll('thead th[data-sheet-filter-col]').forEach(th=>{
+    const btn=th.querySelector('.sheet-filter-btn'),col=th.dataset.sheetFilterCol;
+    if(btn)btn.classList.toggle('active',Object.prototype.hasOwnProperty.call(filters,col));
+  });
+  table.querySelectorAll('tbody tr').forEach(tr=>{
+    const cells=tr.cells;
+    if(!cells.length){tr.style.display='';return;}
+    const isSummary=tr.classList.contains('tot')||/^TỔNG\b/i.test(sheetFilterText(cells[0]));
+    if(isSummary){tr.style.display=active.length?'none':'';return;}
+    const visible=active.every(([col,wanted])=>{
+      const value=sheetFilterText(cells[Number(col)]);
+      return wanted==='__BLANK__'?!value:value===wanted;
+    });
+    tr.style.display=visible?'':'none';
+  });
+}
+function openSheetFilterMenu(event,table,col,th){
+  event.preventDefault();event.stopPropagation();closeSheetFilterMenu();
+  const rows=[...table.querySelectorAll('tbody tr')].filter(tr=>{
+    const first=sheetFilterText(tr.cells[0]);
+    return tr.cells.length&&!tr.classList.contains('tot')&&!/^TỔNG\b/i.test(first);
+  });
+  const values=[...new Set(rows.map(tr=>sheetFilterText(tr.cells[col])).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b,'vi',{numeric:true}));
+  const hasBlank=rows.some(tr=>!sheetFilterText(tr.cells[col]));
+  const current=(SHEET_COL_FILTERS[table.id]||{})[col];
+  const menu=document.createElement('div');menu.className='sheet-filter-menu';
+  menu.innerHTML=`<input type="search" placeholder="Tìm giá trị trong cột…">
+    <div class="sheet-filter-actions">
+      <button type="button" data-action="clear-col">Xóa lọc cột</button>
+      <button type="button" data-action="clear-all">Xóa tất cả</button>
+    </div>
+    <div class="sheet-filter-values">
+      ${hasBlank?`<button class="sheet-filter-value ${current==='__BLANK__'?'selected':''}" data-value="__BLANK__">(Trống)</button>`:''}
+      ${values.map(v=>`<button class="sheet-filter-value ${current===v?'selected':''}" data-value="${thtcEsc(v)}" title="${thtcEsc(v)}">${thtcEsc(v)}</button>`).join('')}
+    </div>`;
+  document.body.appendChild(menu);_sheetFilterMenu=menu;
+  const rect=th.getBoundingClientRect();
+  let left=Math.min(rect.right-menu.offsetWidth,window.innerWidth-menu.offsetWidth-8);
+  left=Math.max(8,left);
+  let top=rect.bottom+4;
+  if(top+menu.offsetHeight>window.innerHeight-8)top=Math.max(8,rect.top-menu.offsetHeight-4);
+  menu.style.left=left+'px';menu.style.top=top+'px';
+  const input=menu.querySelector('input');
+  input.addEventListener('input',()=>{
+    const q=normalizeLookupText(input.value);
+    menu.querySelectorAll('.sheet-filter-value').forEach(btn=>{
+      btn.style.display=!q||normalizeLookupText(btn.textContent).includes(q)?'':'none';
+    });
+  });
+  menu.addEventListener('click',e=>{
+    const action=e.target.closest('[data-action]')?.dataset.action;
+    if(action){
+      if(action==='clear-col'){
+        if(SHEET_COL_FILTERS[table.id])delete SHEET_COL_FILTERS[table.id][col];
+      }else SHEET_COL_FILTERS[table.id]={};
+      applySheetColumnFilters(table);closeSheetFilterMenu();return;
+    }
+    const valueBtn=e.target.closest('.sheet-filter-value');if(!valueBtn)return;
+    if(!SHEET_COL_FILTERS[table.id])SHEET_COL_FILTERS[table.id]={};
+    SHEET_COL_FILTERS[table.id][col]=valueBtn.dataset.value;
+    applySheetColumnFilters(table);closeSheetFilterMenu();
+  });
+  setTimeout(()=>input.focus(),0);
+}
+function installSheetColumnFilters(table){
+  if(!table||!SHEET_FILTER_TABLES.has(table.id))return;
+  const headers=[...table.querySelectorAll('thead th')].filter(th=>Number(th.colSpan||1)===1);
+  headers.forEach((th,col)=>{
+    if(th.querySelector('.sheet-filter-btn'))return;
+    th.classList.add('sheet-filter-th');th.dataset.sheetFilterCol=col;
+    const btn=document.createElement('button');btn.type='button';btn.className='sheet-filter-btn';btn.textContent='▼';
+    btn.title='Lọc cột '+sheetFilterText(th);
+    btn.addEventListener('click',e=>openSheetFilterMenu(e,table,col,th));
+    th.appendChild(btn);
+  });
+  applySheetColumnFilters(table);
+}
+document.addEventListener('click',e=>{
+  if(_sheetFilterMenu&&!_sheetFilterMenu.contains(e.target)&&!e.target.closest('.sheet-filter-btn'))closeSheetFilterMenu();
+});
+const _sheetFilterObserver=new MutationObserver(mutations=>{
+  const tables=new Set();
+  mutations.forEach(m=>{
+    const table=m.target.closest&&m.target.closest('table');
+    if(table)tables.add(table);
+    m.addedNodes.forEach(n=>{
+      if(n.nodeType!==1)return;
+      if(n.matches&&n.matches('table'))tables.add(n);
+      if(n.querySelectorAll)n.querySelectorAll('table').forEach(t=>tables.add(t));
+    });
+  });
+  tables.forEach(installSheetColumnFilters);
+});
 // Tự động gắn resizer sau khi bảng được render (quan sát DOM thay đổi)
 const _resizeObserver = new MutationObserver(muts=>{
   muts.forEach(m=>{ m.addedNodes.forEach(n=>{ if(n.nodeName==='TABLE'||n.querySelector&&n.querySelector('table')) { (n.nodeName==='TABLE'?[n]:Array.from(n.querySelectorAll('table'))).forEach(makeResizable); } }); });
 });
-document.addEventListener('DOMContentLoaded',()=>{ _resizeObserver.observe(document.body,{childList:true,subtree:true}); });
+document.addEventListener('DOMContentLoaded',()=>{
+  _resizeObserver.observe(document.body,{childList:true,subtree:true});
+  _sheetFilterObserver.observe(document.body,{childList:true,subtree:true});
+  SHEET_FILTER_TABLES.forEach(id=>installSheetColumnFilters(document.getElementById(id)));
+});
 
 // Hiện ghi chú kỳ đang lọc vào element chỉ định
 function renderFilterNotice(elId, {month, from, to, count, total}){
