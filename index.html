@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-29-V67-FUNNEL-FILTERS-ALL-DATA-SHEETS -->
+<!-- J24 BUILD 2026-07-29-V68-FIX-KHOTONG-SOURCE-ORDER-IMPORT -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -3005,7 +3005,7 @@ async function handleVTFile(file){
 
     // Lấy danh sách thời gian (phút) của từng dòng hợp lệ theo thứ tự file
     const validRows = [];
-    data.forEach(row=>{
+    data.forEach((row,sourceOrder)=>{
       // Vietin ghi tiền lãi bằng một dòng Có nhưng để trống Nội dung. Vì vậy
       // không được loại dòng chỉ vì ô Nội dung rỗng.
       const content = row[cIdx.content]==null ? '' : row[cIdx.content], amount = parseVNMoney(row[cIdx.amount]);
@@ -3298,7 +3298,7 @@ async function handleKTFile(file){
     const existByKey=new Map(KHOTONG.map(r=>[r.k,r]));
     const seenInStage = new Set();
     KT_STAGE = [];KT_STAGE_DATE_PATCHES=[];
-    data.forEach(row=>{
+    data.forEach((row,sourceOrder)=>{
       if(!row || row.every(c=>c===null)) return;
       const colA = String(row[0]||'').toLowerCase();
       if(colA.includes('tổng ghi') || colA.includes('số dư cuối') || colA.includes('số dư đầu') || colA.includes('total credit') || colA.includes('total debit') || colA.includes('ending balance') || colA.includes('beginning balance')) return;
@@ -3316,7 +3316,9 @@ async function handleKTFile(file){
       const k = content+'|'+balance+'|'+debit+'|'+credit;
       if(existKeys.has(k)){
         const old=existByKey.get(k);
-        if(old&&(storageISODate(old.date)!==storageISODate(date)||storageISODate(old.valueDate)!==storageISODate(valueDate))){
+        if(old&&(storageISODate(old.date)!==storageISODate(date)
+          ||storageISODate(old.valueDate)!==storageISODate(valueDate)
+          ||!old.transactionAt||old.sourceOrder==null)){
           KT_STAGE_DATE_PATCHES.push({k,date,valueDate,transactionAt,sourceOrder});
         }
         dup++;return;
