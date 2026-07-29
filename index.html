@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-29-V68-FIX-KHOTONG-SOURCE-ORDER-IMPORT -->
+<!-- J24 BUILD 2026-07-29-V69-VIETNAMESE-DATE-FILTER -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -1237,6 +1237,14 @@ function closeSheetFilterMenu(){
   if(_sheetFilterMenu){_sheetFilterMenu.remove();_sheetFilterMenu=null;}
 }
 function sheetFilterText(cell){return String(cell&&cell.innerText||'').replace(/\s+/g,' ').trim();}
+function sheetFilterSearchKey(value){
+  const raw=String(value||'').trim();
+  let m=raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(m)return `date${m[1]}${m[2].padStart(2,'0')}${m[3].padStart(2,'0')}`;
+  m=raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if(m)return `date${m[3]}${m[2].padStart(2,'0')}${m[1].padStart(2,'0')}`;
+  return normalizeLookupText(raw);
+}
 function applySheetColumnFilters(table){
   if(!table||!SHEET_FILTER_TABLES.has(table.id))return;
   const filters=SHEET_COL_FILTERS[table.id]||{};
@@ -1286,10 +1294,15 @@ function openSheetFilterMenu(event,table,col,th){
   menu.style.left=left+'px';menu.style.top=top+'px';
   const input=menu.querySelector('input');
   input.addEventListener('input',()=>{
-    const q=normalizeLookupText(input.value);
+    const q=sheetFilterSearchKey(input.value);
     menu.querySelectorAll('.sheet-filter-value').forEach(btn=>{
-      btn.style.display=!q||normalizeLookupText(btn.textContent).includes(q)?'':'none';
+      btn.style.display=!q||sheetFilterSearchKey(btn.textContent).includes(q)?'':'none';
     });
+  });
+  input.addEventListener('keydown',e=>{
+    if(e.key!=='Enter')return;
+    const visible=[...menu.querySelectorAll('.sheet-filter-value')].filter(btn=>btn.style.display!=='none');
+    if(visible.length===1)visible[0].click();
   });
   menu.addEventListener('click',e=>{
     const action=e.target.closest('[data-action]')?.dataset.action;
@@ -3424,7 +3437,8 @@ function renderKTRaw(){
   if(kw)source=source.filter(r=>matchesKeyword(r,kw));
   let html='<thead><tr><th class="l">Ngày</th><th class="l">Diễn giải</th><th>Ghi nợ</th><th>Ghi có</th><th class="l">TK</th><th class="l">Chi nhánh</th><th class="l">Loại</th></tr></thead><tbody>';
   source.slice(0,300).forEach(r=>{
-    html+=`<tr><td class="l">${r.date||''}</td><td class="l" style="max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}</td><td>${fmt(r.debit)}</td><td>${fmt(r.credit)}</td><td class="l">${r.account}</td><td class="l">${r.branch}</td><td class="l">${r.type}</td></tr>`;
+    const isoDate=storageISODate(r.date),displayDate=isoDate?isoDate.split('-').reverse().join('/'):(r.date||'');
+    html+=`<tr><td class="l">${displayDate}</td><td class="l" style="max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.content}</td><td>${fmt(r.debit)}</td><td>${fmt(r.credit)}</td><td class="l">${r.account}</td><td class="l">${r.branch}</td><td class="l">${r.type}</td></tr>`;
   });
   if(source.length===0)html+='<tr><td class="l small" colspan="7">Không có dữ liệu đúng bộ lọc đã chọn</td></tr>';
   html+='</tbody>';
