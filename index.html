@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-29-V78-TOOLTIP-TOTAL-ROW -->
+<!-- J24 BUILD 2026-07-29-V81-BALANCE-TABLE-CHART-BOTTOM -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -170,6 +170,20 @@ tr:hover td{background:var(--surface2);}
 .bal-kpi-square .box .ic{font-size:18px;line-height:1;}
 .bal-kpi-square .box .v{font-family:var(--mono);font-size:14px;font-weight:800;line-height:1.2;overflow-wrap:anywhere;}
 .bal-kpi-square .box .l{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;font-weight:700;line-height:1.3;}
+.bal-table-card{padding:0;overflow:hidden;border-color:#cfc2b1;}
+.bal-table-title{padding:9px 12px;background:linear-gradient(90deg,#2c4a52,#356c5a);color:#fff;font-size:12px;font-weight:800;letter-spacing:.035em;}
+.bal-table-scroll{max-height:500px;overflow:auto;}
+#bal-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;}
+#bal-table th,#bal-table td{height:32px;padding:6px 9px;border-right:1px solid #d9cdbd;border-bottom:1px solid #ddd1c1;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#bal-table th{position:sticky;top:0;z-index:5;background:#e9e2d7;color:#4f493f;font-weight:800;text-align:center;border-top:0;border-bottom:2px solid #bfae98;}
+#bal-table th:first-child,#bal-table td:first-child{width:23%;}
+#bal-table th:nth-child(2),#bal-table td:nth-child(2){width:13%;}
+#bal-table th:nth-child(n+3),#bal-table td:nth-child(n+3){width:16%;text-align:right;font-family:var(--mono);}
+#bal-table tbody tr:nth-child(even):not(.tot) td{background:#fcfaf6;}
+#bal-table tbody tr:hover td{background:#f3eee5;}
+#bal-table tbody tr.tot td{background:#e8eee9!important;border-top:1px solid #9eb4a7;border-bottom:2px solid #789889;font-weight:800;}
+#bal-table td:last-child,#bal-table th:last-child{border-right:0;}
+.bal-chart-bottom{margin-top:12px;margin-bottom:0;}
 .kpi .box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;}
 .kpi .box .v{font-family:var(--mono);font-size:17px;font-weight:600;color:var(--text);}
 .kpi .box .l{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-top:4px;}
@@ -794,11 +808,14 @@ td{
         </div>
       </div>
       <div class="kpi bal-kpi-square" id="bal-kpi"></div>
-      <div class="chart-card" style="margin-bottom:12px">
+      <div class="card bal-table-card">
+        <div class="bal-table-title">CHI TIẾT PHÁT SINH VÀ SỐ DƯ NGÂN HÀNG</div>
+        <div class="bal-table-scroll"><table id="bal-table"></table></div>
+      </div>
+      <div class="chart-card bal-chart-bottom">
         <h3 id="bal-chart-title">📈 Xu hướng số dư theo thời gian</h3>
         <div class="chart-wrap" style="height:260px"><canvas id="bal-chart"></canvas></div>
       </div>
-      <div class="card"><div class="scroll" style="max-height:500px;overflow-y:auto"><table id="bal-table"></table></div></div>
     </section>
 
     <!-- PAGE 8: BAO CAO KHO TONG -->
