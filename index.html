@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-29-V77-B2-AUTO-MART-FROM-CONTENT -->
+<!-- J24 BUILD 2026-07-29-V79-BANK-TABLE-FIT-FRAME -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -187,8 +187,8 @@ tr:hover td{background:var(--surface2);}
 .bk-report-card{padding-bottom:10px;overflow:visible;}
 .bk-report-title{background:linear-gradient(90deg,#315f8c 0%,#315f8c 49.8%,#2f7d52 50.2%,#2f7d52 100%);position:sticky;top:56px;z-index:18;box-shadow:0 2px 4px rgba(0,0,0,.12);}
 .bk-daily-scroll{max-height:calc(100vh - 210px);min-height:260px;overflow:auto;border:1px solid var(--border);border-top:0;}
-.bk-daily-table{width:max-content;min-width:100%;table-layout:fixed;}
-.bk-daily-table th,.bk-daily-table td{border:1px solid var(--border);padding:5px 7px;font-size:10px;height:30px;}
+.bk-daily-table{width:100%;min-width:980px;table-layout:fixed;}
+.bk-daily-table th,.bk-daily-table td{border:1px solid var(--border);padding:5px 4px;font-size:9.5px;height:30px;}
 .bk-daily-table th{position:sticky;background:#5d2a0e;color:#fff;text-align:center;white-space:normal;line-height:1.2;text-transform:none;letter-spacing:0;vertical-align:middle;}
 .bk-daily-table thead tr:first-child th{top:0;background:#2c4a52;font-size:10.5px;z-index:12;}
 .bk-daily-table thead tr:nth-child(2) th{top:31px;background:#6a2d0b;z-index:11;}
@@ -196,10 +196,10 @@ tr:hover td{background:var(--surface2);}
 .bk-daily-table thead tr:first-child th.bk-m2-head{background:#2f7d52;}
 .bk-daily-table thead tr:nth-child(2) th:nth-child(-n+5){background:#4477a8;}
 .bk-daily-table thead tr:nth-child(2) th:nth-child(n+6){background:#438b63;}
-.bk-daily-table th:first-child,.bk-daily-table td:first-child{width:48px;text-align:center;}
-.bk-daily-table th:nth-child(n+2):nth-child(-n+11),.bk-daily-table td:nth-child(n+2):nth-child(-n+11){width:112px;}
-.bk-daily-table th:nth-child(12),.bk-daily-table td:nth-child(12){width:120px;}
-.bk-daily-table th:last-child,.bk-daily-table td:last-child{width:230px;max-width:230px;}
+.bk-daily-table th:first-child,.bk-daily-table td:first-child{width:4%;text-align:center;}
+.bk-daily-table th:nth-child(n+2):nth-child(-n+11),.bk-daily-table td:nth-child(n+2):nth-child(-n+11){width:7.3%;}
+.bk-daily-table th:nth-child(12),.bk-daily-table td:nth-child(12){width:9%;}
+.bk-daily-table th:last-child,.bk-daily-table td:last-child{width:14%;max-width:none;}
 .bk-daily-table .bk-day{font-style:normal;font-weight:800;background:#eff4f1;}
 .bk-daily-table .bk-opening-row td{background:#dfe9e5;font-weight:800;border-bottom:2px solid #78978b;}
 .bk-daily-table .bk-opening-row .bk-day{font-style:normal;color:#234f45;line-height:1.15;}
@@ -4526,7 +4526,7 @@ function renderBK(){
           ?`(${fmt(Math.abs(r.amount))})`
           :fmt(r.amount);
         return `• ${amount} — ${r.content||'Không có nội dung'}`;
-      })].join('\n')
+      }),'────────────',`TỔNG: ${fmt(list.reduce((sum,r)=>sum+Math.abs(Number(r.amount)||0),0))}`].join('\n')
       :'';
     const m1QttPosted=qttTip(x.m1QttPosted),m2QttPosted=qttTip(x.m2QttPosted);
     const m1ThuUnpostedTip=unpostedTip('Thu không hoạch toán vào Kiot',x.m1ThuUnpostedDetails);
