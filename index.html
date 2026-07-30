@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-30-V83-BANK-BALANCE-MATRIX -->
+<!-- J24 BUILD 2026-07-30-V85-BANK-MATRIX-ONE-BRANCH-COLUMN -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -178,7 +178,7 @@ tr:hover td{background:var(--surface2);}
 .bal-table-card{padding:0;overflow:hidden;border-color:#c9bba9;border-radius:12px;box-shadow:0 5px 18px rgba(55,43,29,.08);}
 .bal-table-title{padding:11px 14px;background:linear-gradient(100deg,#263f49 0%,#2c6256 62%,#397d62 100%);color:#fff;font-size:12px;font-weight:900;letter-spacing:.045em;box-shadow:inset 0 -1px rgba(255,255,255,.12);}
 .bal-table-scroll{max-height:500px;overflow:auto;}
-#bal-table{width:100%;min-width:1180px;border-collapse:separate;border-spacing:0;table-layout:fixed;}
+#bal-table{width:100%;min-width:0;border-collapse:separate;border-spacing:0;table-layout:fixed;}
 #bal-table th,#bal-table td{height:34px;padding:7px 10px;border-right:1px solid #ddd4c8;border-bottom:1px solid #e3dacd;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 #bal-table th{position:sticky;top:0;z-index:5;background:linear-gradient(#eee9e1,#e4ddd2);color:#49443c;font-weight:900;text-align:center;border-top:0;border-bottom:2px solid #b9a892;text-transform:uppercase;font-size:9.5px;letter-spacing:.035em;}
 #bal-table td{font-family:var(--mono);text-align:right;}
@@ -199,6 +199,7 @@ tr:hover td{background:var(--surface2);}
 .bal-balance-pill{display:inline-block;min-width:82px;padding:3px 8px;border-radius:12px;background:#e7f0f5;color:#28566f;font-weight:900;text-align:right;box-shadow:inset 0 0 0 1px #c4d7e1;}
 .bal-balance-pill.negative{background:#fde9e7;color:#b8332b;box-shadow:inset 0 0 0 1px #efc4bf;}
 .bal-matrix .bal-matrix-title{position:sticky;top:0;z-index:9;background:linear-gradient(90deg,#f1c3a4,#f7d4b9)!important;color:#412f24!important;font-size:13px!important;letter-spacing:.05em;border-bottom:1px solid #9e7258!important;}
+.bal-matrix th,.bal-matrix td{padding:6px 4px!important;font-size:9px;}
 .bal-matrix .bal-group-head{position:sticky;top:34px;z-index:8;font-size:11px!important;color:#253841!important;border-bottom:1px solid #7e8890!important;}
 .bal-matrix .bal-group-tp{background:linear-gradient(90deg,#e488e9,#d88ee8)!important;}
 .bal-matrix .bal-group-vt{background:linear-gradient(90deg,#72cbea,#7eddb9)!important;}
@@ -4117,6 +4118,9 @@ async function renderBalance(){
       const short=d=>d?`${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(0,4)}`:'';
       return from===to?short(from):`${short(from)}–${short(to)}`;
     })();
+    const matrixTitle=from.slice(0,7)===to.slice(0,7)
+      ?`SỐ DƯ NGÂN HÀNG THÁNG ${Number(from.slice(5,7))}`
+      :`SỐ DƯ NGÂN HÀNG ${periodLabel}`;
     const summaries=[...balanceSummary.values()];
     const tpMap=new Map(summaries.filter(x=>x.src==='tp').map(x=>[x.branch,x]));
     const vtMap=new Map(summaries.filter(x=>x.src==='vt').map(x=>[x.branch,x]));
@@ -4131,42 +4135,41 @@ async function renderBalance(){
       ?`<td class="${cls} bal-empty">–</td>`
       :`<td class="${cls}">${fmt(value)}</td>`;
     const accountCell=(value,cls='')=>`<td class="${cls} bal-account">${thtcEsc(value||'–')}</td>`;
-    const pairCells=(item,side)=>{
-      if(!item)return `<td class="l bal-empty">–</td>${accountCell('', '')}${moneyCell(null)}${moneyCell(null)}${moneyCell(null)}${moneyCell(null,side==='tp'?'bal-tp-close':'bal-vt-close')}`;
-      return `<td class="l"><span class="bal-branch-name">${thtcEsc(item.branch)}</span></td>`
-        +accountCell(item.account)
+    const financialCells=(item,side)=>{
+      if(!item)return `${accountCell('', '')}${moneyCell(null)}${moneyCell(null)}${moneyCell(null)}${moneyCell(null,side==='tp'?'bal-tp-close':'bal-vt-close')}`;
+      return accountCell(item.account)
         +moneyCell(item.opening,'bal-opening')
         +moneyCell(item.credit,'bal-credit')
         +moneyCell(item.debit,'bal-debit')
         +moneyCell(item.closing,side==='tp'?'bal-tp-close':'bal-vt-close');
     };
     const colgroup=`<colgroup>
-      <col style="width:72px"><col style="width:72px"><col style="width:138px"><col style="width:100px">
-      <col style="width:102px"><col style="width:82px"><col style="width:82px"><col style="width:102px">
-      <col style="width:138px"><col style="width:100px"><col style="width:102px"><col style="width:82px"><col style="width:82px"><col style="width:102px">
+      <col style="width:5%">
+      <col style="width:15%"><col style="width:9%"><col style="width:8%"><col style="width:7%"><col style="width:7%"><col style="width:9%">
+      <col style="width:9%"><col style="width:8%"><col style="width:7%"><col style="width:7%"><col style="width:9%">
     </colgroup>`;
     html=colgroup+`<thead>
-      <tr><th colspan="14" class="bal-matrix-title">SỐ DƯ TÀI KHOẢN NGÂN HÀNG</th></tr>
-      <tr><th rowspan="2">Nhóm</th><th colspan="7" class="bal-group-head bal-group-tp">TP BANK</th><th colspan="6" class="bal-group-head bal-group-vt">VIETIN BANK</th></tr>
+      <tr><th colspan="12" class="bal-matrix-title">${matrixTitle}</th></tr>
+      <tr><th rowspan="2">Nhóm</th><th colspan="6" class="bal-group-head bal-group-tp">TP BANK</th><th colspan="5" class="bal-group-head bal-group-vt">VIETIN BANK</th></tr>
       <tr>
-        <th class="bal-sub-head bal-sub-tp">Tháng</th><th class="bal-sub-head bal-sub-tp">Chi nhánh</th><th class="bal-sub-head bal-sub-tp">STK</th><th class="bal-sub-head bal-sub-tp">Dư đầu kỳ</th><th class="bal-sub-head bal-sub-tp">Thu</th><th class="bal-sub-head bal-sub-tp">Chi</th><th class="bal-sub-head bal-sub-tp">Dư cuối kỳ</th>
-        <th class="bal-sub-head bal-sub-vt">Chi nhánh</th><th class="bal-sub-head bal-sub-vt">STK</th><th class="bal-sub-head bal-sub-vt">Dư đầu kỳ</th><th class="bal-sub-head bal-sub-vt">Thu</th><th class="bal-sub-head bal-sub-vt">Chi</th><th class="bal-sub-head bal-sub-vt">Dư cuối kỳ</th>
+        <th class="bal-sub-head bal-sub-tp">Chi nhánh</th><th class="bal-sub-head bal-sub-tp">STK</th><th class="bal-sub-head bal-sub-tp">Dư đầu kỳ</th><th class="bal-sub-head bal-sub-tp">Thu</th><th class="bal-sub-head bal-sub-tp">Chi</th><th class="bal-sub-head bal-sub-tp">Dư cuối kỳ</th>
+        <th class="bal-sub-head bal-sub-vt">STK</th><th class="bal-sub-head bal-sub-vt">Dư đầu kỳ</th><th class="bal-sub-head bal-sub-vt">Thu</th><th class="bal-sub-head bal-sub-vt">Chi</th><th class="bal-sub-head bal-sub-vt">Dư cuối kỳ</th>
       </tr></thead><tbody>`;
     retailBranches.forEach((branch,index)=>{
       html+='<tr class="bal-data-row">';
       if(index===0)html+=`<td rowspan="${Math.max(1,retailBranches.length)}" class="bal-group-cell">TK THU<br>BÁN HÀNG</td>`;
-      html+=`<td class="bal-month">${periodLabel}</td>${pairCells(tpMap.get(branch),'tp')}${pairCells(vtMap.get(branch),'vt')}</tr>`;
+      html+=`<td class="l"><span class="bal-branch-name">${thtcEsc(branch)}</span></td>${financialCells(tpMap.get(branch),'tp')}${financialCells(vtMap.get(branch),'vt')}</tr>`;
     });
-    if(retailBranches.length&&ktRows.length)html+='<tr class="bal-separator"><td colspan="14"></td></tr>';
+    if(retailBranches.length&&ktRows.length)html+='<tr class="bal-separator"><td colspan="12"></td></tr>';
     ktRows.forEach((item,index)=>{
       const mart=bkBankMart({account:item.account,branch:item.branch});
       const martLabel=mart==='m1'?'J24 MART 1':(mart==='m2'?'J24 MART 2':item.branch);
       const tpItem={...item,branch:martLabel};
       html+='<tr class="bal-data-row">';
       if(index===0)html+=`<td rowspan="${Math.max(1,ktRows.length)}" class="bal-group-cell bal-common-cell">THU CHI<br>CHUNG</td>`;
-      html+=`<td class="bal-month">${periodLabel}</td>${pairCells(tpItem,'tp')}${pairCells(null,'vt')}</tr>`;
+      html+=`<td class="l"><span class="bal-branch-name">${thtcEsc(martLabel)}</span></td>${financialCells(tpItem,'tp')}${financialCells(null,'vt')}</tr>`;
     });
-    if(!retailBranches.length&&!ktRows.length)html+='<tr><td colspan="14" class="l small">Không có dữ liệu trong khoảng ngày đã chọn</td></tr>';
+    if(!retailBranches.length&&!ktRows.length)html+='<tr><td colspan="12" class="l small">Không có dữ liệu trong khoảng ngày đã chọn</td></tr>';
     // KPI render SAU vòng lặp — lúc này totClosingActual đã được tính đầy đủ
     document.getElementById('bal-kpi').innerHTML=`
       <div class="box"><span class="ic">💰</span><div class="v">${totOpening?fmt(totOpening):'—'}</div><div class="l">Dư đầu kỳ</div></div>
