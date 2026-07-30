@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-30-V82-PREMIUM-BANK-BALANCE -->
+<!-- J24 BUILD 2026-07-30-V83-BANK-BALANCE-MATRIX -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -178,12 +178,11 @@ tr:hover td{background:var(--surface2);}
 .bal-table-card{padding:0;overflow:hidden;border-color:#c9bba9;border-radius:12px;box-shadow:0 5px 18px rgba(55,43,29,.08);}
 .bal-table-title{padding:11px 14px;background:linear-gradient(100deg,#263f49 0%,#2c6256 62%,#397d62 100%);color:#fff;font-size:12px;font-weight:900;letter-spacing:.045em;box-shadow:inset 0 -1px rgba(255,255,255,.12);}
 .bal-table-scroll{max-height:500px;overflow:auto;}
-#bal-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;}
+#bal-table{width:100%;min-width:1180px;border-collapse:separate;border-spacing:0;table-layout:fixed;}
 #bal-table th,#bal-table td{height:34px;padding:7px 10px;border-right:1px solid #ddd4c8;border-bottom:1px solid #e3dacd;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 #bal-table th{position:sticky;top:0;z-index:5;background:linear-gradient(#eee9e1,#e4ddd2);color:#49443c;font-weight:900;text-align:center;border-top:0;border-bottom:2px solid #b9a892;text-transform:uppercase;font-size:9.5px;letter-spacing:.035em;}
-#bal-table th:first-child,#bal-table td:first-child{width:23%;}
-#bal-table th:nth-child(2),#bal-table td:nth-child(2){width:13%;}
-#bal-table th:nth-child(n+3),#bal-table td:nth-child(n+3){width:16%;text-align:right;font-family:var(--mono);}
+#bal-table td{font-family:var(--mono);text-align:right;}
+#bal-table td.l{font-family:var(--sans);text-align:left;}
 #bal-table tbody tr.bal-data-row:nth-child(even) td{background:#fcfaf7;}
 #bal-table tbody tr.bal-data-row:hover td{background:#f4f0e9;transition:background .12s;}
 #bal-table tbody tr.tot td{background:linear-gradient(90deg,#e7efeb,#edf3ef)!important;border-top:1px solid #99b0a3;border-bottom:2px solid #6f8f7e;font-weight:900;}
@@ -199,6 +198,22 @@ tr:hover td{background:var(--surface2);}
 .bal-credit{background:#eaf7ef!important;color:#267a4c!important;font-weight:800;}
 .bal-balance-pill{display:inline-block;min-width:82px;padding:3px 8px;border-radius:12px;background:#e7f0f5;color:#28566f;font-weight:900;text-align:right;box-shadow:inset 0 0 0 1px #c4d7e1;}
 .bal-balance-pill.negative{background:#fde9e7;color:#b8332b;box-shadow:inset 0 0 0 1px #efc4bf;}
+.bal-matrix .bal-matrix-title{position:sticky;top:0;z-index:9;background:linear-gradient(90deg,#f1c3a4,#f7d4b9)!important;color:#412f24!important;font-size:13px!important;letter-spacing:.05em;border-bottom:1px solid #9e7258!important;}
+.bal-matrix .bal-group-head{position:sticky;top:34px;z-index:8;font-size:11px!important;color:#253841!important;border-bottom:1px solid #7e8890!important;}
+.bal-matrix .bal-group-tp{background:linear-gradient(90deg,#e488e9,#d88ee8)!important;}
+.bal-matrix .bal-group-vt{background:linear-gradient(90deg,#72cbea,#7eddb9)!important;}
+.bal-matrix .bal-sub-head{position:sticky;top:68px;z-index:7;white-space:normal;line-height:1.15;height:38px!important;text-transform:none;font-size:9.5px!important;}
+.bal-matrix .bal-sub-tp{background:#efb6f2!important;color:#47294b!important;}
+.bal-matrix .bal-sub-vt{background:#a5efd0!important;color:#234c3b!important;}
+.bal-matrix .bal-group-cell{font-family:var(--sans)!important;text-align:center!important;font-weight:900!important;white-space:normal!important;line-height:1.35;color:#34454c;background:#eef2ef!important;}
+.bal-matrix .bal-common-cell{background:#f5eee3!important;color:#79502f;}
+.bal-matrix .bal-month{text-align:center!important;color:#665d52;font-weight:700;}
+.bal-matrix .bal-account{text-align:center!important;color:#52646c;font-size:9.5px;}
+.bal-matrix .bal-tp-close{background:#f2b6f3!important;color:#6d2370!important;font-weight:900;}
+.bal-matrix .bal-vt-close{background:#9befc8!important;color:#1f6947!important;font-weight:900;}
+.bal-matrix .bal-separator td{height:5px!important;padding:0!important;background:#d8d0c4!important;border-bottom:1px solid #988d7e!important;}
+.bal-matrix tbody tr:hover td:not(.bal-group-cell){filter:brightness(.97);}
+.bal-matrix .bal-empty{color:#b8afa4;text-align:center!important;}
 .bal-chart-bottom{margin-top:12px;margin-bottom:0;}
 @media(max-width:1050px){.bal-kpi-square{grid-template-columns:repeat(3,minmax(145px,1fr));}}
 .kpi .box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;}
@@ -827,7 +842,7 @@ td{
       <div class="kpi bal-kpi-square" id="bal-kpi"></div>
       <div class="card bal-table-card">
         <div class="bal-table-title">CHI TIẾT PHÁT SINH VÀ SỐ DƯ NGÂN HÀNG</div>
-        <div class="bal-table-scroll"><table id="bal-table"></table></div>
+        <div class="bal-table-scroll"><table id="bal-table" class="bal-matrix"></table></div>
       </div>
       <div class="chart-card bal-chart-bottom">
         <h3 id="bal-chart-title">📈 Xu hướng số dư theo thời gian</h3>
@@ -4046,10 +4061,19 @@ async function renderBalance(){
     const groups=[...new Set(rows.map(r=>r.groupKey))];
     const totOpening=groups.reduce((s,g)=>s+(openingBal[g]??0),0);
     let totClosingActual=0, hasClosing=false;
-    let html='<thead><tr><th class="l">Chi nhánh</th><th class="l">'+(view==='month'?'Tháng':'Ngày')+'</th><th>Dư đầu kỳ</th><th>Chi</th><th>Thu</th><th>Dư cuối kỳ</th></tr></thead><tbody>';
+    let html='';
     let firstGroup = true;
     let lastSrc = null;
     const groupSeries = {}; // gk -> [{period, closeBal}] theo thứ tự thời gian, dùng để vẽ sơ đồ xu hướng
+    const balanceSummary=new Map();
+    const groupAccount={};
+    data.forEach(r=>{
+      const gk=groupKeyOf(r);
+      if(!groupAccount[gk]){
+        const acc=String(r.account||r.tid||'').replace(/^TID\s*/i,'').trim();
+        if(acc)groupAccount[gk]=acc;
+      }
+    });
     groups.forEach(gk=>{
       const grRows=rows.filter(r=>r.groupKey===gk);
       const branchName = grRows[0].branch;
@@ -4080,10 +4104,69 @@ async function renderBalance(){
         html+='<tr class="bal-data-row"><td class="l" style="'+rowTop+'">'+(i===0?label:'')+'</td><td class="l" style="'+rowTop+'">'+r.period+'</td><td class="bal-opening" style="'+rowTop+'">'+(openBal!==null?fmt(openBal):'\u2014')+'</td><td class="'+(r.debit?'bal-debit':'')+'" style="'+rowTop+'">'+(r.debit?fmt(r.debit):'\u2014')+'</td><td class="'+(r.credit?'bal-credit':'')+'" style="'+rowTop+'">'+(r.credit?fmt(r.credit):'\u2014')+'</td><td style="'+rowTop+'">'+(closeBal!==null?'<span class="bal-balance-pill'+closeClass+'">'+fmt(closeBal)+'</span>':'\u2014')+'</td></tr>';
       });
       if(runBal!==null){ totClosingActual+=runBal; hasClosing=true; }
+      balanceSummary.set(gk,{
+        groupKey:gk,src:rowSrc,branch:branchName,account:groupAccount[gk]||'',
+        opening:openingBal[gk]??null,debit:td,credit:tc,closing:runBal
+      });
       if(grRows.length>1){
         html+='<tr class="tot"><td class="l">'+label+' — Cộng</td><td></td><td>'+(openingBal[gk]!=null?fmt(openingBal[gk]):'\u2014')+'</td><td>'+(td?fmt(td):'\u2014')+'</td><td>'+(tc?fmt(tc):'\u2014')+'</td><td>'+(runBal!==null?'<span class="bal-balance-pill'+(runBal<0?' negative':'')+'">'+fmt(runBal)+'</span>':'\u2014')+'</td></tr>';
       }
     });
+    const periodLabel=(()=>{
+      if(view==='month'&&from.slice(0,7)===to.slice(0,7))return `${Number(from.slice(5,7))}/${from.slice(0,4)}`;
+      const short=d=>d?`${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(0,4)}`:'';
+      return from===to?short(from):`${short(from)}–${short(to)}`;
+    })();
+    const summaries=[...balanceSummary.values()];
+    const tpMap=new Map(summaries.filter(x=>x.src==='tp').map(x=>[x.branch,x]));
+    const vtMap=new Map(summaries.filter(x=>x.src==='vt').map(x=>[x.branch,x]));
+    const knownOrder=new Map(BRANCHES.map((b,i)=>[b,i]));
+    const retailBranches=[...new Set([...tpMap.keys(),...vtMap.keys()])].sort((a,b)=>
+      (knownOrder.get(a)??999)-(knownOrder.get(b)??999)||a.localeCompare(b,'vi'));
+    const ktRows=summaries.filter(x=>x.src==='kt').sort((a,b)=>{
+      const am=bkBankMart({account:a.account,branch:a.branch}),bm=bkBankMart({account:b.account,branch:b.branch});
+      return am.localeCompare(bm);
+    });
+    const moneyCell=(value,cls='')=>value==null
+      ?`<td class="${cls} bal-empty">–</td>`
+      :`<td class="${cls}">${fmt(value)}</td>`;
+    const accountCell=(value,cls='')=>`<td class="${cls} bal-account">${thtcEsc(value||'–')}</td>`;
+    const pairCells=(item,side)=>{
+      if(!item)return `<td class="l bal-empty">–</td>${accountCell('', '')}${moneyCell(null)}${moneyCell(null)}${moneyCell(null)}${moneyCell(null,side==='tp'?'bal-tp-close':'bal-vt-close')}`;
+      return `<td class="l"><span class="bal-branch-name">${thtcEsc(item.branch)}</span></td>`
+        +accountCell(item.account)
+        +moneyCell(item.opening,'bal-opening')
+        +moneyCell(item.credit,'bal-credit')
+        +moneyCell(item.debit,'bal-debit')
+        +moneyCell(item.closing,side==='tp'?'bal-tp-close':'bal-vt-close');
+    };
+    const colgroup=`<colgroup>
+      <col style="width:72px"><col style="width:72px"><col style="width:138px"><col style="width:100px">
+      <col style="width:102px"><col style="width:82px"><col style="width:82px"><col style="width:102px">
+      <col style="width:138px"><col style="width:100px"><col style="width:102px"><col style="width:82px"><col style="width:82px"><col style="width:102px">
+    </colgroup>`;
+    html=colgroup+`<thead>
+      <tr><th colspan="14" class="bal-matrix-title">SỐ DƯ TÀI KHOẢN NGÂN HÀNG</th></tr>
+      <tr><th rowspan="2">Nhóm</th><th colspan="7" class="bal-group-head bal-group-tp">TP BANK</th><th colspan="6" class="bal-group-head bal-group-vt">VIETIN BANK</th></tr>
+      <tr>
+        <th class="bal-sub-head bal-sub-tp">Tháng</th><th class="bal-sub-head bal-sub-tp">Chi nhánh</th><th class="bal-sub-head bal-sub-tp">STK</th><th class="bal-sub-head bal-sub-tp">Dư đầu kỳ</th><th class="bal-sub-head bal-sub-tp">Thu</th><th class="bal-sub-head bal-sub-tp">Chi</th><th class="bal-sub-head bal-sub-tp">Dư cuối kỳ</th>
+        <th class="bal-sub-head bal-sub-vt">Chi nhánh</th><th class="bal-sub-head bal-sub-vt">STK</th><th class="bal-sub-head bal-sub-vt">Dư đầu kỳ</th><th class="bal-sub-head bal-sub-vt">Thu</th><th class="bal-sub-head bal-sub-vt">Chi</th><th class="bal-sub-head bal-sub-vt">Dư cuối kỳ</th>
+      </tr></thead><tbody>`;
+    retailBranches.forEach((branch,index)=>{
+      html+='<tr class="bal-data-row">';
+      if(index===0)html+=`<td rowspan="${Math.max(1,retailBranches.length)}" class="bal-group-cell">TK THU<br>BÁN HÀNG</td>`;
+      html+=`<td class="bal-month">${periodLabel}</td>${pairCells(tpMap.get(branch),'tp')}${pairCells(vtMap.get(branch),'vt')}</tr>`;
+    });
+    if(retailBranches.length&&ktRows.length)html+='<tr class="bal-separator"><td colspan="14"></td></tr>';
+    ktRows.forEach((item,index)=>{
+      const mart=bkBankMart({account:item.account,branch:item.branch});
+      const martLabel=mart==='m1'?'J24 MART 1':(mart==='m2'?'J24 MART 2':item.branch);
+      const tpItem={...item,branch:martLabel};
+      html+='<tr class="bal-data-row">';
+      if(index===0)html+=`<td rowspan="${Math.max(1,ktRows.length)}" class="bal-group-cell bal-common-cell">THU CHI<br>CHUNG</td>`;
+      html+=`<td class="bal-month">${periodLabel}</td>${pairCells(tpItem,'tp')}${pairCells(null,'vt')}</tr>`;
+    });
+    if(!retailBranches.length&&!ktRows.length)html+='<tr><td colspan="14" class="l small">Không có dữ liệu trong khoảng ngày đã chọn</td></tr>';
     // KPI render SAU vòng lặp — lúc này totClosingActual đã được tính đầy đủ
     document.getElementById('bal-kpi').innerHTML=`
       <div class="box"><span class="ic">💰</span><div class="v">${totOpening?fmt(totOpening):'—'}</div><div class="l">Dư đầu kỳ</div></div>
@@ -4112,7 +4195,6 @@ async function renderBalance(){
       _charts['balChart'].destroy();
     }
 
-    if(rows.length===0) html+='<tr><td class="l small" colspan="6">Không có dữ liệu trong khoảng ngày đã chọn</td></tr>';
     html+='</tbody>';
     document.getElementById('bal-table').innerHTML=html;
   } catch(e) {
