@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-30-V86-BALANCE-CHART-DAILY-FALLBACK -->
+<!-- J24 BUILD 2026-07-30-V88-EXCEL-THEO-MAU -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>J24 — Hệ thống Thu Chi</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -5739,9 +5739,9 @@ function exportTongHopThuChi(){
   rows.push(['A. THU TIỀN BÁN HÀNG']); x.sales.forEach(r=>push(r.name,r.vals)); push('Cộng thu bán hàng',x.salesTotal);
   rows.push(['B. CÁC KHOẢN THU KHÁC']); x.thuDetails.forEach(r=>push(r.name,r.vals)); push('Cộng thu khác',x.otherThu); push('TỔNG THU',x.totalThu);
   rows.push(['C. CÁC KHOẢN CHI']); x.chiDetails.forEach(r=>push(r.name,r.vals)); push('TỔNG CHI',x.totalChi); push('D. CÒN LẠI (THU - CHI)',x.net);
-  const ws=XLSX.utils.aoa_to_sheet(rows); ws['!cols']=[{wch:52},...x.branches.map(()=>({wch:18})),{wch:18}];
+  const ws=XLSX.utils.aoa_to_sheet(rows); styleExcelWorksheet(ws); ws['!cols']=[{wch:52},...x.branches.map(()=>({wch:18})),{wch:18}];
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Tổng hợp thu chi');
-  XLSX.writeFile(wb,'Tong-hop-thu-chi-'+todayISO()+'.xlsx');
+  downloadXLSX(wb,'Tong-hop-thu-chi-'+todayISO()+'.xlsx');
 }
 
 /* Bảng chi tiết bám theo từng dòng của file B3.TH THU CHI.
@@ -6427,9 +6427,9 @@ function exportTHTCCategoryFile(){
       :(THTC_DEFAULT_HANG.has(key)||THTC_DEFAULT_KHAC.has(key)||THTC_DEFAULT_ZERO.has(key)?'B0.Danh mục':'Chưa phân loại'));
     return [x.name,category||'CHƯA PHÂN LOẠI',x.count,source];
   }).sort((a,b)=>a[0].localeCompare(b[0],'vi')).forEach(r=>rows.push(r));
-  const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:72},{wch:22},{wch:14},{wch:30}];
+  const ws=XLSX.utils.aoa_to_sheet(rows);styleExcelWorksheet(ws);ws['!cols']=[{wch:72},{wch:22},{wch:14},{wch:30}];
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Danh mục phiếu B2');
-  XLSX.writeFile(wb,'Danh-muc-phieu-B2-'+todayISO()+'.xlsx');
+  downloadXLSX(wb,'Danh-muc-phieu-B2-'+todayISO()+'.xlsx');
 }
 
 function thtcManualKey(date,branch){return String(date||'')+'|'+String(branch||'');}
@@ -6646,8 +6646,8 @@ function exportTongHopThuChiLayout(){
     const branchVals=branches.map(b=>Number(vals[b])||0);
     rows.push([name+(detail&&!detail.category?' [CHƯA PHÂN LOẠI]':''),...branchVals,branchVals.reduce((s,v)=>s+v,0)]);
   });
-  const ws=XLSX.utils.aoa_to_sheet(rows); ws['!cols']=[{wch:58},...branches.map(()=>({wch:17})),{wch:18}];
-  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Tổng hợp thu chi'); XLSX.writeFile(wb,'Tong-hop-thu-chi-B3-'+todayISO()+'.xlsx');
+  const ws=XLSX.utils.aoa_to_sheet(rows); styleExcelWorksheet(ws); ws['!cols']=[{wch:58},...branches.map(()=>({wch:17})),{wch:18}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Tổng hợp thu chi'); downloadXLSX(wb,'Tong-hop-thu-chi-B3-'+todayISO()+'.xlsx');
 }
 
 /* ============ BACKUP & RESTORE ============ */
@@ -6666,16 +6666,109 @@ function calcStorageUsage(){
 /* ===================================================================
    EXCEL EXPORT
 =================================================================== */
+function styleExcelWorksheet(ws){
+  if(!ws||!ws['!ref'])return ws;
+  const range=XLSX.utils.decode_range(ws['!ref']);
+  const thin={style:'thin',color:{rgb:'8E8E8E'}};
+  const border={top:thin,bottom:thin,left:thin,right:thin};
+  const cellValue=(r,c)=>{
+    const cell=ws[XLSX.utils.encode_cell({r,c})];
+    return cell&&cell.v!=null?String(cell.v).trim():'';
+  };
+  // Dòng có từ 2 ô trở lên đầu tiên được xem là tiêu đề cột.
+  let headerRow=range.s.r;
+  for(let r=range.s.r;r<=Math.min(range.e.r,range.s.r+10);r++){
+    let count=0;for(let c=range.s.c;c<=range.e.c;c++)if(cellValue(r,c)!=='')count++;
+    if(count>=2){headerRow=r;break;}
+  }
+  const firstNonEmpty=[];
+  for(let r=range.s.r;r<=range.e.r;r++){
+    let found=false;for(let c=range.s.c;c<=range.e.c;c++)if(cellValue(r,c)!==''){found=true;break;}
+    if(found)firstNonEmpty.push(r);
+  }
+  for(let r=range.s.r;r<=range.e.r;r++){
+    const firstText=cellValue(r,range.s.c);
+    let nonEmpty=0;for(let c=range.s.c;c<=range.e.c;c++)if(cellValue(r,c)!=='')nonEmpty++;
+    const isTitle=r<headerRow&&nonEmpty===1;
+    const isHeader=r===headerRow;
+    const normalized=normalizeFundType(firstText);
+    const isTotal=/^(tong|cong|d\. con lai|con lai)/.test(normalized);
+    const isSection=!isTitle&&!isHeader&&nonEmpty===1&&firstText!=='';
+    for(let c=range.s.c;c<=range.e.c;c++){
+      const addr=XLSX.utils.encode_cell({r,c});
+      if(!ws[addr])ws[addr]={t:'s',v:''};
+      const cell=ws[addr];
+      const base={
+        font:{name:'Arial',sz:10,color:{rgb:'2D3436'},bold:false},
+        alignment:{vertical:'center',horizontal:cell.t==='n'?'right':'left',wrapText:false},
+        border,
+        fill:{patternType:'solid',fgColor:{rgb:r%2?'FFFFFF':'FAF7F1'}}
+      };
+      if(cell.t==='n')cell.z='#,##0;[Red](#,##0);-';
+      if(cell.t==='b')base.alignment.horizontal='center';
+      if(isHeader){
+        base.font={name:'Arial',sz:10,color:{rgb:'FFFFFF'},bold:true};
+        base.fill={patternType:'solid',fgColor:{rgb:'244B5A'}};
+        base.alignment={vertical:'center',horizontal:'center',wrapText:true};
+      }else if(isTitle){
+        base.font={name:'Arial',sz:13,color:{rgb:'FFFFFF'},bold:true};
+        base.fill={patternType:'solid',fgColor:{rgb:'C1652F'}};
+        base.alignment={vertical:'center',horizontal:'center',wrapText:true};
+      }else if(isTotal){
+        base.font={name:'Arial',sz:10,color:{rgb:'1F4F3B'},bold:true};
+        base.fill={patternType:'solid',fgColor:{rgb:'DDEBE3'}};
+      }else if(isSection){
+        base.font={name:'Arial',sz:10,color:{rgb:'244550'},bold:true};
+        base.fill={patternType:'solid',fgColor:{rgb:'E5ECEE'}};
+      }else if(c===range.s.c){
+        base.font.bold=true;
+      }
+      cell.s=base;
+    }
+    if(isTitle&&range.e.c>range.s.c){
+      ws['!merges']=ws['!merges']||[];
+      if(!ws['!merges'].some(m=>m.s.r===r&&m.s.c===range.s.c))ws['!merges'].push({s:{r,c:range.s.c},e:{r,c:range.e.c}});
+    }
+  }
+  // Tự canh độ rộng theo nội dung, có giới hạn để bảng không quá dài.
+  ws['!cols']=[];
+  for(let c=range.s.c;c<=range.e.c;c++){
+    let max=8;
+    for(let r=range.s.r;r<=Math.min(range.e.r,range.s.r+1200);r++){
+      const value=cellValue(r,c);
+      if(value)max=Math.max(max,Math.min(60,value.length+2));
+    }
+    const head=normalizeFundType(cellValue(headerRow,c));
+    let floor=10,cap=42;
+    if(/dien giai|noi dung|ghi chu|nguoi nop|nguoi nhan|loai/.test(head)){floor=22;cap=48;}
+    else if(/chi nhanh/.test(head)){floor=18;cap=28;}
+    else if(/ma phieu|tai khoan|so tai khoan/.test(head)){floor=16;cap=24;}
+    else if(/ngay|thoi gian/.test(head)){floor=13;cap=20;}
+    else if(/gia tri|ghi no|ghi co|so du|tong|thu|chi/.test(head)){floor=14;cap=18;}
+    ws['!cols'].push({wch:Math.min(cap,Math.max(floor,max))});
+  }
+  ws['!rows']=ws['!rows']||[];
+  ws['!rows'][headerRow]={hpt:30};
+  if(headerRow>range.s.r)ws['!rows'][range.s.r]={hpt:26};
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:headerRow,c:range.s.c},e:{r:range.e.r,c:range.e.c}})};
+  ws['!freeze']={xSplit:0,ySplit:headerRow+1,topLeftCell:`A${headerRow+2}`,activePane:'bottomLeft',state:'frozen'};
+  ws['!margins']={left:0.25,right:0.25,top:0.45,bottom:0.45,header:0.2,footer:0.2};
+  ws['!pageSetup']={orientation:'landscape',fitToWidth:1,fitToHeight:0,paperSize:9};
+  ws['!printOptions']={horizontalCentered:false,verticalCentered:false};
+  ws['!sheetViews']=[{showGridLines:false,zoomScale:90}];
+  return ws;
+}
 function toXLSX(sheets){ // sheets: [{name, rows:[{...}]}]
   const wb = XLSX.utils.book_new();
   sheets.forEach(({name, rows})=>{
     const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{}]);
+    styleExcelWorksheet(ws);
     XLSX.utils.book_append_sheet(wb, ws, name.slice(0,31));
   });
   return wb;
 }
 function downloadXLSX(wb, filename){
-  XLSX.writeFile(wb, filename);
+  XLSX.writeFile(wb, filename,{cellStyles:true});
 }
 
 function exportChotCa(){
@@ -6704,7 +6797,7 @@ function exportKhoTong(){
   return {name:'Kho tổng', rows};
 }
 function exportB2(){
-  const rows = B2.map(r=>({'Mã phiếu':r.maPhieu,'Ngày':r.time,'Chi nhánh':r.branch||'','Loại':r.loaiThuChi||'','Người nộp/nhận':r.person||'','Giá trị':r.amount||0,'Thu/Chi':r.flow||(Number(r.amount)>=0?'Thu':'Chi'),'Phân loại Hàng/Khác/0':thtcCategoryFor(r)||'CHƯA PHÂN LOẠI','Nội dung CK':r.noiDungCK||'','Ghi chú':r.note||'','Loại sổ quỹ':r.loaiSoQuy||'','Số tài khoản':r.soTK||r.bankAccount||'','NH phát sinh':b2MatchLabel(r),'Mart 1':!!r.mart1,'Mart 2':!!r.mart2}));
+  const rows = B2.map(r=>({'Mã phiếu':r.maPhieu,'Ngày':r.time,'Chi nhánh':r.branch||'','Loại':r.loaiThuChi||'','Người nộp/nhận':r.person||'','Giá trị':r.amount||0,'Thu/Chi':r.flow||(Number(r.amount)>=0?'Thu':'Chi'),'Phân loại Hàng/Khác/0':thtcCategoryFor(r)||'CHƯA PHÂN LOẠI','Nội dung CK':r.noiDungCK||'','Ghi chú':r.note||'','Loại sổ quỹ':r.loaiSoQuy||'','Số tài khoản':r.soTK||r.bankAccount||'','NH phát sinh':b2MatchLabel(r),'Mart 1':r.mart1?'✓':'','Mart 2':r.mart2?'✓':''}));
   return {name:'CT Thu Chi B2', rows};
 }
 function exportCaTheKV(){
