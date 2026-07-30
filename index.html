@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-29-V81-BALANCE-TABLE-CHART-BOTTOM -->
+<!-- J24 BUILD 2026-07-30-V82-PREMIUM-BANK-BALANCE -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -165,25 +165,42 @@ tr:hover td{background:var(--surface2);}
 .cc-box input{width:100%;border:none;background:transparent;font-family:var(--mono);font-size:13.5px;font-weight:600;color:var(--title);outline:none;text-align:right;padding:0;}
 .cc-box input:focus{color:var(--accent);}
 .kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:12px;}
-.bal-kpi-square{grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:10px;}
-.bal-kpi-square .box{aspect-ratio:1/1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:5px;border-radius:14px;padding:8px;}
-.bal-kpi-square .box .ic{font-size:18px;line-height:1;}
-.bal-kpi-square .box .v{font-family:var(--mono);font-size:14px;font-weight:800;line-height:1.2;overflow-wrap:anywhere;}
-.bal-kpi-square .box .l{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;font-weight:700;line-height:1.3;}
-.bal-table-card{padding:0;overflow:hidden;border-color:#cfc2b1;}
-.bal-table-title{padding:9px 12px;background:linear-gradient(90deg,#2c4a52,#356c5a);color:#fff;font-size:12px;font-weight:800;letter-spacing:.035em;}
+.bal-kpi-square{grid-template-columns:repeat(5,minmax(145px,1fr));gap:10px;}
+.bal-kpi-square .box{aspect-ratio:auto;min-height:86px;display:grid;grid-template-columns:38px 1fr;grid-template-rows:auto auto;align-items:center;justify-content:start;text-align:left;column-gap:10px;row-gap:2px;border:1px solid #ddd2c4;border-radius:12px;padding:12px 14px;position:relative;overflow:hidden;box-shadow:0 3px 10px rgba(53,43,31,.06);background:linear-gradient(145deg,#fffdfa,#f7f2ea);}
+.bal-kpi-square .box::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#7b8c93;}
+.bal-kpi-square .box:nth-child(2)::before{background:#cc5447;}
+.bal-kpi-square .box:nth-child(3)::before{background:#2f8a5a;}
+.bal-kpi-square .box:nth-child(4)::before{background:#c1652f;}
+.bal-kpi-square .box:nth-child(5)::before{background:#3976a8;}
+.bal-kpi-square .box .ic{grid-row:1/3;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:#eee8de;font-size:17px;line-height:1;}
+.bal-kpi-square .box .v{grid-column:2;font-family:var(--mono);font-size:15px;font-weight:900;line-height:1.2;overflow-wrap:anywhere;color:#273840;}
+.bal-kpi-square .box .l{grid-column:2;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.55px;font-weight:800;line-height:1.3;margin:0;}
+.bal-table-card{padding:0;overflow:hidden;border-color:#c9bba9;border-radius:12px;box-shadow:0 5px 18px rgba(55,43,29,.08);}
+.bal-table-title{padding:11px 14px;background:linear-gradient(100deg,#263f49 0%,#2c6256 62%,#397d62 100%);color:#fff;font-size:12px;font-weight:900;letter-spacing:.045em;box-shadow:inset 0 -1px rgba(255,255,255,.12);}
 .bal-table-scroll{max-height:500px;overflow:auto;}
 #bal-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;}
-#bal-table th,#bal-table td{height:32px;padding:6px 9px;border-right:1px solid #d9cdbd;border-bottom:1px solid #ddd1c1;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-#bal-table th{position:sticky;top:0;z-index:5;background:#e9e2d7;color:#4f493f;font-weight:800;text-align:center;border-top:0;border-bottom:2px solid #bfae98;}
+#bal-table th,#bal-table td{height:34px;padding:7px 10px;border-right:1px solid #ddd4c8;border-bottom:1px solid #e3dacd;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#bal-table th{position:sticky;top:0;z-index:5;background:linear-gradient(#eee9e1,#e4ddd2);color:#49443c;font-weight:900;text-align:center;border-top:0;border-bottom:2px solid #b9a892;text-transform:uppercase;font-size:9.5px;letter-spacing:.035em;}
 #bal-table th:first-child,#bal-table td:first-child{width:23%;}
 #bal-table th:nth-child(2),#bal-table td:nth-child(2){width:13%;}
 #bal-table th:nth-child(n+3),#bal-table td:nth-child(n+3){width:16%;text-align:right;font-family:var(--mono);}
-#bal-table tbody tr:nth-child(even):not(.tot) td{background:#fcfaf6;}
-#bal-table tbody tr:hover td{background:#f3eee5;}
-#bal-table tbody tr.tot td{background:#e8eee9!important;border-top:1px solid #9eb4a7;border-bottom:2px solid #789889;font-weight:800;}
+#bal-table tbody tr.bal-data-row:nth-child(even) td{background:#fcfaf7;}
+#bal-table tbody tr.bal-data-row:hover td{background:#f4f0e9;transition:background .12s;}
+#bal-table tbody tr.tot td{background:linear-gradient(90deg,#e7efeb,#edf3ef)!important;border-top:1px solid #99b0a3;border-bottom:2px solid #6f8f7e;font-weight:900;}
 #bal-table td:last-child,#bal-table th:last-child{border-right:0;}
+.bal-source-section td{height:36px!important;padding:8px 13px!important;font-family:var(--sans)!important;font-size:11px!important;font-weight:900!important;letter-spacing:.025em;border-top:2px solid transparent!important;}
+.bal-source-section.bal-src-tp td{background:linear-gradient(90deg,#e2edf7,#f5f9fc)!important;color:#2d608b!important;border-top-color:#5d8db7!important;}
+.bal-source-section.bal-src-kt td{background:linear-gradient(90deg,#eee7f5,#faf7fc)!important;color:#6c4d85!important;border-top-color:#9174aa!important;}
+.bal-source-section.bal-src-vt td{background:linear-gradient(90deg,#e2f0e8,#f6fbf8)!important;color:#2e704d!important;border-top-color:#52936f!important;}
+.bal-branch-name{font-family:var(--sans);font-weight:800;color:#273b43;}
+.bal-source-mini{display:block;font-size:8.5px;color:#8a8176;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
+.bal-opening{color:#6f685f!important;background:#faf7f1;}
+.bal-debit{background:#fff0ee!important;color:#c33f33!important;font-weight:800;}
+.bal-credit{background:#eaf7ef!important;color:#267a4c!important;font-weight:800;}
+.bal-balance-pill{display:inline-block;min-width:82px;padding:3px 8px;border-radius:12px;background:#e7f0f5;color:#28566f;font-weight:900;text-align:right;box-shadow:inset 0 0 0 1px #c4d7e1;}
+.bal-balance-pill.negative{background:#fde9e7;color:#b8332b;box-shadow:inset 0 0 0 1px #efc4bf;}
 .bal-chart-bottom{margin-top:12px;margin-bottom:0;}
+@media(max-width:1050px){.bal-kpi-square{grid-template-columns:repeat(3,minmax(145px,1fr));}}
 .kpi .box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;}
 .kpi .box .v{font-family:var(--mono);font-size:17px;font-weight:600;color:var(--text);}
 .kpi .box .l{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-top:4px;}
@@ -4038,11 +4055,11 @@ async function renderBalance(){
       const branchName = grRows[0].branch;
       const rowSrc = grRows[0].src;
       const label = src==='all'
-        ? `<span style="font-size:10px;color:var(--muted);font-weight:600">${srcLabel[rowSrc]}</span><br>${branchName}`
-        : branchName;
+        ? `<span class="bal-source-mini">${srcLabel[rowSrc]}</span><span class="bal-branch-name">${branchName}</span>`
+        : `<span class="bal-branch-name">${branchName}</span>`;
       let isNewSourceSection = false;
       if(src==='all' && rowSrc!==lastSrc){
-        html+='<tr><td colspan="6" style="background:var(--title-soft);color:var(--title);font-weight:800;font-size:12px;padding:10px 12px;border-top:'+(firstGroup?'none':'2px solid var(--title)')+'">🏦 '+srcLabel[rowSrc]+'</td></tr>';
+        html+='<tr class="bal-source-section bal-src-'+rowSrc+'"><td colspan="6">🏦 '+srcLabel[rowSrc]+'</td></tr>';
         lastSrc = rowSrc;
         isNewSourceSection = true;
       }
@@ -4059,12 +4076,12 @@ async function renderBalance(){
         runBal=closeBal;
         series.push({period:r.period, closeBal});
         const rowTop = i===0 ? groupTopBorder : '';
-        const chiSty=(r.debit?'background:var(--bad-soft);color:var(--bad);':'')+rowTop; const thuSty=(r.credit?'background:var(--good-soft);color:var(--good);':'')+rowTop;
-        html+='<tr><td class="l" style="'+rowTop+'">'+(i===0?label:'')+'</td><td class="l" style="'+rowTop+'">'+r.period+'</td><td style="color:var(--muted);'+rowTop+'">'+(openBal!==null?fmt(openBal):'\u2014')+'</td><td style="'+chiSty+'">'+( r.debit?fmt(r.debit):'\u2014')+'</td><td style="'+thuSty+'">'+( r.credit?fmt(r.credit):'\u2014')+'</td><td style="font-weight:700;'+rowTop+'">'+(closeBal!==null?fmt(closeBal):'\u2014')+'</td></tr>';
+        const closeClass=closeBal!==null&&closeBal<0?' negative':'';
+        html+='<tr class="bal-data-row"><td class="l" style="'+rowTop+'">'+(i===0?label:'')+'</td><td class="l" style="'+rowTop+'">'+r.period+'</td><td class="bal-opening" style="'+rowTop+'">'+(openBal!==null?fmt(openBal):'\u2014')+'</td><td class="'+(r.debit?'bal-debit':'')+'" style="'+rowTop+'">'+(r.debit?fmt(r.debit):'\u2014')+'</td><td class="'+(r.credit?'bal-credit':'')+'" style="'+rowTop+'">'+(r.credit?fmt(r.credit):'\u2014')+'</td><td style="'+rowTop+'">'+(closeBal!==null?'<span class="bal-balance-pill'+closeClass+'">'+fmt(closeBal)+'</span>':'\u2014')+'</td></tr>';
       });
       if(runBal!==null){ totClosingActual+=runBal; hasClosing=true; }
       if(grRows.length>1){
-        html+='<tr class="tot"><td class="l">'+label+' — Cộng</td><td></td><td style="color:var(--muted)">'+(openingBal[gk]!=null?fmt(openingBal[gk]):'\u2014')+'</td><td>'+(td?fmt(td):'\u2014')+'</td><td>'+(tc?fmt(tc):'\u2014')+'</td><td style="font-weight:700">'+(runBal!==null?fmt(runBal):'\u2014')+'</td></tr>';
+        html+='<tr class="tot"><td class="l">'+label+' — Cộng</td><td></td><td>'+(openingBal[gk]!=null?fmt(openingBal[gk]):'\u2014')+'</td><td>'+(td?fmt(td):'\u2014')+'</td><td>'+(tc?fmt(tc):'\u2014')+'</td><td>'+(runBal!==null?'<span class="bal-balance-pill'+(runBal<0?' negative':'')+'">'+fmt(runBal)+'</span>':'\u2014')+'</td></tr>';
       }
     });
     // KPI render SAU vòng lặp — lúc này totClosingActual đã được tính đầy đủ
@@ -4072,7 +4089,7 @@ async function renderBalance(){
       <div class="box"><span class="ic">💰</span><div class="v">${totOpening?fmt(totOpening):'—'}</div><div class="l">Dư đầu kỳ</div></div>
       <div class="box"><span class="ic">📉</span><div class="v" style="color:var(--bad)">${totDebit?fmt(totDebit):'—'}</div><div class="l">Tổng Chi</div></div>
       <div class="box"><span class="ic">📈</span><div class="v" style="color:var(--good)">${totCredit?fmt(totCredit):'—'}</div><div class="l">Tổng Thu</div></div>
-      <div class="box" style="border-color:var(--accent);background:linear-gradient(135deg,rgba(193,101,47,.1),transparent)"><span class="ic">🏦</span><div class="v">${hasClosing?fmt(totClosingActual):'—'}</div><div class="l">Dư cuối kỳ</div></div>
+      <div class="box"><span class="ic">🏦</span><div class="v">${hasClosing?fmt(totClosingActual):'—'}</div><div class="l">Dư cuối kỳ</div></div>
       <div class="box"><span class="ic">🏢</span><div class="v">${groups.length}</div><div class="l">Số chi nhánh${src==='all'?' (theo nguồn)':''}</div></div>`;
     // Sơ đồ xu hướng số dư theo thời gian — tổng số dư tất cả nhóm đang hiển thị, theo từng kỳ
     const allPeriods = [...new Set(rows.map(r=>r.period))].sort();
