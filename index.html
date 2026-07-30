@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-30-V85-BANK-MATRIX-ONE-BRANCH-COLUMN -->
+<!-- J24 BUILD 2026-07-30-V86-BALANCE-CHART-DAILY-FALLBACK -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -4179,9 +4179,39 @@ async function renderBalance(){
       <div class="box"><span class="ic">🏢</span><div class="v">${groups.length}</div><div class="l">Số chi nhánh${src==='all'?' (theo nguồn)':''}</div></div>`;
     // Sơ đồ xu hướng số dư theo thời gian — tổng số dư tất cả nhóm đang hiển thị, theo từng kỳ
     const allPeriods = [...new Set(rows.map(r=>r.period))].sort();
-    const fmtPeriodLabel = p => view==='day' ? fmtShortDate(p) : p;
-    if(allPeriods.length){
-      const totalSeries = allPeriods.map(p=>{
+    let chartPeriods=allPeriods.slice();
+    let chartValues=[];
+    let chartUsesDaily=false;
+    // Khi chọn "Theo tháng" nhưng khoảng lọc chỉ có một tháng, bảng vẫn tổng
+    // hợp theo tháng còn biểu đồ tự bung chi tiết từng ngày để không chỉ có 1 điểm.
+    if(view==='month'&&allPeriods.length<=1){
+      chartUsesDaily=true;
+      chartPeriods=[...new Set(data.map(rowDate).filter(d=>d&&d>=from&&d<=to))].sort();
+      const dailyMovement=new Map();
+      data.forEach(r=>{
+        const d=rowDate(r);if(!d||d<from||d>to)return;
+        const gk=groupKeyOf(r),key=gk+'|'+d;
+        if(!dailyMovement.has(key))dailyMovement.set(key,{credit:0,debit:0,lastBal:null});
+        const x=dailyMovement.get(key);
+        if(r._src==='vt'){
+          if(Number(r.amount)>0)x.credit+=Number(r.amount)||0;
+          else x.debit+=Math.abs(Number(r.amount)||0);
+        }else{
+          x.credit+=Number(r.credit)||0;x.debit+=Number(r.debit)||0;
+        }
+        if(r.balance!=null&&Number.isFinite(Number(r.balance)))x.lastBal=Number(r.balance);
+      });
+      const carry=Object.fromEntries(groups.map(gk=>[gk,openingBal[gk]??0]));
+      chartValues=chartPeriods.map(d=>{
+        groups.forEach(gk=>{
+          const x=dailyMovement.get(gk+'|'+d);
+          if(!x)return;
+          carry[gk]=x.lastBal!=null?x.lastBal:carry[gk]+x.credit-x.debit;
+        });
+        return groups.reduce((sum,gk)=>sum+(Number(carry[gk])||0),0);
+      });
+    }else{
+      chartValues=allPeriods.map(p=>{
         let sum = 0;
         groups.forEach(gk=>{
           const series = groupSeries[gk]||[];
@@ -4191,9 +4221,14 @@ async function renderBalance(){
         });
         return sum;
       });
-      document.getElementById('bal-chart-title').textContent = fb==='ALL' ? '📈 Xu hướng tổng số dư theo thời gian' : `📈 Xu hướng số dư — ${fb}`;
-      drawLineChart('bal-chart','balChart', allPeriods.map(fmtPeriodLabel),
-        [{label:'Số dư', data: totalSeries, borderColor:'#c1652f', backgroundColor:'rgba(193,101,47,.15)'}]);
+    }
+    if(chartPeriods.length){
+      const chartLabels=chartPeriods.map(p=>chartUsesDaily?fmtShortDate(p):(view==='day'?fmtShortDate(p):p));
+      document.getElementById('bal-chart-title').textContent = chartUsesDaily
+        ?`📈 Xu hướng số dư từng ngày trong tháng ${Number(from.slice(5,7))}`
+        :(fb==='ALL'?'📈 Xu hướng tổng số dư theo thời gian':`📈 Xu hướng số dư — ${fb}`);
+      drawLineChart('bal-chart','balChart',chartLabels,
+        [{label:'Số dư',data:chartValues,borderColor:'#c1652f',backgroundColor:'rgba(193,101,47,.15)'}]);
     } else if(_charts['balChart']){
       _charts['balChart'].destroy();
     }
