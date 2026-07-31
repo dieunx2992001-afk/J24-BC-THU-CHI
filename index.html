@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-31-V89-VIETIN-DU-DAU-KY -->
+<!-- J24 BUILD 2026-07-31-V91-VIETIN-NGAY-GIA-TRI -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -3134,7 +3134,10 @@ async function handleVTFile(file){
       } else if(row[cIdx.date] instanceof Date){
         day = roundToUTCDate(row[cIdx.date]).getUTCDate(); month = roundToUTCDate(row[cIdx.date]).getUTCMonth()+1;
       }
-      VT_STAGE.push({k, content:String(content||''), amount, balance, account: accStr, branch, day, month, dateRaw: dRawFinal});
+      // valueDateRaw giữ NGUYÊN cột Ngày của sao kê Vietin để tính số dư.
+      // dateRaw có thể được điều chỉnh theo "thoi gian GD" trong nội dung và
+      // chỉ dùng cho phần đối chiếu giao dịch.
+      VT_STAGE.push({k, content:String(content||''), amount, balance, account: accStr, branch, day, month, valueDateRaw:dRaw, dateRaw: dRawFinal});
       candidate++;
     });
     const banner = document.getElementById('vt-stage-banner');
@@ -3207,12 +3210,12 @@ function renderVTRaw(){
     return true;
   });
   if(kw)source=source.filter(r=>matchesKeyword(r,kw));
-  let html='<thead><tr><th class="l">Thời gian ngân hàng</th><th>Ngày đối chiếu</th><th class="l">Tài khoản</th><th class="l">Chi nhánh</th><th class="l">Nội dung</th><th>Số tiền</th></tr></thead><tbody>';
+  let html='<thead><tr><th class="l">Ngày giá trị ngân hàng</th><th>Ngày đối chiếu</th><th class="l">Tài khoản</th><th class="l">Chi nhánh</th><th class="l">Nội dung</th><th>Số tiền</th></tr></thead><tbody>';
   source.slice(0,300).forEach(r=>{
     const ngHangDom = parseInt((r.dateRaw||'00/00').split('/')[0]);
     const changed = r.day && ngHangDom && ngHangDom!==r.day;
     html+=`<tr>
-      <td class="l" style="font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap">${r.dateRaw||''}</td>
+      <td class="l" style="font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap">${r.valueDateRaw||r.dateRaw||''}</td>
       <td style="font-weight:700;color:${changed?'var(--bad)':' var(--good)'};font-family:var(--mono)">${r.day}</td>
       <td class="l">${r.account}</td>
       <td class="l">${r.branch||'<span class="tag bad">?</span>'}</td>
@@ -4013,6 +4016,11 @@ async function renderBalance(){
     // Hàm lấy ISO date từ row (theo nguồn riêng của từng dòng)
     const rowDate = r => {
       if(r._src==='vt'){
+        // Báo cáo số dư Vietin phải bám đúng ngày ở cột ngân hàng.
+        // Không dùng r.day/r.month vì đó là ngày đối chiếu có thể đã được
+        // điều chỉnh theo nội dung giao dịch, làm chọn nhầm dòng đầu kỳ.
+        const bankDate=storageISODate(r.valueDateRaw||r.dateRaw);
+        if(bankDate)return bankDate;
         if(!r.day||!r.month) return null;
         const yr = r.dateRaw ? (r.dateRaw.match(/(\d{4})/)||[])[0] : new Date().getFullYear();
         return `${yr}-${String(r.month).padStart(2,'0')}-${String(r.day).padStart(2,'0')}`;
@@ -4029,7 +4037,7 @@ async function renderBalance(){
     // Vietin có nhiều giao dịch cùng một ngày nên chỉ so sánh YYYY-MM-DD là chưa đủ.
     const rowMoment = r => {
       const d=rowDate(r);if(!d)return '';
-      const raw=String(r.dateRaw||r.kdate||'');
+      const raw=String(r.valueDateRaw||r.dateRaw||r.kdate||'');
       const tm=raw.match(/\b(\d{1,2}):(\d{2})(?::(\d{2}))?/);
       return d+'T'+(tm
         ?`${String(tm[1]).padStart(2,'0')}:${tm[2]}:${tm[3]||'00'}`
@@ -6819,7 +6827,7 @@ function exportTPBank(){
   return {name:'TP Bank', rows};
 }
 function exportViettin(){
-  const rows = VIETTIN.map(r=>({'Ngày':r.dateRaw||'','Chi nhánh':r.branch||'','Số tài khoản':r.account||'','Số tiền':r.amount||0,'Số dư':r.balance||0,'Nội dung':r.content||''}));
+  const rows = VIETTIN.map(r=>({'Ngày giá trị':r.valueDateRaw||r.dateRaw||'','Ngày đối chiếu':r.dateRaw||'','Chi nhánh':r.branch||'','Số tài khoản':r.account||'','Số tiền':r.amount||0,'Số dư':r.balance||0,'Nội dung':r.content||''}));
   return {name:'Viettin', rows};
 }
 function exportKhoTong(){
