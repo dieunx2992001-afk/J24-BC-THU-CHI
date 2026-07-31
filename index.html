@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-31-V92-VIETIN-CAP-NHAT-NGAY-GIA-TRI -->
+<!-- J24 BUILD 2026-07-31-V93-VIETIN-TU-KHOI-PHUC-SO-DU -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -4041,7 +4041,22 @@ async function renderBalance(){
         // Không dùng r.day/r.month vì đó là ngày đối chiếu có thể đã được
         // điều chỉnh theo nội dung giao dịch, làm chọn nhầm dòng đầu kỳ.
         const bankDate=storageISODate(r.valueDateRaw||r.dateRaw);
-        if(bankDate)return bankDate;
+        if(bankDate){
+          // Dữ liệu Vietin cũ chưa lưu valueDateRaw và dateRaw đã từng bị
+          // thay bằng "thoi gian GD" trong nội dung. Giao dịch cuối ngày
+          // (20:00–23:59) được Vietin ghi giá trị sang ngày kế tiếp.
+          if(!r.valueDateRaw){
+            const em=String(r.content||'').match(/thoi gian GD\s*:\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2})/i);
+            if(em&&Number(em[4])>=20){
+              const embedded=`${em[3]}-${String(em[2]).padStart(2,'0')}-${String(em[1]).padStart(2,'0')}`;
+              if(embedded===bankDate){
+                const nd=new Date(Number(em[3]),Number(em[2])-1,Number(em[1])+1);
+                return `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}-${String(nd.getDate()).padStart(2,'0')}`;
+              }
+            }
+          }
+          return bankDate;
+        }
         if(!r.day||!r.month) return null;
         const yr = r.dateRaw ? (r.dateRaw.match(/(\d{4})/)||[])[0] : new Date().getFullYear();
         return `${yr}-${String(r.month).padStart(2,'0')}-${String(r.day).padStart(2,'0')}`;
@@ -4082,12 +4097,36 @@ async function renderBalance(){
         openingMoment[gk] = moment;
       }
     });
-    const firstMovement={};
+    const movementCandidates={};
     data.forEach(r=>{
       if(r.balance==null||isNaN(r.balance)||!r.branch)return;
       const d=rowDate(r);if(!d||d<from||d>to)return;
       const gk=groupKeyOf(r),moment=rowMoment(r);
-      if(!firstMovement[gk]||moment<firstMovement[gk].moment)firstMovement[gk]={row:r,moment};
+      (movementCandidates[gk]||(movementCandidates[gk]=[])).push({row:r,moment});
+    });
+    const firstMovement={};
+    Object.entries(movementCandidates).forEach(([gk,items])=>{
+      if(!items.length)return;
+      if(items[0].row._src==='vt'){
+        // Tìm gốc chuỗi số dư: trước mỗi giao dịch, số dư phải bằng
+        // balance - amount. Nếu số này trùng balance của một dòng khác
+        // trong cùng ngày giá trị thì dòng kia là giao dịch đứng trước.
+        const balances=new Set(items.map(x=>Math.round(Number(x.row.balance)||0)));
+        const roots=items.filter(x=>{
+          const pre=Math.round((Number(x.row.balance)||0)-(Number(x.row.amount)||0));
+          return !balances.has(pre);
+        });
+        const pool=roots.length?roots:items;
+        // Trường hợp dữ liệu thiếu một mắt xích: ưu tiên số dư trước giao
+        // dịch nhỏ nhất, rồi mới dùng giờ để phân xử.
+        firstMovement[gk]=pool.sort((a,b)=>{
+          const pa=(Number(a.row.balance)||0)-(Number(a.row.amount)||0);
+          const pb=(Number(b.row.balance)||0)-(Number(b.row.amount)||0);
+          return pa-pb||a.moment.localeCompare(b.moment);
+        })[0];
+      }else{
+        firstMovement[gk]=items.sort((a,b)=>a.moment.localeCompare(b.moment))[0];
+      }
     });
     Object.entries(firstMovement).forEach(([gk,item])=>{
       if(openingBal[gk]!=null)return;
