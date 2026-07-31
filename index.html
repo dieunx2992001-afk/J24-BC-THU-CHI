@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-30-V88-EXCEL-THEO-MAU -->
+<!-- J24 BUILD 2026-07-31-V89-VIETIN-DU-DAU-KY -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -4025,17 +4025,47 @@ async function renderBalance(){
 
     await new Promise(r=>setTimeout(r,10));
 
-    // Dư đầu kỳ — lấy balance của dòng CÓ NGÀY GẦN NHẤT trước from, theo từng nhóm
+    // Khóa thời gian đầy đủ để chọn đúng giao dịch đầu/cuối ngày.
+    // Vietin có nhiều giao dịch cùng một ngày nên chỉ so sánh YYYY-MM-DD là chưa đủ.
+    const rowMoment = r => {
+      const d=rowDate(r);if(!d)return '';
+      const raw=String(r.dateRaw||r.kdate||'');
+      const tm=raw.match(/\b(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      return d+'T'+(tm
+        ?`${String(tm[1]).padStart(2,'0')}:${tm[2]}:${tm[3]||'00'}`
+        :'00:00:00');
+    };
+
+    // Dư đầu kỳ:
+    // 1) Nếu có dữ liệu trước kỳ, lấy số dư SAU giao dịch gần nhất trước kỳ.
+    // 2) Nếu file bắt đầu ngay ngày đầu kỳ, suy ngược từ giao dịch sớm nhất:
+    //    Vietin: dư đầu = số dư sau giao dịch - số tiền có dấu.
+    //    TPBank/Kho tổng: dư đầu = số dư sau + ghi nợ - ghi có.
     const openingBal = {};
-    const openingDate = {}; // track ngày gần nhất tìm được
+    const openingMoment = {};
     data.forEach(r=>{
       if(r.balance==null || isNaN(r.balance) || !r.branch) return;
       const d = rowDate(r); if(!d || d>=from) return;
       const gk = groupKeyOf(r);
-      if(!openingDate[gk] || d > openingDate[gk]){
-        openingBal[gk] = r.balance;
-        openingDate[gk] = d;
+      const moment=rowMoment(r);
+      if(!openingMoment[gk] || moment > openingMoment[gk]){
+        openingBal[gk] = Number(r.balance);
+        openingMoment[gk] = moment;
       }
+    });
+    const firstMovement={};
+    data.forEach(r=>{
+      if(r.balance==null||isNaN(r.balance)||!r.branch)return;
+      const d=rowDate(r);if(!d||d<from||d>to)return;
+      const gk=groupKeyOf(r),moment=rowMoment(r);
+      if(!firstMovement[gk]||moment<firstMovement[gk].moment)firstMovement[gk]={row:r,moment};
+    });
+    Object.entries(firstMovement).forEach(([gk,item])=>{
+      if(openingBal[gk]!=null)return;
+      const r=item.row;
+      openingBal[gk]=r._src==='vt'
+        ?Number(r.balance)-(Number(r.amount)||0)
+        :Number(r.balance)+(Number(r.debit)||0)-(Number(r.credit)||0);
     });
 
     await new Promise(r=>setTimeout(r,10));
