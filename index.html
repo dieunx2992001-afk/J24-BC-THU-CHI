@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- J24 BUILD 2026-07-31-V91-VIETIN-NGAY-GIA-TRI -->
+<!-- J24 BUILD 2026-07-31-V92-VIETIN-CAP-NHAT-NGAY-GIA-TRI -->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -3051,8 +3051,16 @@ async function handleVTFile(file){
     const data = rows.slice(startRow).filter(r=>r && !r.every(c=>c===null));
     let candidate=0, skipped=0, dup=0;
     const existKeys = new Set(VIETTIN.map(r=>r.k));
+    // Cho phép import lại file cũ để bổ sung Ngày giá trị vào các dòng đã lưu
+    // trước phiên bản V91. Những dòng này được thay thế, không nhân đôi dữ liệu.
+    const existingByKey=new Map();
+    VIETTIN.forEach(r=>{
+      if(r.k)existingByKey.set(r.k,r);
+      existingByKey.set(String(r.content||'')+'|'+Number(r.amount||0)+'|'+Number(r.balance||0),r);
+    });
     const seenInStage = new Set();
     VT_STAGE = [];
+    let repaired=0;
 
     // Trích mã giao dịch ổn định (vd "KOVQR071MLB5N1") từ nội dung — mã này KHÔNG đổi qua các lần
     // xuất file khác nhau, trong khi toàn bộ chuỗi nội dung CÓ THỂ đổi (vd ngân hàng bổ sung thêm
@@ -3115,7 +3123,17 @@ async function handleVTFile(file){
       const k = (ref||content)+'|'+amount+'|'+balance;
       // Khoá CŨ (kiểu trước đây) — để vẫn so khớp đúng với dữ liệu đã lưu TRƯỚC khi có bản sửa này
       const kOld = content+'|'+amount+'|'+balance;
-      if(existKeys.has(k)||existKeys.has(kOld)||seenInStage.has(k)){ dup++; return; }
+      const existing=existingByKey.get(k)||existingByKey.get(kOld);
+      if(existing||seenInStage.has(k)){
+        // Bản ghi cũ chưa có valueDateRaw: nhận lại đúng cột Ngày của file
+        // rồi thay thế bản ghi cũ khi người dùng bấm Lưu.
+        if(existing&&!existing.valueDateRaw&&!seenInStage.has(k)){
+          seenInStage.add(k);
+          VT_STAGE.push({...existing,valueDateRaw:dRaw,_replaceKey:existing.k});
+          candidate++;repaired++;
+        }else dup++;
+        return;
+      }
       seenInStage.add(k);
       let day='', month='', dRawFinal = dRaw;
       if(embedM){
@@ -3145,14 +3163,17 @@ async function handleVTFile(file){
       banner.style.display='none';
       toast(`Không có dòng mới (${dup} dòng trùng, ${skipped} dòng không hợp lệ)`);
     } else {
-      document.getElementById('vt-stage-msg').textContent = `Đọc được ${candidate} dòng mới (TK ${accStr||'?'} — ${branch||'chưa rõ chi nhánh'}) — chưa lưu${dup?', bỏ qua '+dup+' dòng trùng':''}`;
+      document.getElementById('vt-stage-msg').textContent = `Đọc được ${candidate} dòng cần lưu (TK ${accStr||'?'} — ${branch||'chưa rõ chi nhánh'})${repaired?' · cập nhật Ngày giá trị cho '+repaired+' dòng cũ':''}${dup?' · bỏ qua '+dup+' dòng đã đủ dữ liệu':''}`;
       banner.style.display='flex';
     }
   }catch(err){ toast('Lỗi đọc file: '+err.message); console.error(err); }
 }
 async function saveVTStage(){
   if(VT_STAGE.length===0) return;
-  const pending=VT_STAGE.slice(),n=pending.length,next=VIETTIN.concat(pending);
+  const pending=VT_STAGE.slice(),n=pending.length;
+  const replaceKeys=new Set(pending.map(r=>r._replaceKey).filter(Boolean));
+  const cleanPending=pending.map(r=>{const x={...r};delete x._replaceKey;return x;});
+  const next=VIETTIN.filter(r=>!replaceKeys.has(r.k)).concat(cleanPending);
   const ok = await sset('viettin:list', next, {importedCount:n});
   if(!ok){
     document.getElementById('vt-stage-msg').textContent=`Chưa lưu được ${n} dòng. Lý do: ${window._lastSaveError||'kết nối SQL bị gián đoạn'}. Dữ liệu vẫn đang chờ — hãy bấm Lưu lại.`;
@@ -3160,7 +3181,7 @@ async function saveVTStage(){
     return;
   }
   VIETTIN=next;VT_STAGE=[];
-  window._vtLastImportKeys = new Set(pending.map(r=>r.k)); // lưu lại để undo
+  window._vtLastImportKeys = new Set(cleanPending.map(r=>r.k)); // lưu lại để undo
   document.getElementById('vt-stage-banner').style.display='none';
   toast('✓ Đã lưu '+n+' dòng Viettin'+(STORAGE_MODE==='turso'?' (SQL)':' (Local)')+' — bấm "↩ Xóa lần import cuối" nếu muốn hoàn tác');
   renderVTCount(); renderVTRaw(); renderVTRecon();
